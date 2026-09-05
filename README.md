@@ -135,6 +135,18 @@ createdb ironvow_test
 TEST_DATABASE_URL=postgresql://localhost/ironvow_test pnpm test
 ```
 
+## Optional services
+
+Two features degrade to off rather than failing:
+
+- **Email.** `MAIL_TRANSPORT=console` writes login links to the log for local
+  development; production refuses to start with it. `smtp` needs `SMTP_HOST`,
+  and the server refuses to start without one rather than dropping mail.
+- **Push notifications.** With no `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` the
+  feature is off and every send is a no-op, so the game runs identically.
+  Generate a pair with `npx web-push generate-vapid-keys`. Notifications should
+  never be load-bearing.
+
 ## Operations
 
 `GET /ops/divergence` and `GET /ops/health` are guarded by a bearer token in

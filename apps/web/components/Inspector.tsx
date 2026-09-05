@@ -21,10 +21,12 @@ export interface InspectorProps {
   onMove: () => void;
   onCollect: () => void;
   onFinish: () => void;
+  onDemolish: () => void;
+  onCancel: () => void;
 }
 
 export function Inspector({
-  player, building, onClose, onUpgrade, onMove, onCollect, onFinish,
+  player, building, onClose, onUpgrade, onMove, onCollect, onFinish, onDemolish, onCancel,
 }: InspectorProps) {
   const def = TYPES[building.type];
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
@@ -64,6 +66,8 @@ export function Inspector({
           >
             FINISH · {fmt(rushCost)}
           </button>
+          {/* Nothing has been consumed yet, so stopping costs nothing. */}
+          <button className="btn red" onClick={onCancel}>CANCEL</button>
           <button className="btn grey" onClick={onClose}>CLOSE</button>
         </div>
       </div>
@@ -112,6 +116,11 @@ export function Inspector({
               : <>UPGRADE {cost.g > 0 && <><GoldIcon />{fmt(cost.g)}</>}{cost.i > 0 && <><IronIcon />{fmt(cost.i)}</>}</>}
         </button>
         {!isKeep && <button className="btn grey" onClick={onMove}>MOVE</button>}
+        {/*
+          Without this a misplaced building is permanent, and because count
+          limits are per Keep level, a wrong choice spends that slot for good.
+        */}
+        {!isKeep && <button className="btn red" onClick={onDemolish}>DEMOLISH</button>}
         <button className="btn grey" onClick={onClose}>CLOSE</button>
       </div>
     </div>

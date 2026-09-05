@@ -126,6 +126,20 @@ export function collectStock({ gold, iron, buildings, buildingId }: CollectInput
   return { gold: g, iron: i, cleared, collected, wasted };
 }
 
+export interface GrantResult {
+  gold: bigint;
+  iron: bigint;
+  /**
+   * What the storage clamp threw away.
+   *
+   * Reported rather than swallowed. Prototype bug #1 was a collection silently
+   * discarded against a full purse, and a refund or a quest reward vanishing
+   * the same way is the same bug wearing a different hat — the player is owed
+   * the news that their Vaults are the reason.
+   */
+  wasted: { gold: number; iron: number };
+}
+
 /** Credit a reward, clamped to storage. Never lets a balance exceed capacity. */
 export function grant(
   gold: bigint,
@@ -133,9 +147,15 @@ export function grant(
   addGold: number,
   addIron: number,
   buildings: readonly { type: BuildingType; level: number }[],
-): { gold: bigint; iron: bigint } {
+): GrantResult {
   const cap = BigInt(storageCapOf(buildings));
   const g = gold + BigInt(Math.max(0, Math.floor(addGold)));
   const i = iron + BigInt(Math.max(0, Math.floor(addIron)));
-  return { gold: g > cap ? cap : g, iron: i > cap ? cap : i };
+  const clampedG = g > cap ? cap : g;
+  const clampedI = i > cap ? cap : i;
+  return {
+    gold: clampedG,
+    iron: clampedI,
+    wasted: { gold: Number(g - clampedG), iron: Number(i - clampedI) },
+  };
 }

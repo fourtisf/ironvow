@@ -28,6 +28,17 @@ const schema = z.object({
    * attacker exactly how close their forged client is to matching.
    */
   OPS_TOKEN: z.string().min(16).optional(),
+
+  /**
+   * Web Push keys. Generate with `npx web-push generate-vapid-keys`.
+   *
+   * Entirely optional: without them push is off and every send is a no-op, so
+   * the game runs identically. That is deliberate — notifications should never
+   * be load-bearing.
+   */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:ops@ironvow.example.com'),
 });
 
 export type Env = z.infer<typeof schema>;

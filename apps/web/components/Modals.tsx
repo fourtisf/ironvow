@@ -286,3 +286,61 @@ export function ClaimModal({ sent, busy, error, onSubmit, onClose }: ClaimModalP
     </div>
   );
 }
+
+
+export interface ConfirmModalProps {
+  title: string;
+  lead: string;
+  confirmLabel: string;
+  /** When set, the player must type this exactly. Used for anything with no undo. */
+  requireTyped?: string;
+  danger?: boolean;
+  busy?: boolean;
+  error?: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * One confirmation for anything that cannot be taken back.
+ *
+ * `requireTyped` is reserved for deleting an account: a two-tap confirmation is
+ * fine for demolishing a mine and nowhere near enough for erasing a hold
+ * somebody spent a month on.
+ */
+export function ConfirmModal({
+  title, lead, confirmLabel, requireTyped, danger, busy, error, onConfirm, onCancel,
+}: ConfirmModalProps) {
+  const [typed, setTyped] = useState('');
+  const ready = !requireTyped || typed.trim() === requireTyped;
+
+  return (
+    <div className="ovl">
+      <div className="modal">
+        <h2>{title}</h2>
+        <p className="lead">{lead}</p>
+
+        {requireTyped && (
+          <input
+            value={typed}
+            onChange={(e) => setTyped(e.currentTarget.value)}
+            placeholder={requireTyped}
+            aria-label={`Type ${requireTyped} to confirm`}
+            style={inputStyle}
+          />
+        )}
+
+        <button
+          className={`btn big${danger ? ' red' : ' gold'}${ready ? '' : ' grey'}`}
+          onClick={onConfirm}
+          disabled={!ready || busy}
+        >
+          {busy ? 'WORKING…' : confirmLabel}
+        </button>
+        <button className="btn grey big" onClick={onCancel}>BACK</button>
+
+        {error && <p className="lead" style={{ color: '#ff7a63', marginTop: 10 }}>{error}</p>}
+      </div>
+    </div>
+  );
+}

@@ -31,10 +31,11 @@ import { BattleHud } from './BattleHud';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
-import { ClaimModal, ResultModal, ScoutModal, SignInModal } from './Modals';
+import { ClaimModal, ConfirmModal, ResultModal, ScoutModal, SignInModal } from './Modals';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
-import { SettingsSheet, type Quality } from './Settings';
+import { SettingsSheet, type LayoutSlot, type Quality } from './Settings';
+import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Toast } from './Toast';
 
 /**
@@ -76,6 +77,14 @@ export function Game() {
   const [musicLevel, setMusicLevel] = useState(0.35);
   const [quality, setQuality] = useState<Quality>('high');
   const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
+  const [push, setPush] = useState<PushState>('off');
+  const [layouts, setLayouts] = useState<LayoutSlot[]>([]);
+  const [busy, setBusy] = useState(false);
+  /** Anything with no undo goes through one confirmation. */
+  const [confirm, setConfirm] = useState<{
+    title: string; lead: string; label: string; danger?: boolean;
+    requireTyped?: string; run: () => void;
+  } | null>(null);
   /** Bumped once a frame while a battle runs, so the battle HUD tracks it. */
   const [battleTick, setBattleTick] = useState(0);
 
@@ -180,6 +189,8 @@ export function Game() {
     void api.incoming().then((r) => setIncoming(r.raids)).catch(() => undefined);
     void loadQuests();
     void loadProgression();
+    void pushState().then(setPush).catch(() => undefined);
+    void api.layouts().then((r) => setLayouts(r.layouts)).catch(() => undefined);
     // The server settles production lazily, so a periodic re-read is what keeps
     // the HUD honest without a socket.
     const timer = setInterval(() => { void refresh(); }, 30_000);
@@ -344,6 +355,43 @@ export function Game() {
     if (worldRef.current) showPreview(worldRef.current, found.snapshot);
   }, [runCommand]);
 
+  const demolish = useCallback((buildingId: string) => {
+    const b = player?.buildings.find((x) => x.id === buildingId);
+    if (!b) return;
+    setConfirm({
+      title: `TEAR DOWN THE ${TYPES[b.type].n.toUpperCase()}?`,
+      lead: 'Half of everything that went into it comes back, and the slot it '
+        + 'was using is free again. The building itself is gone.',
+      label: 'DEMOLISH',
+      danger: true,
+      run: () => {
+        setConfirm(null);
+        setSelectedId(null);
+        void runCommand(() => api.demolish(buildingId)).then((r) => {
+          if (!r) return;
+          sfx.boom();
+          say(`Refunded ${fmt(r.refund.g)} gold, ${fmt(r.refund.i)} iron`);
+          if (r.wasted.gold + r.wasted.iron > 0) say('Storage was full — some of the refund was lost');
+        });
+      },
+    });
+  }, [player, runCommand, say]);
+
+  const cancelBuild = useCallback((buildingId: string) => {
+    void runCommand(() => api.cancelBuild(buildingId)).then((r) => {
+      if (!r) return;
+      sfx.tap();
+      say(r.removes ? 'Build cancelled and refunded' : 'Upgrade cancelled and refunded');
+      setSelectedId(null);
+    });
+  }, [runCommand, say]);
+
+  const cancelTraining = useCallback((jobId: string) => {
+    void runCommand(() => api.cancelTraining(jobId)).then((r) => {
+      if (r) { sfx.tap(); say(`Refunded ${fmt(r.refund.g)} gold`); }
+    });
+  }, [runCommand, say]);
+
   const loadLadder = useCallback(async () => {
     try {
       setLadder(await api.leaderboard());
@@ -360,6 +408,39 @@ export function Game() {
     setSelectedId(null);
     if (worldRef.current) showPreview(worldRef.current, found.snapshot);
   }, [runCommand, player, say]);
+
+  /**
+   * A practice wave against your own hold.
+   *
+   * The simulation has supported defending since it was written and nothing
+   * ever called it. Nothing is at stake here — no loot, no trophies, no record
+   * — because the point is to find out whether a layout holds before somebody
+   * else finds out for you.
+   */
+  const drill = useCallback(async () => {
+    const world = worldRef.current;
+    if (!world) return;
+    try {
+      const d = await api.defend();
+      applyPlayer(d.player);
+      setSheet(null);
+      setSelectedId(null);
+      beginBattle(world, {
+        raidId: '',
+        seed: d.seed,
+        snapshot: d.snapshot,
+        army: d.army,
+        hero: d.hero,
+        troopLevels: d.troopLevels,
+        expiresAt: new Date().toISOString(),
+        rerollCost: 0,
+      }, 'defend');
+      setModeState('battle');
+      say('Hold the line — your defences are firing');
+    } catch {
+      say('Could not start a drill');
+    }
+  }, [applyPlayer, say]);
 
   const attack = useCallback(() => {
     const world = worldRef.current;
@@ -380,6 +461,7 @@ export function Game() {
     if (!world || !world.raid || !world.battle) return;
     const local = world.battle.result();
     const raidId = world.raid.raidId;
+    const isDrill = raidId === '';
 
     setOutcome({
       stars: local.stars,
@@ -394,6 +476,22 @@ export function Game() {
     world.battle = null;
     world.raid = null;
     centerOnKeep(world);
+
+    /*
+     * A drill has no raid row and nothing to settle. Ending it locally is the
+     * whole point: nothing was at stake, so there is nothing to write down.
+     */
+    if (isDrill) {
+      setOutcome({
+        stars: local.stars,
+        destroyedPct: local.destroyedPct,
+        loot: { g: 0, i: 0 },
+        trophyDelta: 0,
+        commands,
+        pending: false,
+      });
+      return;
+    }
 
     const settled = await runCommand(() =>
       api.submitRaid(raidId, commands, local.checksum, local.stars));
@@ -584,6 +682,8 @@ export function Game() {
             setModeState('place');
           }}
           onCollect={() => { void collect(selected.id); }}
+          onDemolish={() => demolish(selected.id)}
+          onCancel={() => cancelBuild(selected.id)}
         />
       )}
 
@@ -616,6 +716,7 @@ export function Game() {
           progression={progression}
           onClose={() => setSheet(null)}
           onTrain={(type, count) => { void runCommand(() => api.train(type, count)); }}
+          onCancelJob={cancelTraining}
           onUpgradeHero={() => {
             void runCommand(() => api.upgradeHero()).then((r) => {
               if (r) { sfx.up(); say(`Hero raised to rank ${r.toLevel}`); void loadProgression(); }
@@ -674,6 +775,73 @@ export function Game() {
               // Falls back to full quality next session.
             }
           }}
+          push={push}
+          layouts={layouts}
+          busy={busy}
+          onPush={(on) => {
+            setBusy(true);
+            const work = on ? enablePush() : disablePush();
+            void work
+              .then((next) => {
+                setPush(next);
+                if (next === 'on') say('Notifications on');
+                if (next === 'denied') say('Your browser is blocking notifications');
+              })
+              .catch(() => say('Could not change notifications'))
+              .finally(() => setBusy(false));
+          }}
+          onTestPush={() => {
+            setBusy(true);
+            void api.pushTest()
+              .then((r) => say(r.sent > 0 ? 'Sent — check your notifications' : 'No device registered'))
+              .catch(() => say('Could not send'))
+              .finally(() => setBusy(false));
+          }}
+          onSaveLayout={(slot) => {
+            setBusy(true);
+            void api.saveLayout(slot)
+              .then((r) => { sfx.up(); say(`Saved ${r.buildings} buildings`); return api.layouts(); })
+              .then((r) => setLayouts(r.layouts))
+              .catch(() => say('Could not save that layout'))
+              .finally(() => setBusy(false));
+          }}
+          onApplyLayout={(slot) => {
+            setBusy(true);
+            void runCommand(() => api.applyLayout(slot))
+              .then((r) => {
+                if (!r) return;
+                sfx.place();
+                say(r.moved === 0 ? 'Already in that arrangement' : `Moved ${r.moved} buildings`);
+              })
+              .finally(() => setBusy(false));
+          }}
+          onRename={() => {
+            const next = window.prompt('Name your hold', player.name);
+            if (!next || next.trim() === player.name) return;
+            void api.rename(next.trim())
+              .then(() => { sfx.up(); say('Renamed'); return refresh(); })
+              .catch((e: unknown) => say(
+                e instanceof ApiError && e.code === 'nameTaken'
+                  ? 'Somebody already holds that name'
+                  : 'That name will not do',
+              ));
+          }}
+          onDeleteAccount={() => {
+            setConfirm({
+              title: 'DELETE THIS HOLD?',
+              lead: 'Everything goes: buildings, troops, trophies, raid history. '
+                + 'Type your hold’s name to confirm. There is no way back.',
+              label: 'DELETE FOREVER',
+              danger: true,
+              requireTyped: player.name,
+              run: () => {
+                setConfirm(null);
+                void api.deleteAccount(player.name)
+                  .then(() => { stopMusic(); setSignedIn(false); setPlayer(null); })
+                  .catch(() => say('Could not delete the account'));
+              },
+            });
+          }}
           onClaimAccount={() => { setClaimOpen(true); setClaimSent(false); setClaimError(null); }}
           onLogout={() => {
             void api.logout().then(() => {
@@ -690,6 +858,7 @@ export function Game() {
         <LogSheet
           raids={incoming}
           onRevenge={(id) => { void revenge(id); }}
+          onDrill={() => { void drill(); }}
           onClose={() => setSheet(null)}
           onReplay={(raidId) => {
             void api.replay(raidId).then((r) => {
@@ -751,6 +920,18 @@ export function Game() {
               .finally(() => setSignInBusy(false));
           }}
           onClose={() => setClaimOpen(false)}
+        />
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          title={confirm.title}
+          lead={confirm.lead}
+          confirmLabel={confirm.label}
+          danger={confirm.danger}
+          requireTyped={confirm.requireTyped}
+          onConfirm={confirm.run}
+          onCancel={() => setConfirm(null)}
         />
       )}
 

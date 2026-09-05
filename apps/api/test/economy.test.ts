@@ -158,12 +158,23 @@ describe('collection', () => {
 });
 
 describe('grants', () => {
-  it('clamps a raid payout to capacity and refuses a negative one', () => {
+  it('clamps a raid payout to capacity and reports what it threw away', () => {
     const owned = [{ type: 'keep' as const, level: 1 }];
-    expect(grant(0n, 0n, 999_999, 999_999, owned)).toEqual({
-      gold: BigInt(BASE_STORAGE), iron: BigInt(BASE_STORAGE),
-    });
-    expect(grant(100n, 100n, -500, -500, owned)).toEqual({ gold: 100n, iron: 100n });
+    const over = grant(0n, 0n, 999_999, 999_999, owned);
+    expect(over.gold).toBe(BigInt(BASE_STORAGE));
+    expect(over.iron).toBe(BigInt(BASE_STORAGE));
+    // The overflow is surfaced rather than swallowed: a payout that vanishes
+    // against a full purse is prototype bug #1 in a different coat.
+    expect(over.wasted.gold).toBe(999_999 - BASE_STORAGE);
+    expect(over.wasted.iron).toBe(999_999 - BASE_STORAGE);
+  });
+
+  it('refuses a negative payout and reports no waste', () => {
+    const owned = [{ type: 'keep' as const, level: 1 }];
+    const nothing = grant(100n, 100n, -500, -500, owned);
+    expect(nothing.gold).toBe(100n);
+    expect(nothing.iron).toBe(100n);
+    expect(nothing.wasted).toEqual({ gold: 0, iron: 0 });
   });
 });
 

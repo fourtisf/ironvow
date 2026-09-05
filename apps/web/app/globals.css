@@ -14,7 +14,15 @@
   .hide{display:none!important}
 
   /* ---------- HUD ---------- */
-  #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+  /*
+   The HUD sits above the inspector on purpose.
+   The inspector is z-15 and anchored just above the rail, so any growth in it
+   — a longer building name, a wrapped line — put it over the rail buttons and,
+   being higher in the stack, it silently swallowed taps meant for BUILD or
+   RAID. The rail is the primary navigation; it should always win a contested
+   tap. #hud is pointer-events:none, so raising it blocks nothing.
+*/
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:17}
   #hud > *{pointer-events:auto}
 
   .res{position:absolute;top:calc(9px + env(safe-area-inset-top));display:flex;align-items:center;gap:7px;
@@ -224,7 +232,7 @@
   .card .cost svg{width:13px;height:13px}
   .lootRow svg{width:19px;height:19px}
   /* The inspector must never grow tall enough to swallow the field. */
-  #insp{max-height:34vh}
+  #insp{max-height:34vh;bottom:calc(84px + env(safe-area-inset-bottom))}
   #insp .acts{max-width:46%}
   #insp .acts .btn{white-space:nowrap;display:flex;align-items:center;gap:4px;justify-content:center}
 

@@ -50,6 +50,8 @@ model Player {
   claimedQuests String[] @default([])
 
   buildings  Building[]
+  layouts    Layout[]
+  pushSubs   PushSubscription[]
   troops     Troop[]
   queue      TrainJob[]
   raidsMade  Raid[]     @relation("attacker")
@@ -74,6 +76,8 @@ model Building {
   /// When the builder finishes with this building. Null means idle, and a
   /// non-null value is what occupies one of the player's three builders.
   completesAt DateTime?
+  /// When the player was told this job finished, so it is announced once.
+  notifiedAt DateTime?
   /// The level this becomes when the timer runs out.
   ///
   /// Null while a brand-new building is still going up, which is how a fresh
@@ -86,6 +90,49 @@ model Building {
   @@index([playerId])
   @@index([playerId, type])
   @@index([playerId, completesAt])
+}
+
+/// A saved arrangement of a player's buildings (spec S8.7).
+///
+/// Stores positions only, never the buildings themselves: a layout applied
+/// weeks later must move the base the player has now, not resurrect the one
+/// they had then. Ids that no longer exist are skipped on apply.
+model Layout {
+  id        String   @id @default(cuid())
+  playerId  String
+  /// defence | farming — two slots, as the specification asks for.
+  slot      String
+  name      String
+  /// [{ id, gx, gy }] for every building at the moment it was saved.
+  positions Json
+  savedAt   DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, slot])
+  @@index([playerId])
+}
+
+/// A browser push endpoint (spec S8.4: notifications for finished builds and
+/// incoming raids).
+///
+/// One row per device, because the same account on a phone and a laptop is two
+/// endpoints. A push that comes back 404 or 410 means the browser has thrown
+/// the subscription away, and the row goes with it.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  playerId  String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  /// Set when the player last had a build or raid pushed to them, so a quiet
+  /// period is distinguishable from a broken subscription.
+  lastSentAt DateTime?
+  createdAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
 }
 
 model Troop {

@@ -105,7 +105,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
    * keeping.
    */
   app.post('/auth/guest', {
-    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+    /*
+     * Per IP, and deliberately not tighter than this.
+     *
+     * Mass account creation is the abuse to stop, but a shared connection — a
+     * family, a cafe, a campus — can legitimately produce several new players
+     * in an hour, and a refused PLAY NOW is the worst possible first
+     * impression. Ten is enough to blunt a script without punishing a
+     * household.
+     */
+    config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
   }, async (request, reply) => {
     const existing = await playerIdFromRequest(request);
     if (existing) return reply.send({ ok: true, playerId: existing });
@@ -149,6 +158,59 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/auth/logout', async (request, reply) => {
+    await revokeSession(request, reply);
+    return reply.send({ ok: true });
+  });
+
+  /**
+   * Rename a hold.
+   *
+   * A guest is handed a generated name, and being stuck with one you dislike
+   * for the life of the account is a small thing that stays annoying. Rate
+   * limited because a name is public and visible on the ladder.
+   */
+  app.post('/account/name', {
+    preHandler: requireAuth,
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+  }, async (request, reply) => {
+    const parsed = z.object({ name: z.string().min(2).max(24) }).safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badName' });
+
+    const name = parsed.data.name.trim();
+    if (!NAME_RE.test(name)) return reply.code(400).send({ error: 'badName' });
+
+    const taken = await prisma.player.findUnique({ where: { name }, select: { id: true } });
+    if (taken && taken.id !== request.playerId) return reply.code(409).send({ error: 'nameTaken' });
+
+    await prisma.player.update({ where: { id: request.playerId! }, data: { name } });
+    return reply.send({ ok: true, name });
+  });
+
+  /**
+   * Delete the account and everything in it.
+   *
+   * Every relation cascades from Player, so the base, troops, queue, sessions
+   * and login links all go with it. Raids the player made or took go too, which
+   * is the right call: a raid record naming a player who has asked to be
+   * forgotten is still a record of them.
+   *
+   * Requires the player's own name as confirmation, because this is the one
+   * button in the game with no undo.
+   */
+  app.delete('/account', { preHandler: requireAuth }, async (request, reply) => {
+    const parsed = z.object({ confirmName: z.string().min(1).max(24) }).safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const player = await prisma.player.findUnique({
+      where: { id: request.playerId! },
+      select: { name: true },
+    });
+    if (!player) return reply.code(404).send({ error: 'noSuchPlayer' });
+    if (player.name !== parsed.data.confirmName.trim()) {
+      return reply.code(409).send({ error: 'nameMismatch' });
+    }
+
+    await prisma.player.delete({ where: { id: request.playerId! } });
     await revokeSession(request, reply);
     return reply.send({ ok: true });
   });

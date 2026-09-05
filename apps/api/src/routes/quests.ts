@@ -81,11 +81,17 @@ export async function questRoutes(app: FastifyInstance): Promise<void> {
       return {
         ok: true as const,
         reward: quest.reward,
+        // A reward lost to a full Vault is worth telling the player about.
+        wasted: credited.wasted,
         player: await settleAndLoad(tx, player.id),
       };
     }, COMMAND_TX);
 
     if (!result.ok) return reply.code(409).send({ error: result.error });
-    return reply.send({ reward: result.reward, player: serialise(result.player) });
+    return reply.send({
+      reward: result.reward,
+      wasted: result.wasted,
+      player: serialise(result.player),
+    });
   });
 }

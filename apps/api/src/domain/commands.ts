@@ -2,6 +2,9 @@ import {
   KEEP_MAX,
   buildSeconds,
   buildersFree,
+  canDemolish,
+  cancelRefund,
+  demolishRefund,
   isBusy,
   TROOP,
   TROOP_UNLOCK,
@@ -70,7 +73,9 @@ export type CommandError =
   | 'noSuchTroop'
   | 'noBuilderFree'
   | 'alreadyBusy'
-  | 'notBusy';
+  | 'notBusy'
+  | 'cannotDemolishKeep'
+  | 'noSuchJob';
 
 export type Verdict<T> = { ok: true; value: T } | { ok: false; error: CommandError };
 
@@ -191,6 +196,76 @@ export function planMove(player: PlayerView, buildingId: string, gx: number, gy:
   return pass({ buildingId, gx, gy });
 }
 
+/* ------------------------------------------------------------- demolish --- */
+
+export interface DemolishPlan {
+  buildingId: string;
+  type: BuildingType;
+  level: number;
+  refund: Cost;
+}
+
+/**
+ * Tear a building down for half of what went into it.
+ *
+ * Without this a misplaced building is permanent, and because count limits are
+ * per Keep level, a wrong choice at Keep 1 spends that slot for good. A base
+ * you cannot fix is worse than one you built badly.
+ *
+ * The refund counts the upgrades too, so demolishing a level 9 Cannon is not
+ * worth the same as a level 1 one.
+ */
+export function planDemolish(player: PlayerView, buildingId: string): Verdict<DemolishPlan> {
+  const b = player.buildings.find((x) => x.id === buildingId);
+  if (!b) return fail('unknownBuilding');
+  if (!canDemolish(b.type)) return fail('cannotDemolishKeep');
+  // A builder mid-job would be left working on nothing.
+  if (isBusy(timed(b))) return fail('alreadyBusy');
+
+  const owned = countOf(player.buildings.map((x) => ({ type: x.type, level: x.level })), b.type);
+  const refund = demolishRefund(b.type, b.level, Math.max(0, owned - 1));
+
+  return pass({ buildingId, type: b.type, level: b.level, refund });
+}
+
+/* --------------------------------------------------------------- cancel --- */
+
+export interface CancelBuildPlan {
+  buildingId: string;
+  type: BuildingType;
+  /** True when the whole building disappears, false when only the upgrade stops. */
+  removes: boolean;
+  refund: Cost;
+}
+
+/**
+ * Stop a builder and get everything back.
+ *
+ * Nothing has been consumed — the builder simply puts its tools down — so
+ * charging for a change of mind inside the first few seconds would be a small
+ * meanness players remember. A cancelled fresh build takes the building with
+ * it; a cancelled upgrade leaves it at the level it was already working at.
+ */
+export function planCancelBuild(player: PlayerView, buildingId: string): Verdict<CancelBuildPlan> {
+  const b = player.buildings.find((x) => x.id === buildingId);
+  if (!b) return fail('unknownBuilding');
+  if (!isBusy(timed(b))) return fail('notBusy');
+
+  const owned = countOf(player.buildings.map((x) => ({ type: x.type, level: x.level })), b.type);
+  const upgrading = b.upgradingTo != null;
+
+  const spent = upgrading
+    ? costOf(b.type, b.level, Math.max(0, owned - 1))
+    : costOf(b.type, 0, Math.max(0, owned - 1));
+
+  return pass({
+    buildingId,
+    type: b.type,
+    removes: !upgrading,
+    refund: cancelRefund(spent),
+  });
+}
+
 /* ---------------------------------------------------------------- train --- */
 
 export interface TrainPlan {
@@ -233,4 +308,6 @@ export const ERROR_MESSAGE: Record<CommandError, string> = {
   noBuilderFree: 'Every builder is busy.',
   alreadyBusy: 'A builder is already working on that.',
   notBusy: 'Nothing is being built there.',
+  cannotDemolishKeep: 'The Keep is the hold. It does not come down.',
+  noSuchJob: 'That job is not in your queue.',
 };

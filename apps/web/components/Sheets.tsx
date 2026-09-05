@@ -103,10 +103,11 @@ export interface ArmySheetProps {
   onTrain: (type: TroopType, count: number) => void;
   onUpgradeHero: () => void;
   onUpgradeTroop: (type: TroopType) => void;
+  onCancelJob: (jobId: string) => void;
 }
 
 export function ArmySheet({
-  player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop,
+  player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop, onCancelJob,
 }: ArmySheetProps) {
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   const barracks = bestBarracksLevel(owned);
@@ -266,12 +267,18 @@ export function ArmySheet({
                 <h4>{TROOP[job.type].n}</h4>
                 <p>ready in {until(job.finishesAt, now)}</p>
               </div>
+              {/* Nothing has been mustered yet, so taking it back costs nothing. */}
+              <button className="btn grey" onClick={() => onCancelJob(job.id)}>CANCEL</button>
             </div>
           ))}
         </>
       )}
     </div>
   );
+}
+
+export interface DefendPromptProps {
+  onDrill: () => void;
 }
 
 export interface LogSheetProps {
@@ -288,9 +295,10 @@ export interface LogSheetProps {
   onClose: () => void;
   onReplay: (raidId: string) => void;
   onRevenge: (raidId: string) => void;
+  onDrill: () => void;
 }
 
-export function LogSheet({ raids, onClose, onReplay, onRevenge }: LogSheetProps) {
+export function LogSheet({ raids, onClose, onReplay, onRevenge, onDrill }: LogSheetProps) {
   return (
     <div className="sheet">
       <div className="sheetHead">
@@ -299,6 +307,18 @@ export function LogSheet({ raids, onClose, onReplay, onRevenge }: LogSheetProps)
           <p>Watch any raid back exactly as it happened, then answer it</p>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
+      </div>
+
+      {/*
+        A drill against your own walls. Better to find out your layout does not
+        hold while nothing is at stake than to read it in this log afterwards.
+      */}
+      <div className="qrow" style={{ borderColor: '#e8b23c' }}>
+        <div className="qi">
+          <h4>Test your defences</h4>
+          <p>Send a practice wave at your own hold. Nothing is at stake.</p>
+        </div>
+        <button className="btn gold" onClick={onDrill}>DRILL</button>
       </div>
 
       {raids.length === 0 && (

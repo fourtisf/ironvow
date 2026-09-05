@@ -12,7 +12,7 @@ import {
 import { createBattle, type Battle } from '@ironvow/sim';
 import { type Camera, centerOn, clampCam, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
-import type { BaseSnapshot, DeployableType, DeployCommand } from '@ironvow/types';
+import type { BaseSnapshot, BattleKind, DeployableType, DeployCommand } from '@ironvow/types';
 import type { FloatingText, Mode, Placement, PlayerState, ScoutedRaid } from './types';
 
 /**
@@ -192,7 +192,7 @@ export function bump(w: World, buildingId: string): void {
 
 /* --------------------------------------------------------------- battle --- */
 
-export function beginBattle(w: World, raid: ScoutedRaid): void {
+export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'raid'): void {
   w.raid = raid;
   w.battleCommands = [];
   w.battle = createBattle(
@@ -201,6 +201,7 @@ export function beginBattle(w: World, raid: ScoutedRaid): void {
       commands: [],
       army: raid.army,
       seed: raid.seed,
+      kind,
       // The loadout the server froze when the raid opened, not whatever the
       // player has upgraded to since.
       hero: raid.hero,

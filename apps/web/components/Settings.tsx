@@ -11,19 +11,45 @@
 
 export type Quality = 'high' | 'low';
 
+export type PushState = 'unsupported' | 'unavailable' | 'denied' | 'off' | 'on';
+
+export interface LayoutSlot {
+  slot: 'defence' | 'farming';
+  name: string;
+  saved: boolean;
+  buildings: number;
+}
+
 export interface SettingsSheetProps {
   music: number;
   sfx: number;
   quality: Quality;
   isGuest: boolean;
   playerName: string;
+  push: PushState;
+  layouts: LayoutSlot[];
+  busy: boolean;
   onMusic: (value: number) => void;
   onSfx: (value: number) => void;
   onQuality: (value: Quality) => void;
+  onPush: (on: boolean) => void;
+  onTestPush: () => void;
+  onSaveLayout: (slot: string) => void;
+  onApplyLayout: (slot: string) => void;
+  onRename: () => void;
   onClaimAccount: () => void;
   onLogout: () => void;
+  onDeleteAccount: () => void;
   onClose: () => void;
 }
+
+const PUSH_COPY: Record<PushState, string> = {
+  unsupported: 'This browser cannot show notifications.',
+  unavailable: 'Not configured on this server.',
+  denied: 'Blocked in your browser settings — you would need to allow it there first.',
+  off: 'Off — you will not hear about finished builds or raids.',
+  on: 'On — finished builds and raids on your hold.',
+};
 
 function Slider({
   label, hint, value, onChange,
@@ -53,9 +79,11 @@ function Slider({
 }
 
 export function SettingsSheet({
-  music, sfx, quality, isGuest, playerName,
-  onMusic, onSfx, onQuality, onClaimAccount, onLogout, onClose,
+  music, sfx, quality, isGuest, playerName, push, layouts, busy,
+  onMusic, onSfx, onQuality, onPush, onTestPush, onSaveLayout, onApplyLayout,
+  onRename, onClaimAccount, onLogout, onDeleteAccount, onClose,
 }: SettingsSheetProps) {
+  const canPush = push !== 'unsupported' && push !== 'unavailable' && push !== 'denied';
   return (
     <div className="sheet">
       <div className="sheetHead">
@@ -86,6 +114,73 @@ export function SettingsSheet({
         </button>
       </div>
 
+      <div className="setRow">
+        <div className="setLabel">
+          <h4>NOTIFICATIONS</h4>
+          <p>{PUSH_COPY[push]}</p>
+        </div>
+        {canPush ? (
+          <button
+            className={`btn${push === 'on' ? '' : ' grey'}`}
+            disabled={busy}
+            onClick={() => onPush(push !== 'on')}
+          >
+            {push === 'on' ? 'ON' : 'OFF'}
+          </button>
+        ) : (
+          <span className="qrw">—</span>
+        )}
+      </div>
+
+      {push === 'on' && (
+        <div className="setRow">
+          <div className="setLabel">
+            <h4>TEST IT</h4>
+            <p>Send one to this device, so you know it works before relying on it.</p>
+          </div>
+          <button className="btn grey" onClick={onTestPush} disabled={busy}>SEND</button>
+        </div>
+      )}
+
+      {/*
+        Saved layouts (S8.7). One arrangement rings the Keep and the Vaults;
+        the other pushes the mines out where they are cheap to give away, so a
+        raider takes resources instead of stars.
+      */}
+      <div className="sheetHead" style={{ marginTop: 14 }}>
+        <div>
+          <h2>LAYOUTS</h2>
+          <p>Two arrangements you can switch between</p>
+        </div>
+      </div>
+
+      {layouts.map((l) => (
+        <div className="qrow" key={l.slot}>
+          <div className="qi">
+            <h4>{l.name}</h4>
+            <p>
+              {l.saved
+                ? `${l.buildings} buildings saved — anything demolished since is skipped`
+                : 'Nothing saved yet'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 'none' }}>
+            <button className="btn grey" disabled={busy} onClick={() => onSaveLayout(l.slot)}>SAVE</button>
+            {l.saved && (
+              <button className="btn" disabled={busy} onClick={() => onApplyLayout(l.slot)}>APPLY</button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      <div className="qrow" style={{ marginTop: 12 }}>
+        <div className="qi">
+          <h4>Name</h4>
+          <p>Shown on the ladder and to anyone who raids you.</p>
+        </div>
+        <button className="btn grey" onClick={onRename}>CHANGE</button>
+      </div>
+
       {isGuest && (
         <div className="qrow" style={{ marginTop: 12 }}>
           <div className="qi">
@@ -106,6 +201,18 @@ export function SettingsSheet({
           </p>
         </div>
         <button className="btn red" onClick={onLogout}>SIGN OUT</button>
+      </div>
+
+      {/* The one button in the game with no undo, so it asks twice. */}
+      <div className="qrow" style={{ marginTop: 12, borderColor: '#7a3c33' }}>
+        <div className="qi">
+          <h4>Delete this hold</h4>
+          <p>
+            Everything goes — buildings, troops, trophies, raid history. There is
+            no way back.
+          </p>
+        </div>
+        <button className="btn red" onClick={onDeleteAccount}>DELETE</button>
       </div>
     </div>
   );

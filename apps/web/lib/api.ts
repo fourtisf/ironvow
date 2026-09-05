@@ -60,6 +60,17 @@ export const api = {
   /** Pay gold to finish a job now. */
   finish: (buildingId: string): Promise<CommandResponse & { cost: number }> =>
     post('/finish', { buildingId }),
+  /** Tear a building down for half of what went into it. */
+  demolish: (buildingId: string): Promise<CommandResponse & {
+    refund: { g: number; i: number }; wasted: { gold: number; iron: number };
+  }> => post('/demolish', { buildingId }),
+  /** Stop a builder mid-job and get everything back. */
+  cancelBuild: (buildingId: string): Promise<CommandResponse & {
+    removes: boolean; refund: { g: number; i: number };
+  }> => post('/cancel', { buildingId }),
+  cancelTraining: (jobId: string): Promise<CommandResponse & {
+    refund: { g: number; i: number };
+  }> => post('/train/cancel', { jobId }),
   move: (buildingId: string, gx: number, gy: number): Promise<CommandResponse> =>
     post('/move', { buildingId, gx, gy }),
   collect: (buildingId?: string): Promise<CommandResponse & {
@@ -130,6 +141,35 @@ export const api = {
     me: { id: string; name: string; trophies: number; keepLevel: number; rank: number } | null;
     total: number;
   }> => call('/leaderboard'),
+
+  layouts: (): Promise<{
+    layouts: { slot: 'defence' | 'farming'; name: string; saved: boolean; buildings: number; savedAt: string | null }[];
+  }> => call('/layouts'),
+  saveLayout: (slot: string, name?: string): Promise<{ ok: true; buildings: number }> =>
+    post('/layouts/save', { slot, name }),
+  applyLayout: (slot: string): Promise<CommandResponse & { moved: number; skipped: number }> =>
+    post('/layouts/apply', { slot }),
+
+  /** A drill against your own walls. Nothing is at stake. */
+  defend: (): Promise<{
+    seed: number;
+    snapshot: ScoutedRaid['snapshot'];
+    army: ScoutedRaid['army'];
+    hero: ScoutedRaid['hero'];
+    troopLevels: ScoutedRaid['troopLevels'];
+    stage: number;
+    player: PlayerState;
+  }> => post('/defend'),
+
+  rename: (name: string): Promise<{ ok: true; name: string }> => post('/account/name', { name }),
+  deleteAccount: (confirmName: string): Promise<{ ok: true }> =>
+    call('/account', { method: 'DELETE', body: JSON.stringify({ confirmName }) }),
+
+  pushKey: (): Promise<{ available: boolean; key: string | null }> => call('/push/key'),
+  pushSubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<{ ok: true }> =>
+    post('/push/subscribe', sub),
+  pushUnsubscribe: (endpoint: string): Promise<{ ok: true }> => post('/push/unsubscribe', { endpoint }),
+  pushTest: (): Promise<{ ok: true; sent: number }> => post('/push/test'),
 
   incoming: (): Promise<{
     raids: {

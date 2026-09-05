@@ -8,7 +8,14 @@ import {
   type BuildingType,
   type TroopType,
 } from '@ironvow/config';
-import { garrisonName, generateOpponent, randomSeed, seedToInt32, simulate } from '@ironvow/sim';
+import {
+  garrisonName,
+  generateDefendWave,
+  generateOpponent,
+  randomSeed,
+  seedToInt32,
+  simulate,
+} from '@ironvow/sim';
 import type { BaseSnapshot, BattleArmy, DeployCommand, DeployableType, HeroLoadout, TroopLevels } from '@ironvow/types';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -17,6 +24,7 @@ import { grant } from '../domain/production.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
+import { pushRaided } from '../lib/push.js';
 import { serialise } from './auth.js';
 
 /**
@@ -65,7 +73,17 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
    * the player can look before committing (spec S8.1). Rerolling costs gold,
    * charged here rather than trusted from the client.
    */
-  app.post('/raid/find', async (request, reply) => {
+  /*
+   * Rate limited harder than the rest.
+   *
+   * Matchmaking is the most expensive thing the server does: it widens the
+   * trophy band up to twelve times, each a query, then snapshots a whole base.
+   * The global ceiling of 300 a minute would let one player fire three hundred
+   * of those, and the reroll path charges gold precisely so it is not free.
+   */
+  app.post('/raid/find', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const parsed = findSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
@@ -225,7 +243,9 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
    * snapshotted fresh at the moment the raid opens, not as it stood when they
    * hit you.
    */
-  app.post('/raid/revenge', async (request, reply) => {
+  app.post('/raid/revenge', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
     const parsed = z.object({ raidId: z.string().min(1).max(40) }).safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
@@ -486,6 +506,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         sim,
         settlement,
         raid: saved,
+        attackerName: attacker.name,
         player: await settleAndLoad(tx, attacker.id, now),
       };
     }, COMMAND_TX);
@@ -495,6 +516,17 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
     if (outcome.kind === 'expired') return reply.code(410).send({ error: 'raidExpired' });
     if (outcome.kind === 'alreadyResolved') {
       return reply.code(409).send({ error: 'alreadyResolved', stars: outcome.raid.stars });
+    }
+
+    // Fire-and-forget: a notification that does not arrive must never fail the
+    // raid that produced it.
+    if (outcome.raid.defenderId) {
+      void pushRaided(
+        outcome.raid.defenderId,
+        outcome.attackerName,
+        outcome.sim.stars,
+        outcome.settlement.loot,
+      ).catch(() => undefined);
     }
 
     if (outcome.sim.checksum !== parsed.data.clientChecksum && parsed.data.clientChecksum) {
@@ -515,6 +547,60 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       rejected: outcome.sim.rejected,
       checksum: outcome.sim.checksum,
       player: serialise(outcome.player),
+    });
+  });
+
+  /**
+   * Hold your own walls.
+   *
+   * The simulation has supported this since it was written and nothing ever
+   * called it: `generateDefendWave` existed, `defendWave` was in the snapshot
+   * type, and no route reached either. So a player never actually defended —
+   * they watched a replay of a raid after the fact.
+   *
+   * This is a drill rather than a real attack: nothing is at stake, nobody
+   * loses resources, and it exists so a player can find out whether their
+   * layout works before somebody else finds out for them. That makes it safe
+   * to open as often as they like.
+   */
+  app.post('/defend', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    const now = new Date();
+    const me = await prisma.$transaction((tx) => settleAndLoad(tx, request.playerId!, now));
+
+    const seed = randomSeed();
+    const stage = stageFromTrophies(me.trophies);
+
+    const snapshot: BaseSnapshot = {
+      version: 1,
+      defenderId: me.id,
+      defenderName: me.name,
+      keepLevel: me.keepLevel,
+      buildings: me.buildings
+        // Scaffolding does not defend, exactly as in a real raid.
+        .filter((b) => !(b.completesAt !== null && b.upgradingTo === null))
+        .map((b) => ({ id: b.id, type: b.type, gx: b.gx, gy: b.gy, level: b.level }))
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+      // A drill takes nothing, so there is nothing on the table.
+      pool: { g: 0, i: 0 },
+      // Rolled here, where trigonometry is free to be engine-dependent, and
+      // frozen so the client and any replay see the same wave.
+      defendWave: generateDefendWave(seed, stage),
+    };
+
+    return reply.send({
+      seed,
+      snapshot,
+      /** The warband you may throw in behind your own walls. */
+      army: armyOf(me.army),
+      hero: {
+        level: me.heroLevel,
+        available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+      } satisfies HeroLoadout,
+      troopLevels: me.troopLevels,
+      stage,
+      player: serialise(me),
     });
   });
 

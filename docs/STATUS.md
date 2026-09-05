@@ -127,11 +127,45 @@ property breaks, a client renders one outcome and the server writes down
 another for every battle in the game, and the only visible symptom is a slow
 rise in the `Divergence` table.
 
+### Undoing things, and the rest of Phase 4
+
+| | |
+|---|---|
+| Demolish | Half of everything invested comes back, upgrades counted; the count slot frees up |
+| Cancel a build or upgrade | Full refund — nothing was consumed, the builder just stops |
+| Cancel a training job | Full refund, and everything behind it moves up the queue |
+| Layout editor (§8.7) | Two slots, defence and farming; the whole arrangement is validated before any of it is written |
+| Push notifications | Web Push with VAPID — finished builders and raids on your hold. Entirely optional: with no keys configured the feature is off and the game is identical |
+| Defend drill | The simulation has supported defending since it was written and nothing called it. Now `POST /defend` |
+| Rename, delete account | Deleting cascades everything and needs the hold's name typed |
+| Rate limits | Matchmaking is the most expensive endpoint and now has its own ceiling |
+
+### A balance bug inherited from the specification
+
+**Ramparts were unbuildable past seventeen, forever.**
+
+§6 prices a new building at `firstCost × 1.55^owned` and, in the same section,
+permits 320 ramparts at Keep 9. The most gold anyone can ever hold is 91,900
+(Keep 9, six level-9 Vaults). Under 1.55 the eighteenth rampart costs 103,226 —
+more than can be held at any point in the game. It also broke War Order q8,
+which asks for eight ramparts costing 3,525 cumulative against a Keep 1 storage
+cap of 2,500.
+
+That formula is meant for buildings you own three to twelve of; ramparts landed
+under it because one function priced everything. Ramparts now grow at 1.012,
+which puts a full 320-rampart wall at about 222,000 gold — roughly six per cent
+of the cost of taking every other building to level 9. Nothing else moved: a
+third Gold Mine still costs exactly 360.
+
+**This is a balance change and it needs sign-off.** It is one constant,
+`RAMPART_COUNT_GROWTH` in `packages/config/src/buildings.ts`.
+
 ## Not done
 
-- **Layout editor (§8.7)** — saved layouts for defence and farming.
-- **Push notifications** for finished builds and incoming raids.
-- **Clans and chat.** A large genre feature, not in the build document.
+- **Clans and chat.** Not in the build document, and a different order of
+  magnitude from everything else here: membership, invites, roles, moderated
+  chat, and clan wars are each their own design. It needs its own decision
+  rather than being folded into a list of fixes.
 - **Defend mode.** The simulation supports it and the snapshot carries a
   pre-rolled wave, but no route starts one. In PvP the attack log replaces the
   prototype's random defend event, which the spec calls for in §8.5.
@@ -180,6 +214,8 @@ mechanic but not the value, and each one changes the feel of raiding:
 | `buildSeconds` | `sqrt(gold + iron × 2) × 1.2`, capped at 600s | The whole timer curve |
 | `finishNowCost` | `max(10, remaining × 3)` gold | Price of skipping a wait |
 | `stageFromTrophies` | one stage per 120 trophies | How hard a generated garrison is |
+| `RAMPART_COUNT_GROWTH` | `1.012` | Whether a full rampart wall is reachable — see above |
+| `DEMOLISH_REFUND_RATE` | `0.5` | What comes back when a building comes down |
 | `HERO_BASE` + growth | 1400 hp, 55 dmg; ×1.18 / ×1.15 per rank | How much a hero swings a raid |
 | `heroRespawnMinutes` | `10 + level × 5` | What losing the hero costs |
 | `HERO_UNLOCK_KEEP_LEVEL` | `3` | When a hero first appears |

@@ -100,12 +100,6 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
 
     turret(gx + s - 0.9, gy + s - 0.9);
 
-    const [px, py] = P(gx + s / 2, gy + s / 2);
-    const top = py - (wallH + 34) * z;
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = Math.max(1.5, 2.4 * z);
-    ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, top - 30 * z); ctx.stroke();
-
   } else if (b.type === 'mine') {
     isoBox(d, gx + 0.05, gy + 0.05, s - 0.1, s - 0.1, 10, C.dirt, C.dirt2, '#a87a41');
     isoBox(d, gx + 0.2, gy + 0.2, 1.45, 1.45, 40, '#9c6a3e', '#5d3b1e', '#7a4f28');
@@ -168,7 +162,7 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
   } else if (b.type === 'barr') {
     isoBox(d, gx + 0.08, gy + 0.08, s - 0.16, s - 0.16, 9, C.dirt, C.dirt2, '#a87a41');
     isoBox(d, gx + 0.42, gy + 0.42, s - 0.84, s - 0.84, 40, '#a8926f', '#5a3a21', '#8c5f39');
-    const K = isoRoof(d, gx + 0.3, gy + 0.3, s - 0.6, s - 0.6, 40, 104, '#e2d3ad', '#8f7a52');
+    isoRoof(d, gx + 0.3, gy + 0.3, s - 0.6, s - 0.6, 40, 104, '#e2d3ad', '#8f7a52');
 
     const [dx2, dy2] = P(gx + s / 2, gy + s - 0.42);
     ctx.fillStyle = '#3f2d1c';
@@ -192,10 +186,6 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
       ctx.lineTo(bx + z, dy2 - 27 * z);
       ctx.closePath(); ctx.fill(); ctx.stroke();
     }
-
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = Math.max(1.3, 2.1 * z);
-    ctx.beginPath(); ctx.moveTo(K[0], K[1]); ctx.lineTo(K[0], K[1] - 20 * z); ctx.stroke();
 
   } else if (b.type === 'lab') {
     // A workshop: stone base, tiled roof, and a bubbling crucible whose glow
@@ -280,10 +270,13 @@ export function drawBuildingFx(d: Draw, b: Renderable, enemy: boolean): void {
     const wallH = 92 + lv * 4;
     const [px, py] = P(gx + s / 2, gy + s / 2);
     const top = py - (wallH + 34) * z;
-    const wave = Math.sin(t * 2.4) * 3 * z;
-    ctx.fillStyle = bannerColor(enemy);
     ctx.strokeStyle = C.line;
     ctx.lineWidth = Math.max(1.5, 2.4 * z);
+    // The pole belongs with the cloth, not with the stonework: a bare mast over
+    // every Keep is what low quality looked like when it was in the body.
+    ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, top - 30 * z); ctx.stroke();
+    const wave = Math.sin(t * 2.4) * 3 * z;
+    ctx.fillStyle = bannerColor(enemy);
     ctx.beginPath();
     ctx.moveTo(px, top - 30 * z);
     ctx.lineTo(px + 22 * z + wave, top - 25 * z);
@@ -312,6 +305,7 @@ export function drawBuildingFx(d: Draw, b: Renderable, enemy: boolean): void {
     K[1] -= 104 * z;
     ctx.strokeStyle = C.line;
     ctx.lineWidth = Math.max(1.3, 2.1 * z);
+    ctx.beginPath(); ctx.moveTo(K[0], K[1]); ctx.lineTo(K[0], K[1] - 20 * z); ctx.stroke();
     ctx.fillStyle = bannerColor(enemy);
     const wave2 = Math.sin(t * 2.8 + 1.4) * 2.5 * z;
     ctx.beginPath();

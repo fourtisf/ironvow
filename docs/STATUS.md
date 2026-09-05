@@ -166,9 +166,11 @@ third Gold Mine still costs exactly 360.
   magnitude from everything else here: membership, invites, roles, moderated
   chat, and clan wars are each their own design. It needs its own decision
   rather than being folded into a list of fixes.
-- **Defend mode.** The simulation supports it and the snapshot carries a
-  pre-rolled wave, but no route starts one. In PvP the attack log replaces the
-  prototype's random defend event, which the spec calls for in §8.5.
+- **A live defend.** You cannot watch a raid on your own hold as it happens,
+  and you should not be able to: the attacker plays it on their phone, and the
+  result is settled server-side from their commands. What exists instead is a
+  drill against your own walls, started from the LOG sheet, and the attack log
+  that replaces the prototype's random defend event (§8.5).
 
 ## Deviations from the spec, and why
 

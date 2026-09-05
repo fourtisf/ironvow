@@ -1,6 +1,6 @@
 'use client';
 
-import { TYPES, type BuildingType, type TroopType } from '@ironvow/config';
+import { PROD, TYPES, hasClaimableQuest, type BuildingType, type TroopType } from '@ironvow/config';
 import type { DeployCommand } from '@ironvow/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../lib/api';
@@ -18,11 +18,13 @@ import {
 } from '../lib/game/world';
 import type { BattleOutcome, Mode, PlayerState, ScoutedRaid } from '../lib/game/types';
 import { fmt } from '../lib/format';
+import { loadSoundPreference, setSoundEnabled, sfx, unlockAudio } from '../lib/sfx';
 import { BattleHud } from './BattleHud';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
-import { ResultModal, ScoutModal, SignInModal } from './Modals';
+import { ClaimModal, ResultModal, ScoutModal, SignInModal } from './Modals';
+import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { ArmySheet, BuildSheet, LogSheet } from './Sheets';
 import { Toast } from './Toast';
 
@@ -35,7 +37,7 @@ import { Toast } from './Toast';
  * server state down and the world calling back when the player does something.
  */
 
-type Sheet = 'build' | 'army' | 'log' | null;
+type Sheet = 'build' | 'army' | 'orders' | 'log' | null;
 
 export function Game() {
   const worldRef = useRef<World | null>(null);
@@ -51,6 +53,13 @@ export function Game() {
   const [signInBusy, setSignInBusy] = useState(false);
   const [signInSent, setSignInSent] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [quests, setQuests] = useState<QuestRow[]>([]);
+  const [claimingQuest, setClaimingQuest] = useState<string | null>(null);
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [claimSent, setClaimSent] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [guestNoteDismissed, setGuestNoteDismissed] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
   /** Bumped once a frame while a battle runs, so the battle HUD tracks it. */
   const [battleTick, setBattleTick] = useState(0);
 
@@ -89,15 +98,32 @@ export function Game() {
   }, [applyPlayer, say]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    setSoundOn(loadSoundPreference());
+    try {
+      setGuestNoteDismissed(localStorage.getItem('ironvow_guest_note') === 'off');
+    } catch {
+      // Private browsing refuses storage; the note simply reappears next visit.
+    }
+  }, []);
+
+  const loadQuests = useCallback(async () => {
+    try {
+      setQuests((await api.quests()).quests);
+    } catch {
+      // The orders sheet is not worth a toast; the rail dot just stays quiet.
+    }
+  }, []);
 
   useEffect(() => {
     if (!signedIn) return;
     void api.incoming().then((r) => setIncoming(r.raids)).catch(() => undefined);
+    void loadQuests();
     // The server settles production lazily, so a periodic re-read is what keeps
     // the HUD honest without a socket.
     const timer = setInterval(() => { void refresh(); }, 30_000);
     return () => clearInterval(timer);
-  }, [signedIn, refresh]);
+  }, [signedIn, refresh, loadQuests]);
 
   /* --- keep the battle HUD ticking while a raid runs --- */
   useEffect(() => {
@@ -120,6 +146,7 @@ export function Game() {
         applyPlayer(result.player);
         return result;
       } catch (e) {
+        sfx.bad();
         say(e instanceof ApiError ? (e.message || e.code) : 'Something went wrong');
         return null;
       }
@@ -141,6 +168,7 @@ export function Game() {
       : await runCommand(() => api.build(place.type, place.gx, place.gy));
 
     if (!done) return;
+    sfx.place();
     if (place.movingId) bump(world, place.movingId);
     cancelPlacement(world);
     setModeState('base');
@@ -161,13 +189,47 @@ export function Game() {
 
     const amount = result.collected.gold + result.collected.iron;
     if (amount > 0) {
+      sfx.coin();
       const s = TYPES[target.type].s;
       popup(world, target.gx + s / 2, target.gy + s / 2, '+' + fmt(amount),
         target.type === 'mine' ? '#ffd25c' : '#c3d2e0');
       bump(world, target.id);
     }
     if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
-  }, [runCommand, say]);
+    void loadQuests();
+  }, [runCommand, say, loadQuests]);
+
+  /** Empty every producer at once. Twelve taps is a chore, not a decision. */
+  const collectAll = useCallback(async () => {
+    const world = worldRef.current;
+    const producers = (world?.player?.buildings ?? []).filter((b) => PROD[b.type] && b.stock >= 1);
+    const result = await runCommand(() => api.collect());
+    if (!result) return;
+
+    if (result.collected.gold + result.collected.iron > 0) {
+      sfx.coin();
+      for (const b of producers) {
+        const s = TYPES[b.type].s;
+        if (world) {
+          popup(world, b.gx + s / 2, b.gy + s / 2, '+' + fmt(Math.floor(b.stock)),
+            b.type === 'mine' ? '#ffd25c' : '#c3d2e0');
+          bump(world, b.id);
+        }
+      }
+    }
+    if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
+    void loadQuests();
+  }, [runCommand, say, loadQuests]);
+
+  const claimQuest = useCallback(async (questId: string) => {
+    setClaimingQuest(questId);
+    const result = await runCommand(() => api.claimQuest(questId));
+    setClaimingQuest(null);
+    if (!result) return;
+    sfx.up();
+    say(`Reward claimed: ${rewardText(result.reward)}`);
+    void loadQuests();
+  }, [runCommand, say, loadQuests]);
 
   /* --------------------------------------------------------------- raids --- */
 
@@ -218,6 +280,7 @@ export function Game() {
       api.submitRaid(raidId, commands, local.checksum, local.stars));
 
     if (settled) {
+      if (settled.stars >= 1) sfx.win(); else sfx.bad();
       // The server's numbers replace the client's, always.
       setOutcome({
         stars: settled.stars,
@@ -228,6 +291,7 @@ export function Game() {
         pending: false,
       });
       void api.incoming().then((r) => setIncoming(r.raids)).catch(() => undefined);
+    void loadQuests();
     } else {
       setOutcome(null);
     }
@@ -244,6 +308,8 @@ export function Game() {
   };
 
   const onTapBuilding = useCallback((id: string | null) => {
+    // Browsers keep an AudioContext suspended until a real gesture.
+    unlockAudio();
     const world = worldRef.current;
     if (!world) return;
     const building = id ? world.player?.buildings.find((b) => b.id === id) : null;
@@ -253,6 +319,7 @@ export function Game() {
       void collect(building.id);
       return;
     }
+    if (id) sfx.tap();
     world.selectedId = id;
     setSelectedId(id);
   }, [collect]);
@@ -260,6 +327,30 @@ export function Game() {
   const selected = player?.buildings.find((b) => b.id === selectedId) ?? null;
   const world = worldRef.current;
   const battle = world?.battle ?? null;
+
+  // Read off the world rather than React state: the local production prediction
+  // advances every frame, and mirroring that into state would re-render the
+  // whole tree sixty times a second.
+  const pendingStock = Math.floor(
+    (world?.player?.buildings ?? []).reduce((sum, b) => sum + (PROD[b.type] ? b.stock : 0), 0),
+  );
+
+  // A player who has collected, raided or climbed has a hold worth keeping.
+  const investedEnough = player
+    ? (player.counters.collected ?? 0) >= 3
+      || (player.counters.wins ?? 0) > 0
+      || player.trophies > 0
+      || player.keepLevel > 1
+    : false;
+  const showGuestNote = Boolean(player?.isGuest) && investedEnough && !guestNoteDismissed;
+
+  const ordersReady = player
+    ? hasClaimableQuest(player.claimedQuests, {
+        counters: player.counters,
+        buildings: player.buildings.map((b) => ({ type: b.type, level: b.level })),
+        trophies: player.trophies,
+      })
+    : false;
 
   /* ----------------------------------------------------------------- ui --- */
 
@@ -269,6 +360,15 @@ export function Game() {
         sent={signInSent}
         busy={signInBusy}
         error={signInError}
+        onGuest={() => {
+          unlockAudio();
+          setSignInBusy(true);
+          setSignInError(null);
+          api.guest()
+            .then(() => refresh())
+            .catch(() => setSignInError('Could not raise a hold. Try again in a moment.'))
+            .finally(() => setSignInBusy(false));
+        }}
         onRequest={(email) => {
           setSignInBusy(true);
           setSignInError(null);
@@ -297,11 +397,33 @@ export function Game() {
         <Hud
           player={player}
           incomingCount={incoming.length}
+          ordersReady={ordersReady}
+          pending={pendingStock}
           onHome={() => { if (worldRef.current) centerOnKeep(worldRef.current); }}
-          onBuild={() => setSheet('build')}
-          onArmy={() => setSheet('army')}
-          onLog={() => setSheet('log')}
-          onRaid={() => { void findRaid(false); }}
+          onBuild={() => { sfx.tap(); setSheet('build'); }}
+          onArmy={() => { sfx.tap(); setSheet('army'); }}
+          onOrders={() => { sfx.tap(); setSheet('orders'); void loadQuests(); }}
+          onLog={() => { sfx.tap(); setSheet('log'); }}
+          onRaid={() => { unlockAudio(); sfx.tap(); void findRaid(false); }}
+          onCollectAll={() => { void collectAll(); }}
+          onClaimAccount={() => { setClaimOpen(true); setClaimSent(false); setClaimError(null); }}
+          soundOn={soundOn}
+          onToggleSound={() => {
+            const next = !soundOn;
+            setSoundEnabled(next);
+            setSoundOn(next);
+            // Play the confirmation after enabling, so the toggle proves itself.
+            if (next) { unlockAudio(); sfx.tap(); }
+          }}
+          showGuestNote={showGuestNote}
+          onDismissGuestNote={() => {
+            setGuestNoteDismissed(true);
+            try {
+              localStorage.setItem('ironvow_guest_note', 'off');
+            } catch {
+              // Nothing to do; it will ask again next session.
+            }
+          }}
         />
       )}
 
@@ -364,6 +486,15 @@ export function Game() {
         />
       )}
 
+      {sheet === 'orders' && (
+        <QuestSheet
+          quests={quests}
+          busyId={claimingQuest}
+          onClose={() => setSheet(null)}
+          onClaim={(id) => { void claimQuest(id); }}
+        />
+      )}
+
       {sheet === 'log' && (
         <LogSheet
           raids={incoming}
@@ -403,7 +534,29 @@ export function Game() {
           stars={outcome.stars}
           loot={outcome.loot}
           trophyDelta={outcome.trophyDelta}
+          onStar={(i) => sfx.star(i)}
           onClose={() => setOutcome(null)}
+        />
+      )}
+
+      {claimOpen && (
+        <ClaimModal
+          sent={claimSent}
+          busy={signInBusy}
+          error={claimError}
+          onSubmit={(email) => {
+            setSignInBusy(true);
+            setClaimError(null);
+            api.claimAccount(email)
+              .then(() => setClaimSent(true))
+              .catch((e: unknown) => setClaimError(
+                e instanceof ApiError && e.code === 'emailTaken'
+                  ? 'That address already holds a base.'
+                  : 'Could not send that. Try again in a minute.',
+              ))
+              .finally(() => setSignInBusy(false));
+          }}
+          onClose={() => setClaimOpen(false)}
         />
       )}
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { TYPES } from '@ironvow/config';
+import { useEffect, useState } from 'react';
 import type { BaseSnapshot } from '@ironvow/types';
 import { fmt } from '../lib/format';
 import { GoldIcon, IronIcon, StarIcon } from './icons';
@@ -74,23 +75,73 @@ export interface ResultModalProps {
   stars: number;
   loot: { g: number; i: number };
   trophyDelta: number;
+  onStar: (index: number) => void;
   onClose: () => void;
 }
 
-export function ResultModal({ stars, loot, trophyDelta, onClose }: ResultModalProps) {
+/**
+ * The result screen.
+ *
+ * Stars land one at a time with a sound each, and the loot counts up rather
+ * than appearing. Winning three stars and being shown a static number is the
+ * difference between a game that feels good and one that merely works.
+ */
+export function ResultModal({ stars, loot, trophyDelta, onStar, onClose }: ResultModalProps) {
   const won = stars >= 1;
+  const [shown, setShown] = useState(0);
+  const [counted, setCounted] = useState({ g: 0, i: 0 });
+
+  const reduced = typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  useEffect(() => {
+    if (reduced || stars === 0) {
+      setShown(stars);
+      return;
+    }
+    const timers = Array.from({ length: stars }, (_, i) =>
+      setTimeout(() => {
+        setShown(i + 1);
+        onStar(i);
+      }, 260 + i * 340));
+    return () => timers.forEach(clearTimeout);
+  }, [stars, reduced, onStar]);
+
+  useEffect(() => {
+    if (reduced) {
+      setCounted(loot);
+      return;
+    }
+    const started = performance.now();
+    const duration = 700;
+    let raf = 0;
+    const tick = (now: number): void => {
+      const p = Math.min(1, (now - started) / duration);
+      // Ease out, so the number decelerates into its final value.
+      const eased = 1 - (1 - p) * (1 - p);
+      setCounted({ g: Math.round(loot.g * eased), i: Math.round(loot.i * eased) });
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [loot, reduced]);
+
   return (
     <div className="ovl">
       <div className="modal">
         <h2>{won ? 'HOLD TAKEN' : 'DRIVEN OFF'}</h2>
 
         <div id="resStars">
-          {[0, 1, 2].map((i) => <StarIcon key={i} on={i < stars} />)}
+          {[0, 1, 2].map((i) => (
+            <span key={i} style={{ animationDelay: `${i * 0.34}s` }}>
+              <StarIcon on={i < shown} />
+            </span>
+          ))}
         </div>
 
         <div className="lootRow">
-          <div><GoldIcon />+{fmt(loot.g)}</div>
-          <div><IronIcon />+{fmt(loot.i)}</div>
+          <div><GoldIcon />+{fmt(counted.g)}</div>
+          <div><IronIcon />+{fmt(counted.i)}</div>
         </div>
 
         <p className="lead">
@@ -106,48 +157,121 @@ export function ResultModal({ stars, loot, trophyDelta, onClose }: ResultModalPr
   );
 }
 
+const inputStyle = {
+  width: '100%', padding: 12, borderRadius: 12, border: '2px solid #46608a',
+  background: '#141d2b', color: '#f2e4c4', fontFamily: 'Arial', fontWeight: 700,
+  fontSize: 13, marginBottom: 4,
+} as const;
+
 export interface SignInModalProps {
+  onGuest: () => void;
   onRequest: (email: string) => void;
   sent: boolean;
   busy: boolean;
   error: string | null;
 }
 
-export function SignInModal({ onRequest, sent, busy, error }: SignInModalProps) {
+/**
+ * The first screen.
+ *
+ * Playing comes first and email second, because asking a stranger for their
+ * address before they have seen anything is where most of them leave. A guest
+ * gets a real hold on the server; attaching an email later upgrades that same
+ * hold rather than starting a new one.
+ */
+export function SignInModal({ onGuest, onRequest, sent, busy, error }: SignInModalProps) {
+  const [showEmail, setShowEmail] = useState(false);
+
+  return (
+    <div className="ovl">
+      <div className="modal">
+        <h2>IRONVOW</h2>
+        <p className="lead">
+          Forge. Muster. Conquer.
+          <br />
+          Your hold lives on the server, so it keeps earning while you are away.
+        </p>
+
+        {sent ? (
+          <p className="lead">Check your email for a link. It is good for fifteen minutes.</p>
+        ) : showEmail ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const input = e.currentTarget.elements.namedItem('email') as HTMLInputElement | null;
+              if (input?.value) onRequest(input.value);
+            }}
+          >
+            <input name="email" type="email" required placeholder="you@example.com" style={inputStyle} />
+            <button className="btn gold big" type="submit" disabled={busy}>
+              {busy ? 'SENDING…' : 'SEND LINK'}
+            </button>
+            <button className="btn grey big" type="button" onClick={() => setShowEmail(false)}>
+              BACK
+            </button>
+          </form>
+        ) : (
+          <>
+            <button className="btn gold big" onClick={onGuest} disabled={busy}>
+              {busy ? 'RAISING YOUR HOLD…' : 'PLAY NOW'}
+            </button>
+            <button className="btn grey big" onClick={() => setShowEmail(true)}>
+              I ALREADY HAVE A HOLD
+            </button>
+            <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
+              No sign-up. You can add an email later to keep it.
+            </p>
+          </>
+        )}
+
+        {error && <p className="lead" style={{ color: '#ff7a63', marginTop: 10 }}>{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Asks a guest for an email without throwing them out of the game. */
+export interface ClaimModalProps {
+  sent: boolean;
+  busy: boolean;
+  error: string | null;
+  onSubmit: (email: string) => void;
+  onClose: () => void;
+}
+
+export function ClaimModal({ sent, busy, error, onSubmit, onClose }: ClaimModalProps) {
   return (
     <div className="ovl">
       <form
         className="modal"
         onSubmit={(e) => {
           e.preventDefault();
-          const input = (e.currentTarget.elements.namedItem('email') as HTMLInputElement | null);
-          if (input?.value) onRequest(input.value);
+          const input = e.currentTarget.elements.namedItem('email') as HTMLInputElement | null;
+          if (input?.value) onSubmit(input.value);
         }}
       >
-        <h2>IRONVOW</h2>
-        <p className="lead">Forge. Muster. Conquer.<br />Your hold lives on the server, so it keeps earning while you are away.</p>
-
+        <h2>KEEP YOUR HOLD</h2>
         {sent ? (
-          <p className="lead">Check your email for a link. It is good for fifteen minutes.</p>
+          <>
+            <p className="lead">
+              Link sent. Open it on any device and this same hold — every building, every
+              trophy — comes with you.
+            </p>
+            <button className="btn big" type="button" onClick={onClose}>BACK TO THE HOLD</button>
+          </>
         ) : (
           <>
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="you@example.com"
-              style={{
-                width: '100%', padding: 12, borderRadius: 12, border: '2px solid #46608a',
-                background: '#141d2b', color: '#f2e4c4', fontFamily: 'Arial', fontWeight: 700,
-                fontSize: 13, marginBottom: 4,
-              }}
-            />
+            <p className="lead">
+              An email attaches this hold to you. Nothing changes in the game; it just
+              stops being tied to this one browser.
+            </p>
+            <input name="email" type="email" required placeholder="you@example.com" style={inputStyle} />
             <button className="btn gold big" type="submit" disabled={busy}>
               {busy ? 'SENDING…' : 'SEND LINK'}
             </button>
+            <button className="btn grey big" type="button" onClick={onClose}>NOT NOW</button>
           </>
         )}
-
         {error && <p className="lead" style={{ color: '#ff7a63', marginTop: 10 }}>{error}</p>}
       </form>
     </div>

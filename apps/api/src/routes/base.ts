@@ -153,7 +153,12 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
       await tx.player.update({
         where: { id: player.id },
-        data: { gold: collected.gold, iron: collected.iron },
+        data: {
+          gold: collected.gold,
+          iron: collected.iron,
+          // One per producer emptied, matching how the prototype counted taps.
+          collected: { increment: collected.cleared.length },
+        },
       });
       await tx.building.updateMany({
         where: { id: { in: collected.cleared }, playerId: player.id },

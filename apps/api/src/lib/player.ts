@@ -1,7 +1,9 @@
 import {
+  QUEST_COUNTERS,
   START_GOLD,
   START_IRON,
   TROOP_ORDER,
+  type QuestCounter,
   armyCapOf,
   armyUsedOf,
   bestBarracksLevel,
@@ -27,6 +29,7 @@ import { prisma, type Tx } from './prisma.js';
 export interface LoadedPlayer extends PlayerView {
   id: string;
   name: string;
+  isGuest: boolean;
   trophies: number;
   keepLevel: number;
   shieldUntil: Date | null;
@@ -35,6 +38,9 @@ export interface LoadedPlayer extends PlayerView {
   armyCap: number;
   armyUsed: number;
   queueJobs: { id: string; type: TroopType; finishesAt: Date; position: number }[];
+  /** War Order counters, server-incremented. */
+  counters: Record<QuestCounter, number>;
+  claimedQuests: string[];
 }
 
 /**
@@ -102,6 +108,13 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
 
   if (resolved.finished.length > 0) {
     await tx.trainJob.deleteMany({ where: { id: { in: resolved.finished.map((j) => j.id) } } });
+    // A troop counts as trained when it leaves the queue, not when it is
+    // ordered, so a cancelled or still-cooking job never scores a War Order.
+    await tx.player.update({
+      where: { id: playerId },
+      data: { trainedTotal: { increment: resolved.finished.length } },
+    });
+    player.trainedTotal += resolved.finished.length;
     for (const type of TROOP_ORDER) {
       const gained = resolved.gained[type];
       if (!gained) continue;
@@ -133,9 +146,14 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     await tx.player.update({ where: { id: playerId }, data: { keepLevel } });
   }
 
+  const counters = Object.fromEntries(
+    QUEST_COUNTERS.map((k) => [k, player[k]]),
+  ) as Record<QuestCounter, number>;
+
   return {
     id: player.id,
     name: player.name,
+    isGuest: player.isGuest,
     gold: player.gold,
     iron: player.iron,
     trophies: player.trophies,
@@ -148,6 +166,8 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     storageCap: storageCapOf(owned),
     armyCap: armyCapOf(owned),
     armyUsed: armyUsedOf(army, queueTypes),
+    counters,
+    claimedQuests: player.claimedQuests,
   };
 }
 
@@ -165,12 +185,17 @@ export function barracksLevelOf(p: LoadedPlayer): number {
  * Create a player with the prototype's opening layout: a Keep in the middle,
  * a Gold Mine to its left and a Barracks to its right.
  */
-export async function createPlayer(name: string, email?: string): Promise<string> {
+export async function createPlayer(
+  name: string,
+  email?: string,
+  isGuest = false,
+): Promise<string> {
   const mid = Math.floor(56 / 2) - 1;
   const player = await prisma.player.create({
     data: {
       name,
       email: email ?? null,
+      isGuest,
       gold: BigInt(START_GOLD),
       iron: BigInt(START_IRON),
       buildings: {

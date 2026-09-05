@@ -10,3 +10,4 @@ export * from './buildings.js';
 export * from './troops.js';
 export * from './economy.js';
 export * from './rewards.js';
+export * from './quests.js';

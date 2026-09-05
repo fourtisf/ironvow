@@ -45,6 +45,10 @@ export const api = {
   me: (): Promise<PlayerState> => call('/me'),
 
   requestLogin: (email: string): Promise<{ ok: true }> => post('/auth/request', { email }),
+  /** Start playing immediately, with no email. */
+  guest: (): Promise<{ ok: true; playerId: string; name?: string }> => post('/auth/guest'),
+  /** Attach an email to the hold already signed in. */
+  claimAccount: (email: string): Promise<{ ok: true }> => post('/auth/claim', { email }),
   redeemLogin: (token: string, name?: string): Promise<{ ok: true; playerId: string }> =>
     post('/auth/redeem', { token, name }),
   logout: (): Promise<{ ok: true }> => post('/auth/logout'),
@@ -84,6 +88,16 @@ export const api = {
     checksum: string;
     rejected: { index: number; reason: string }[];
   }> => post(`/raid/${raidId}/submit`, { commands, clientChecksum, clientStars }),
+
+  quests: (): Promise<{
+    quests: {
+      id: string; name: string; detail: string; goal: number;
+      reward: { g: number; i: number }; progress: number; claimed: boolean;
+    }[];
+  }> => call('/quests'),
+
+  claimQuest: (questId: string): Promise<CommandResponse & { reward: { g: number; i: number } }> =>
+    post('/quests/claim', { questId }),
 
   incoming: (): Promise<{
     raids: {

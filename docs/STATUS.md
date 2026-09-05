@@ -29,6 +29,16 @@ what does not, and what needs a decision.
 | Attack log | `/raids/incoming` and `/raid/:id/replay` |
 | Divergence logging | `Divergence` table, written when a client's checksum disagrees |
 
+### Onboarding and feel
+
+| Feature | State |
+|---|---|
+| War Orders (12) | Ported, with progress derived server-side from real state |
+| Guest play | One tap to a real hold; email attaches to that same hold later |
+| Sound | The prototype's synth, ported, with a toggle that persists |
+| Collect all | One button for every full producer |
+| Raid result | Stars land one at a time with a sound each; loot counts up |
+
 ### Phase 3 — partly
 
 - **Scout before you raid (§8.1)** — done. The defender's real layout is drawn
@@ -66,9 +76,6 @@ Each is either structurally unreachable now or covered by a test:
 - **Phase 4 entirely.** Build timers and builders are flagged in the spec as
   needing ALFA's sign-off before implementation, so they were not started.
   Layout editor, sound and quality settings, and push notifications likewise.
-- **War Orders (the 12 quests).** They exist in the prototype and are not yet
-  ported. They need a server-side progress model, since the counters they read
-  (`collected`, `trainedTotal`, `threeStars`) are now server state.
 - **Revenge.** The data is all there — an incoming raid names its attacker and
   the raid is replayable — but there is no endpoint that opens a raid against a
   specific player.

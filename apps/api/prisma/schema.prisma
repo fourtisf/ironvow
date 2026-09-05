@@ -19,6 +19,11 @@ model Player {
   email     String?  @unique
   createdAt DateTime @default(now())
 
+  /// A player who started with one tap and has not attached an email yet.
+  /// They are a real player with a real base — this only drives the prompt
+  /// asking them to secure the account.
+  isGuest Boolean @default(false)
+
   gold      BigInt   @default(900)
   iron      BigInt   @default(320)
   trophies  Int      @default(0)
@@ -27,6 +32,16 @@ model Player {
   /// Production is lazy: this is the watermark the next read accrues from.
   lastTickAt  DateTime  @default(now())
   shieldUntil DateTime?
+
+  /// War Order counters. Server-incremented, because a quest a client can
+  /// report progress on is a quest a client can award itself.
+  collected     Int @default(0)
+  trainedTotal  Int @default(0)
+  raids         Int @default(0)
+  wins          Int @default(0)
+  threeStars    Int @default(0)
+  /// Ids of War Orders whose reward has been paid out.
+  claimedQuests String[] @default([])
 
   buildings  Building[]
   troops     Troop[]

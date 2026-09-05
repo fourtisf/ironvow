@@ -56,15 +56,36 @@ export const ArmyIcon = () => (
   </svg>
 );
 
-export const LogIcon = () => (
+export const OrdersIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="#ffd97a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 3h9l4 4v14H6z" />
     <path d="M9 12h7M9 16h5M9 8h4" />
   </svg>
 );
 
+export const LogIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="#ff9a86" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+    <path d="M9 13l2.5 2.5L16 11" />
+  </svg>
+);
+
 export const RaidIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="#ffe2d8" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4l7 7M8 4H4v4M20 4l-7 7M16 4h4v4M9 15l-5 5M4 16v4h4M15 15l5 5M20 16v4h-4" />
+  </svg>
+);
+
+export const SoundIcon = ({ on }: { on: boolean }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke={on ? '#ffd97a' : '#7d8ea6'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 9v6h4l5 4V5L8 9z" fill={on ? '#ffd97a' : '#7d8ea6'} />
+    {on ? (
+      <>
+        <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+        <path d="M19 6a8.5 8.5 0 0 1 0 12" />
+      </>
+    ) : (
+      <path d="M17 9.5l4 5M21 9.5l-4 5" />
+    )}
   </svg>
 );

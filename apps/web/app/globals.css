@@ -44,7 +44,8 @@
   /* ---------- bottom rail ---------- */
   #rail{position:absolute;left:0;right:0;bottom:calc(9px + env(safe-area-inset-bottom));
     display:flex;justify-content:center;gap:9px;padding:0 9px}
-  .rbtn{width:66px;height:60px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  @media (max-width:400px){#rail{gap:6px}.rbtn span{font-size:7.5px;letter-spacing:.8px}}
+  .rbtn{width:66px;max-width:19vw;height:60px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
     background:linear-gradient(#2c3d57,#1b2635);border:2px solid #46608a;box-shadow:0 4px 0 #0d1420;transition:transform .08s}
   .rbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d1420}
   .rbtn svg{width:26px;height:26px}
@@ -168,3 +169,35 @@
 
   /* The scout sheet sits above the field it describes, not over it. */
   #scoutSheet{max-height:52vh}
+
+  /* Collect-all sits above the rail, opposite the home button. */
+  #collectAll{position:absolute;right:9px;bottom:calc(80px + env(safe-area-inset-bottom));
+    display:flex;align-items:center;gap:6px;border-radius:14px;padding:9px 13px;
+    background:linear-gradient(#f0bb45,#c2891f);border:2px solid #ffd97a;
+    box-shadow:0 4px 0 #7d5310;color:#3a2708;font-size:10px;letter-spacing:1.1px}
+  #collectAll:active{transform:translateY(3px);box-shadow:0 1px 0 #7d5310}
+  #collectAll svg{width:16px;height:16px;display:block}
+
+  /* Guest players get one quiet nudge to secure the hold. */
+  #guestNote{position:absolute;left:9px;right:9px;top:calc(102px + env(safe-area-inset-top));
+    background:rgba(20,28,40,.9);border:2px solid #46608a;border-radius:12px;
+    padding:8px 11px;display:flex;align-items:center;gap:9px;font-size:9px;
+    font-family:Arial;font-weight:700;color:#c3d4ea;letter-spacing:.3px;line-height:1.4}
+  #guestNote .btn{padding:6px 10px;font-size:9px;flex:none}
+  #guestNote .xbtn{width:24px;height:24px;font-size:12px;border-radius:8px;flex:none}
+
+  /* Result stars land one at a time rather than all at once. */
+  @keyframes starPop{
+    0%{transform:scale(.2) rotate(-25deg);opacity:0}
+    60%{transform:scale(1.25) rotate(6deg);opacity:1}
+    100%{transform:scale(1) rotate(0);opacity:1}
+  }
+  #resStars svg{animation:starPop .42s cubic-bezier(.2,.9,.3,1.4) both}
+  @media (prefers-reduced-motion:reduce){#resStars svg{animation:none}}
+
+  /* Sound toggle, tucked under the home button. */
+  #soundBtn{position:absolute;left:9px;bottom:calc(132px + env(safe-area-inset-bottom));
+    width:38px;height:38px;border-radius:12px;background:linear-gradient(#2c3d57,#1b2635);
+    border:2px solid #46608a;box-shadow:0 4px 0 #0d1420;display:flex;align-items:center;justify-content:center}
+  #soundBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d1420}
+  #soundBtn svg{width:19px;height:19px;display:block}

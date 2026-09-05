@@ -1,4 +1,4 @@
-import type { BuildingType, TroopType } from '@ironvow/config';
+import type { BuildingType, QuestCounter, TroopType } from '@ironvow/config';
 import type { BaseSnapshot, BattleArmy, DeployCommand } from '@ironvow/types';
 
 /** A building on the player's own base, as the server reports it. */
@@ -23,6 +23,8 @@ export interface ClientQueueJob {
 export interface PlayerState {
   id: string;
   name: string;
+  /** Started with one tap and has not attached an email yet. */
+  isGuest: boolean;
   gold: number;
   iron: number;
   trophies: number;
@@ -34,6 +36,9 @@ export interface PlayerState {
   army: Partial<Record<TroopType, number>>;
   buildings: ClientBuilding[];
   queue: ClientQueueJob[];
+  /** War Order counters, incremented by the server. */
+  counters: Partial<Record<QuestCounter, number>>;
+  claimedQuests: string[];
   serverTime: string;
 }
 

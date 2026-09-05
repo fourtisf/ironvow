@@ -268,6 +268,11 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           gold: credited.gold,
           iron: credited.iron,
           trophies: Math.max(0, attacker.trophies + settlement.trophyDelta),
+          // War Order counters. Derived from the server's own result, never
+          // from anything the client claimed about the battle.
+          raids: { increment: 1 },
+          ...(sim.stars >= 1 ? { wins: { increment: 1 } } : {}),
+          ...(sim.stars === 3 ? { threeStars: { increment: 1 } } : {}),
         },
       });
 

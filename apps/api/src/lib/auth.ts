@@ -28,13 +28,24 @@ export function safeEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-/** Issue a login link. Returns the raw token, which is emailed and never stored. */
-export async function createLoginLink(email: string): Promise<{ token: string; expiresAt: Date }> {
+/**
+ * Issue a login link. Returns the raw token, which is emailed and never stored.
+ *
+ * `bindToPlayerId` is what makes account claiming work: a guest asking to
+ * attach an email gets a link that names their existing hold, so redeeming it
+ * upgrades that account instead of creating a second one beside it.
+ */
+export async function createLoginLink(
+  email: string,
+  bindToPlayerId?: string,
+): Promise<{ token: string; expiresAt: Date }> {
   const token = newToken();
   const expiresAt = new Date(Date.now() + LINK_MINUTES * 60_000);
-  const player = await prisma.player.findUnique({ where: { email }, select: { id: true } });
+  const playerId = bindToPlayerId
+    ?? (await prisma.player.findUnique({ where: { email }, select: { id: true } }))?.id
+    ?? null;
   await prisma.loginLink.create({
-    data: { tokenHash: hash(token), email, playerId: player?.id ?? null, expiresAt },
+    data: { tokenHash: hash(token), email, playerId, expiresAt },
   });
   return { token, expiresAt };
 }

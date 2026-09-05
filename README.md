@@ -124,6 +124,16 @@ one, or they skip and say so rather than passing quietly. The cross-engine test
 looks for Chromium via `PLAYWRIGHT_BROWSERS_PATH` or `IRONVOW_CHROMIUM` and
 skips loudly the same way.
 
+Turbo strips the environment by default, so those variables are declared in
+`turbo.json` under `tasks.test.env`. If you add a test that reads a new one,
+declare it there too — otherwise the suite skips and the run still reports
+success, which is the worst of both worlds.
+
+```bash
+createdb ironvow_test
+TEST_DATABASE_URL=postgresql://localhost/ironvow_test pnpm test
+```
+
 ## Deployment
 
 `deploy/ecosystem.config.cjs` runs the API clustered, the worker as a single

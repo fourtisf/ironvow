@@ -9,6 +9,10 @@
         "dist/**",
         ".next/**",
         "!.next/cache/**"
+      ],
+      "env": [
+        "NEXT_PUBLIC_API_URL",
+        "DATABASE_URL"
       ]
     },
     "typecheck": {
@@ -19,6 +23,13 @@
     "test": {
       "dependsOn": [
         "^build"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL",
+        "SESSION_SECRET",
+        "IRONVOW_CHROMIUM",
+        "PLAYWRIGHT_BROWSERS_PATH"
       ]
     },
     "lint": {},
@@ -27,7 +38,21 @@
       "persistent": true,
       "dependsOn": [
         "^build"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "SESSION_SECRET",
+        "WEB_ORIGIN",
+        "MAIL_TRANSPORT",
+        "NEXT_PUBLIC_API_URL",
+        "PORT",
+        "HOST",
+        "COOKIE_DOMAIN"
       ]
     }
-  }
+  },
+  "globalEnv": [
+    "NODE_ENV"
+  ]
 }

@@ -1,0 +1,168 @@
+// IRONVOW — server-authoritative game state.
+//
+// A player's base lives here and nowhere else. The client renders it and sends
+// intent; every number in this schema is written by the server after it
+// re-derived the cost or the outcome itself.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  email     String?  @unique
+  createdAt DateTime @default(now())
+
+  gold      BigInt   @default(900)
+  iron      BigInt   @default(320)
+  trophies  Int      @default(0)
+  keepLevel Int      @default(1)
+
+  /// Production is lazy: this is the watermark the next read accrues from.
+  lastTickAt  DateTime  @default(now())
+  shieldUntil DateTime?
+
+  buildings  Building[]
+  troops     Troop[]
+  queue      TrainJob[]
+  raidsMade  Raid[]     @relation("attacker")
+  raidsTaken Raid[]     @relation("defender")
+  sessions   Session[]
+  loginLinks LoginLink[]
+
+  @@index([trophies])
+}
+
+model Building {
+  id       String @id @default(cuid())
+  playerId String
+  /// keep | mine | forge | store | barr | cannon | tower | wall
+  type     String
+  gx       Int
+  gy       Int
+  level    Int    @default(1)
+  /// Uncollected production, accrued lazily like the player's own resources.
+  stock    Float  @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@index([playerId, type])
+}
+
+model Troop {
+  id       String @id @default(cuid())
+  playerId String
+  /// raider | archer | lancer | ram
+  type     String
+  count    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, type])
+  @@index([playerId])
+}
+
+model TrainJob {
+  id         String   @id @default(cuid())
+  playerId   String
+  type       String
+  /// Absolute finish time, resolved lazily on read like production.
+  finishesAt DateTime
+  position   Int
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, position])
+}
+
+model Raid {
+  id         String @id @default(cuid())
+  attackerId String
+  defenderId String
+
+  /// Drives all RNG in the sim. Stored so a replay reproduces exactly.
+  seed BigInt
+  /// Frozen copy of the defender's base. The battle is fought against this,
+  /// so the defender rebuilding mid-raid changes nothing.
+  snapshot Json
+  /// Ordered deploy commands from the attacker. The only thing the client sends.
+  commands Json?
+  /// The warband the attacker had when the raid opened.
+  ///
+  /// Frozen here rather than read at submit time, because training more troops
+  /// mid-raid would otherwise change what a replay is allowed to deploy and the
+  /// stored result would stop reproducing.
+  army Json
+
+  status       String   @default("open") // open | resolved | expired
+  stars        Int      @default(0)
+  destroyedPct Float    @default(0)
+  lootGold     BigInt   @default(0)
+  lootIron     BigInt   @default(0)
+  trophyDelta  Int      @default(0)
+  /// Server checksum of the replay. Compared against the client's to spot drift.
+  checksum     String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  resolvedAt   DateTime?
+
+  attacker Player @relation("attacker", fields: [attackerId], references: [id], onDelete: Cascade)
+  defender Player @relation("defender", fields: [defenderId], references: [id], onDelete: Cascade)
+
+  @@index([defenderId, createdAt])
+  @@index([attackerId, createdAt])
+  @@index([attackerId, status])
+}
+
+/// One row per client-vs-server disagreement. A spike here means a
+/// determinism bug in the simulation, not necessarily a cheat (spec S4.6).
+model Divergence {
+  id             String   @id @default(cuid())
+  raidId         String
+  playerId       String
+  clientChecksum String
+  serverChecksum String
+  clientStars    Int?
+  serverStars    Int
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  /// SHA-256 of the cookie value. The raw token is never stored.
+  tokenHash String   @unique
+  playerId  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@index([expiresAt])
+}
+
+model LoginLink {
+  id        String   @id @default(cuid())
+  /// SHA-256 of the emailed token.
+  tokenHash String   @unique
+  email     String
+  playerId  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([expiresAt])
+}

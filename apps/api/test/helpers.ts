@@ -1,0 +1,77 @@
+import { execSync } from 'node:child_process';
+import { PrismaClient } from '@prisma/client';
+
+/**
+ * Integration tests run against a real Postgres.
+ *
+ * The concurrency test in particular is meaningless without one: it exists to
+ * prove that SELECT ... FOR UPDATE stops a double-spend, and no in-memory
+ * substitute can demonstrate that.
+ */
+export const TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? '';
+
+export const hasDatabase = TEST_DATABASE_URL.length > 0;
+
+process.env.DATABASE_URL = TEST_DATABASE_URL;
+process.env.NODE_ENV = 'test';
+process.env.SESSION_SECRET ??= 'test-session-secret-at-least-16';
+
+let migrated = false;
+
+export function migrate(): void {
+  if (migrated || !hasDatabase) return;
+  execSync('npx prisma migrate deploy', {
+    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+    stdio: 'pipe',
+  });
+  migrated = true;
+}
+
+export const db = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
+
+export async function resetDatabase(): Promise<void> {
+  await db.$executeRawUnsafe(
+    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "Player" RESTART IDENTITY CASCADE',
+  );
+}
+
+/** A fresh player with the opening layout and an optional custom purse. */
+export async function makePlayer(
+  name: string,
+  opts: { gold?: number; iron?: number; trophies?: number; keepLevel?: number } = {},
+): Promise<string> {
+  const mid = Math.floor(56 / 2) - 1;
+  const player = await db.player.create({
+    data: {
+      name,
+      gold: BigInt(opts.gold ?? 900),
+      iron: BigInt(opts.iron ?? 320),
+      trophies: opts.trophies ?? 0,
+      keepLevel: opts.keepLevel ?? 1,
+      buildings: {
+        create: [
+          { type: 'keep', gx: mid, gy: mid, level: opts.keepLevel ?? 1 },
+          { type: 'mine', gx: mid - 3, gy: mid, level: 1 },
+          { type: 'barr', gx: mid + 3, gy: mid, level: 1 },
+        ],
+      },
+      troops: {
+        create: (['raider', 'archer', 'lancer', 'ram'] as const).map((type) => ({ type, count: 0 })),
+      },
+    },
+    select: { id: true },
+  });
+  return player.id;
+}
+
+/** Log in without going through email, for tests that need a cookie. */
+export async function loginAs(app: { inject: Function }, playerId: string): Promise<string> {
+  const { createHash, randomBytes } = await import('node:crypto');
+  const token = randomBytes(32).toString('base64url');
+  const tokenHash = createHash('sha256').update(token).update(process.env.SESSION_SECRET!).digest('hex');
+  await db.session.create({
+    data: { tokenHash, playerId, expiresAt: new Date(Date.now() + 3_600_000) },
+  });
+  return `ironvow_session=${token}`;
+}

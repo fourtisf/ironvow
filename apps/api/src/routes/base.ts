@@ -1,4 +1,11 @@
-import { BUILDING_TYPES, TROOP_TYPES, type BuildingType, type TroopType } from '@ironvow/config';
+import {
+  BUILDING_TYPES,
+  TROOP_TYPES,
+  finishNowCost,
+  isBusy,
+  type BuildingType,
+  type TroopType,
+} from '@ironvow/config';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { ERROR_MESSAGE, planBuild, planMove, planTrain, planUpgrade, type Verdict } from '../domain/commands.js';
@@ -56,13 +63,20 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
           iron: { decrement: BigInt(plan.value.cost.i) },
         },
       });
+      // The building goes on the map immediately, occupying its cells, but a
+      // timed one does not work until the builder is finished with it.
       const created = await tx.building.create({
-        data: { playerId: player.id, type, gx, gy, level: 1 },
+        data: {
+          playerId: player.id, type, gx, gy, level: 1,
+          completesAt: plan.value.seconds > 0
+            ? new Date(Date.now() + plan.value.seconds * 1000)
+            : null,
+        },
         select: { id: true },
       });
       return {
         ok: true as const,
-        value: { buildingId: created.id, cost: plan.value.cost },
+        value: { buildingId: created.id, cost: plan.value.cost, seconds: plan.value.seconds },
         player: await settleAndLoad(tx, player.id),
       };
     }, COMMAND_TX);
@@ -88,13 +102,30 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
         data: {
           gold: { decrement: BigInt(plan.value.cost.g) },
           iron: { decrement: BigInt(plan.value.cost.i) },
-          ...(plan.value.type === 'keep' ? { keepLevel: plan.value.toLevel } : {}),
+          // Only when it lands instantly. Otherwise settleAndLoad writes it as
+          // the timer completes, so a Keep under upgrade does not unlock
+          // anything until it is actually finished.
+          ...(plan.value.type === 'keep' && plan.value.seconds === 0
+            ? { keepLevel: plan.value.toLevel }
+            : {}),
         },
       });
-      await tx.building.update({
-        where: { id: plan.value.buildingId },
-        data: { level: plan.value.toLevel },
-      });
+      if (plan.value.seconds > 0) {
+        // The building keeps working at its old level while the builder is on
+        // it; settleAndLoad applies the new level when the timer runs out.
+        await tx.building.update({
+          where: { id: plan.value.buildingId },
+          data: {
+            completesAt: new Date(Date.now() + plan.value.seconds * 1000),
+            upgradingTo: plan.value.toLevel,
+          },
+        });
+      } else {
+        await tx.building.update({
+          where: { id: plan.value.buildingId },
+          data: { level: plan.value.toLevel },
+        });
+      }
       return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };
     }, COMMAND_TX);
 
@@ -173,6 +204,50 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
     const { player, ...rest } = outcome;
     return reply.send({ ...rest, player: serialise(player) });
+  });
+
+  /**
+   * Pay gold to finish a job now.
+   *
+   * There is no premium currency in IRONVOW and there is not going to be, so
+   * this is priced as a convenience for a player sitting on gold they cannot
+   * otherwise spend. A wealthy player skipping most timers is fine: the timer
+   * is there to pace someone still growing.
+   */
+  app.post('/finish', async (request, reply) => {
+    const parsed = idSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      await lockPlayer(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!);
+
+      const b = player.buildings.find((x) => x.id === parsed.data.buildingId);
+      if (!b) return { ok: false as const, error: 'unknownBuilding' as const };
+      if (!isBusy({ type: b.type, level: b.level, completesAt: b.completesAt ?? null, upgradingTo: b.upgradingTo ?? null })) {
+        return { ok: false as const, error: 'notBusy' as const };
+      }
+
+      const remaining = Math.max(0, ((b.completesAt as Date).getTime() - Date.now()) / 1000);
+      const cost = finishNowCost(remaining);
+      if (player.gold < BigInt(cost)) return { ok: false as const, error: 'cannotAfford' as const };
+
+      await tx.player.update({
+        where: { id: player.id },
+        data: { gold: { decrement: BigInt(cost) } },
+      });
+      // Backdating rather than clearing the columns keeps one completion path:
+      // settleAndLoad applies the level, exactly as it would have on its own.
+      await tx.building.update({
+        where: { id: b.id },
+        data: { completesAt: new Date(Date.now() - 1000) },
+      });
+
+      return { ok: true as const, value: { cost }, player: await settleAndLoad(tx, player.id) };
+    }, COMMAND_TX);
+
+    if (!result.ok) return refuse(reply, result);
+    return reply.send({ ...result.value, player: serialise(result.player) });
   });
 
   /** Queue troops. Sequential, with absolute finish times. */

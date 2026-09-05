@@ -1,5 +1,8 @@
 import {
+  BUILDERS,
   QUEST_COUNTERS,
+  buildersFree,
+  isUnderConstruction,
   START_GOLD,
   START_IRON,
   TROOP_ORDER,
@@ -40,6 +43,9 @@ export interface LoadedPlayer extends PlayerView {
   shieldUntil: Date | null;
   buildings: (OwnedBuildingRow & { stock: number })[];
   storageCap: number;
+  /** Builders not currently occupied. */
+  buildersFree: number;
+  buildersTotal: number;
   armyCap: number;
   armyUsed: number;
   queueJobs: { id: string; type: TroopType; finishesAt: Date; position: number }[];
@@ -78,13 +84,36 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   });
   if (!player) throw new PlayerNotFound(playerId);
 
+  /* --- finished builders, before anything else reads a level --- */
+  const finished = player.buildings.filter(
+    (b) => b.completesAt !== null && b.completesAt.getTime() <= now.getTime(),
+  );
+  for (const b of finished) {
+    // A fresh build has no upgradingTo: it simply starts working.
+    const level = b.upgradingTo ?? b.level;
+    await tx.building.update({
+      where: { id: b.id },
+      data: { level, completesAt: null, upgradingTo: null },
+    });
+    b.level = level;
+    b.completesAt = null;
+    b.upgradingTo = null;
+  }
+
   /* --- production --- */
-  const producers = player.buildings.map((b) => ({
-    id: b.id,
-    type: b.type as BuildingType,
-    level: b.level,
-    stock: b.stock,
-  }));
+  const producers = player.buildings
+    // A building still going up earns nothing. One being upgraded keeps
+    // working at its current level throughout.
+    .filter((b) => !isUnderConstruction({
+      type: b.type as BuildingType, level: b.level,
+      completesAt: b.completesAt, upgradingTo: b.upgradingTo,
+    }))
+    .map((b) => ({
+      id: b.id,
+      type: b.type as BuildingType,
+      level: b.level,
+      stock: b.stock,
+    }));
   const accrual = accrueProduction({ lastTickAt: player.lastTickAt, now, buildings: producers });
   if (accrual.updated.length > 0) {
     await Promise.all(
@@ -137,7 +166,10 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   }
 
   const buildings = player.buildings
-    .map((b) => ({ id: b.id, type: b.type as BuildingType, gx: b.gx, gy: b.gy, level: b.level, stock: b.stock }))
+    .map((b) => ({
+      id: b.id, type: b.type as BuildingType, gx: b.gx, gy: b.gy, level: b.level, stock: b.stock,
+      completesAt: b.completesAt, upgradingTo: b.upgradingTo,
+    }))
     .map((b) => {
       const updated = accrual.updated.find((u) => u.id === b.id);
       return updated ? { ...b, stock: updated.stock } : b;
@@ -180,6 +212,10 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     queue: queueTypes,
     queueJobs: resolved.pending,
     storageCap: storageCapOf(owned),
+    buildersFree: buildersFree(buildings.map((b) => ({
+      type: b.type, level: b.level, completesAt: b.completesAt, upgradingTo: b.upgradingTo,
+    }))),
+    buildersTotal: BUILDERS,
     armyCap: armyCapOf(owned),
     armyUsed: armyUsedOf(army, queueTypes),
     counters,

@@ -39,6 +39,33 @@ what does not, and what needs a decision.
 | Collect all | One button for every full producer |
 | Raid result | Stars land one at a time with a sound each; loot counts up |
 
+### Phase 4 — build timers and builders
+
+ALFA's answer to the §8.4 question was **free, no in-app purchases**, and that
+answer set every number. In a game that sells speed-ups, long timers are the
+engine. In a game that sells nothing, a long timer is friction with nobody on
+the other side of it benefiting. So these are a rhythm, not a wall:
+
+| | |
+|---|---|
+| Builders | 3, free, from the first minute. Never purchasable. |
+| Ramparts | No timer at all, so a run of twenty stays one fluid action |
+| First Gold Mine | 15 seconds |
+| A mid-game upgrade | Under 90 seconds |
+| Keep 8 → 9 | 9m 18s, and that is the longest job in the game |
+| Finish now | Gold, `max(10, remaining × 3)` — a convenience for a player with gold they cannot otherwise spend |
+
+Timers derive from cost rather than a table, because cost already encodes how
+significant a thing is and a second table would drift from the first. A square
+root keeps the curve gentle: a job costing a hundred times more takes ten times
+longer, not a hundred.
+
+A building still going up occupies its cells but earns nothing, fires nothing,
+and is left out of raid snapshots — it is scaffolding, not something to fight.
+A building being *upgraded* keeps working at its current level the whole time,
+because taking a defence offline for the duration of its own upgrade would make
+upgrading defences a mistake.
+
 ### Phase 3
 
 - **Scout before you raid (§8.1)** — done. The defender's real layout is drawn
@@ -77,9 +104,9 @@ Each is either structurally unreachable now or covered by a test:
 
 ## Not done
 
-- **Phase 4 entirely.** Build timers and builders are flagged in the spec as
-  needing ALFA's sign-off before implementation, so they were not started.
-  Layout editor, sound and quality settings, and push notifications likewise.
+- **Phase 4 remainder.** Layout editor (§8.7), a graphics-quality switch
+  (§8.8), and push notifications for finished builds and incoming raids. The
+  sound toggle from §8.8 is done.
 - **Revenge.** The data is all there — an incoming raid names its attacker and
   the raid is replayable — but there is no endpoint that opens a raid against a
   specific player.
@@ -127,6 +154,9 @@ mechanic but not the value, and each one changes the feel of raiding:
 | `LOOT_SHARE` | `0.2` | Share of a defender's unprotected stock on the table |
 | `LOOT_CEILING` | `250,000` | Ceiling on one raid's take |
 | `SCOUT_REROLL_COST` | `50` gold | Price of rerolling a scouted opponent |
+| `BUILDERS` | `3` | How many jobs can run at once |
+| `buildSeconds` | `sqrt(gold + iron × 2) × 1.2`, capped at 600s | The whole timer curve |
+| `finishNowCost` | `max(10, remaining × 3)` gold | Price of skipping a wait |
 | `HERO_BASE` + growth | 1400 hp, 55 dmg; ×1.18 / ×1.15 per rank | How much a hero swings a raid |
 | `heroRespawnMinutes` | `10 + level × 5` | What losing the hero costs |
 | `HERO_UNLOCK_KEEP_LEVEL` | `3` | When a hero first appears |

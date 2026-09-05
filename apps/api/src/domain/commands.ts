@@ -1,5 +1,8 @@
 import {
   KEEP_MAX,
+  buildSeconds,
+  buildersFree,
+  isBusy,
   TROOP,
   TROOP_UNLOCK,
   TYPES,
@@ -35,6 +38,20 @@ export interface PlayerView {
 
 export interface OwnedBuildingRow extends PlacedBuilding {
   level: number;
+  /** Null when no builder is working on it. */
+  completesAt?: Date | null;
+  /** The level it becomes; null while a fresh build is still going up. */
+  upgradingTo?: number | null;
+}
+
+/** Shape the builder helpers expect. */
+function timed(b: OwnedBuildingRow): { type: BuildingType; level: number; completesAt: Date | null; upgradingTo: number | null } {
+  return {
+    type: b.type,
+    level: b.level,
+    completesAt: b.completesAt ?? null,
+    upgradingTo: b.upgradingTo ?? null,
+  };
 }
 
 export type CommandError =
@@ -50,7 +67,10 @@ export type CommandError =
   | 'cannotMoveKeep'
   | 'barracksTooLow'
   | 'warbandFull'
-  | 'noSuchTroop';
+  | 'noSuchTroop'
+  | 'noBuilderFree'
+  | 'alreadyBusy'
+  | 'notBusy';
 
 export type Verdict<T> = { ok: true; value: T } | { ok: false; error: CommandError };
 
@@ -68,6 +88,8 @@ export interface BuildPlan {
   gx: number;
   gy: number;
   cost: Cost;
+  /** Zero means it goes up instantly, which is only ever a rampart. */
+  seconds: number;
 }
 
 export function planBuild(
@@ -90,7 +112,12 @@ export function planBuild(
   const cost = costOf(type, 0, owned);
   if (!canAfford(player, cost)) return fail('cannotAfford');
 
-  return pass({ type, gx, gy, cost });
+  const seconds = buildSeconds(type, 0, owned);
+  // A rampart needs no builder, so a run of them can be laid while every
+  // builder is busy elsewhere.
+  if (seconds > 0 && buildersFree(player.buildings.map(timed)) === 0) return fail('noBuilderFree');
+
+  return pass({ type, gx, gy, cost, seconds });
 }
 
 /* -------------------------------------------------------------- upgrade --- */
@@ -101,6 +128,7 @@ export interface UpgradePlan {
   fromLevel: number;
   toLevel: number;
   cost: Cost;
+  seconds: number;
 }
 
 /**
@@ -111,6 +139,8 @@ export interface UpgradePlan {
 export function planUpgrade(player: PlayerView, buildingId: string): Verdict<UpgradePlan> {
   const b = player.buildings.find((x) => x.id === buildingId);
   if (!b) return fail('unknownBuilding');
+  // One builder per building: you cannot stack two jobs on the same thing.
+  if (isBusy(timed(b))) return fail('alreadyBusy');
 
   const keepLevel = keepLevelOf(player.buildings.map((x) => ({ type: x.type, level: x.level })));
 
@@ -124,7 +154,10 @@ export function planUpgrade(player: PlayerView, buildingId: string): Verdict<Upg
   const cost = costOf(b.type, b.level, owned);
   if (!canAfford(player, cost)) return fail('cannotAfford');
 
-  return pass({ buildingId, type: b.type, fromLevel: b.level, toLevel: b.level + 1, cost });
+  const seconds = buildSeconds(b.type, b.level, owned);
+  if (seconds > 0 && buildersFree(player.buildings.map(timed)) === 0) return fail('noBuilderFree');
+
+  return pass({ buildingId, type: b.type, fromLevel: b.level, toLevel: b.level + 1, cost, seconds });
 }
 
 /* ----------------------------------------------------------------- move --- */
@@ -149,6 +182,8 @@ export function planMove(player: PlayerView, buildingId: string, gx: number, gy:
   const b = player.buildings.find((x) => x.id === buildingId);
   if (!b) return fail('unknownBuilding');
   if (b.type === 'keep') return fail('cannotMoveKeep');
+  // Moving a building mid-job would leave the builder walking to an empty plot.
+  if (isBusy(timed(b))) return fail('alreadyBusy');
 
   const placement = cellsFree(b.type, gx, gy, player.buildings, buildingId);
   if (placement) return fail(placement);
@@ -195,4 +230,7 @@ export const ERROR_MESSAGE: Record<CommandError, string> = {
   barracksTooLow: 'A higher Barracks level is needed.',
   warbandFull: 'Warband is full — upgrade or build a Barracks.',
   noSuchTroop: 'No such troop.',
+  noBuilderFree: 'Every builder is busy.',
+  alreadyBusy: 'A builder is already working on that.',
+  notBusy: 'Nothing is being built there.',
 };

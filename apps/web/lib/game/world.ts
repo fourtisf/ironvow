@@ -42,6 +42,8 @@ export interface World {
   terrain: Terrain;
   /** Animation clock in seconds. */
   t: number;
+  /** Wall-clock milliseconds, refreshed each frame for the builder bars. */
+  now: number;
 
   mode: Mode;
   player: PlayerState | null;
@@ -81,6 +83,7 @@ export function createWorld(events: WorldEvents): World {
     vp: { w: 1, h: 1, dpr: 1 },
     terrain: generateTerrain(),
     t: 0,
+    now: Date.now(),
     mode: 'base',
     player: null,
     selectedId: null,
@@ -160,6 +163,10 @@ export function predictProduction(w: World, dt: number): void {
   for (const b of player.buildings) {
     const rate = PROD[b.type];
     if (!rate) continue;
+    // A building still going up earns nothing on the server, so predicting for
+    // it would float a pouch over a scaffold and promise gold that is not
+    // coming.
+    if (b.completesAt !== null && b.upgradingTo === null) continue;
     const cap = rate(b.level) * 12;
     b.stock = Math.min(cap, b.stock + (rate(b.level) * dt) / 60);
   }

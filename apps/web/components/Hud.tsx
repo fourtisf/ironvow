@@ -2,7 +2,7 @@
 
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
-import { ArmyIcon, BuildIcon, GoldIcon, HomeIcon, IronIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
+import { ArmyIcon, BuilderIcon, BuildIcon, GoldIcon, HomeIcon, IronIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
 
 /**
  * The resource bar, the Keep badge and the bottom rail.
@@ -64,6 +64,13 @@ export function Hud({
       <div id="trophyBar">
         <span><TrophyIcon /></span>
         <span>{player.trophies}</span>
+      </div>
+
+      {/* Builders are free and there are only ever three, so this is a status
+          line rather than an upsell. */}
+      <div id="builderBar" className={player.buildersFree === 0 ? 'busy' : ''}>
+        <BuilderIcon />
+        <span>{player.buildersFree}/{player.buildersTotal}</span>
       </div>
 
       {/*

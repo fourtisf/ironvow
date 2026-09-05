@@ -120,7 +120,10 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       if (!opponent) return { kind: 'none' as const };
 
       const withBuildings = opponent as typeof opponent & {
-        buildings: { id: string; type: string; gx: number; gy: number; level: number }[];
+        buildings: {
+          id: string; type: string; gx: number; gy: number; level: number;
+          completesAt: Date | null; upgradingTo: number | null;
+        }[];
       };
 
       const snapshot = snapshotBase({
@@ -129,9 +132,14 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         keepLevel: withBuildings.keepLevel,
         gold: withBuildings.gold,
         iron: withBuildings.iron,
-        buildings: withBuildings.buildings.map((b) => ({
-          id: b.id, type: b.type as BuildingType, gx: b.gx, gy: b.gy, level: b.level,
-        })),
+        buildings: withBuildings.buildings
+          // A building still going up is scaffolding: it does not defend, does
+          // not hold loot, and is not something an attacker can knock over. One
+          // being upgraded is a real building at its current level and stays.
+          .filter((b) => !(b.completesAt !== null && b.upgradingTo === null))
+          .map((b) => ({
+            id: b.id, type: b.type as BuildingType, gx: b.gx, gy: b.gy, level: b.level,
+          })),
       });
 
       const raid = await tx.raid.create({

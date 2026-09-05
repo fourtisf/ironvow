@@ -53,9 +53,13 @@ export const api = {
     post('/auth/redeem', { token, name }),
   logout: (): Promise<{ ok: true }> => post('/auth/logout'),
 
-  build: (type: BuildingType, gx: number, gy: number): Promise<CommandResponse> =>
+  build: (type: BuildingType, gx: number, gy: number): Promise<CommandResponse & { seconds: number }> =>
     post('/build', { type, gx, gy }),
-  upgrade: (buildingId: string): Promise<CommandResponse> => post('/upgrade', { buildingId }),
+  upgrade: (buildingId: string): Promise<CommandResponse & { seconds: number }> =>
+    post('/upgrade', { buildingId }),
+  /** Pay gold to finish a job now. */
+  finish: (buildingId: string): Promise<CommandResponse & { cost: number }> =>
+    post('/finish', { buildingId }),
   move: (buildingId: string, gx: number, gy: number): Promise<CommandResponse> =>
     post('/move', { buildingId, gx, gy }),
   collect: (buildingId?: string): Promise<CommandResponse & {

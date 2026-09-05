@@ -70,6 +70,21 @@ export function Game() {
   /** Frame the hold once, on the first load, not on every poll. */
   const framed = useRef(false);
 
+  /**
+   * How long each job was, by building id.
+   *
+   * The server sends a finish time, not a duration, and it is right to: a
+   * duration would go stale the moment the response was delayed. But a progress
+   * bar needs to know how far along a job is, so the client remembers the length
+   * of anything it started itself. A reload loses that and the bar simply fills
+   * over whatever time is left, which is honest if less pretty.
+   */
+  const jobLengths = useRef(new Map<string, number>());
+
+  const rememberJob = useCallback((buildingId: string, seconds: number) => {
+    if (seconds > 0) jobLengths.current.set(buildingId, seconds);
+  }, []);
+
   const applyPlayer = useCallback((next: PlayerState) => {
     setPlayer(next);
     const world = worldRef.current;
@@ -77,7 +92,21 @@ export function Game() {
       // Preserve the local bump animation across a server refresh, so a
       // building that was just placed does not stop mid-pop.
       const bumps = new Map(world.player?.buildings.map((b) => [b.id, b.bump]) ?? []);
-      world.player = { ...next, buildings: next.buildings.map((b) => ({ ...b, bump: bumps.get(b.id) })) };
+      world.player = {
+        ...next,
+        buildings: next.buildings.map((b) => ({
+          ...b,
+          bump: bumps.get(b.id),
+          jobSeconds: jobLengths.current.get(b.id),
+        })),
+      };
+      // Forget the length of anything no longer being built, so the map does
+      // not grow for the life of the session.
+      for (const id of [...jobLengths.current.keys()]) {
+        if (!next.buildings.some((b) => b.id === id && b.completesAt !== null)) {
+          jobLengths.current.delete(id);
+        }
+      }
 
       // The canvas mounts before /me answers, so the first frame has nothing to
       // frame against. Do it once the hold actually arrives.
@@ -180,6 +209,9 @@ export function Game() {
     if (!done) return;
     sfx.place();
     if (place.movingId) bump(world, place.movingId);
+    else if ('buildingId' in done && 'seconds' in done) {
+      rememberJob(done.buildingId as string, done.seconds as number);
+    }
     cancelPlacement(world);
     setModeState('base');
 
@@ -342,7 +374,10 @@ export function Game() {
   // advances every frame, and mirroring that into state would re-render the
   // whole tree sixty times a second.
   const pendingStock = Math.floor(
-    (world?.player?.buildings ?? []).reduce((sum, b) => sum + (PROD[b.type] ? b.stock : 0), 0),
+    (world?.player?.buildings ?? []).reduce((sum, b) => {
+      const goingUp = b.completesAt !== null && b.upgradingTo === null;
+      return sum + (PROD[b.type] && !goingUp ? b.stock : 0);
+    }, 0),
   );
 
   // A player who has collected, raided or climbed has a hold worth keeping.
@@ -456,7 +491,19 @@ export function Game() {
           player={player}
           building={selected}
           onClose={() => { setSelectedId(null); if (world) world.selectedId = null; }}
-          onUpgrade={() => { void runCommand(() => api.upgrade(selected.id)); }}
+          onUpgrade={() => {
+            void runCommand(() => api.upgrade(selected.id)).then((r) => {
+              if (!r) return;
+              sfx.place();
+              rememberJob(selected.id, r.seconds);
+              if (r.seconds > 0) say(`Builder started — ready in ${Math.max(1, Math.round(r.seconds / 60))} min`);
+            });
+          }}
+          onFinish={() => {
+            void runCommand(() => api.finish(selected.id)).then((r) => {
+              if (r) { sfx.up(); say(`Finished for ${fmt(r.cost)} gold`); }
+            });
+          }}
           onMove={() => {
             if (!world) return;
             setSelectedId(null);

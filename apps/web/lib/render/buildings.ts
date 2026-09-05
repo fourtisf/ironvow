@@ -2,7 +2,7 @@ import { TYPES, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, w2s } from './camera';
 import type { Draw } from './primitives';
 import { C, PIPH, bannerColor } from './palette';
-import { drawLevelPip, isoBox, isoRoof, roundRect, shadowAt } from './primitives';
+import { drawLevelPip, isoBox, isoDiamond, isoRoof, roundRect, shadowAt } from './primitives';
 
 /**
  * Procedural building art, ported from the prototype.
@@ -17,6 +17,10 @@ export interface Renderable {
   gx: number;
   gy: number;
   level: number;
+  /** 0..1 while a builder is on it. Undefined when idle. */
+  progress?: number;
+  /** True for a building that is still going up, as opposed to being upgraded. */
+  scaffold?: boolean;
   /** Cannon barrel angle, set by the battle renderer. Cosmetic only. */
   aim?: number;
   /** 0..1, decays after firing. */
@@ -300,4 +304,66 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     drawLevelPip(d, px, py - (PIPH[b.type] ?? 0) * z, lv);
   }
   if (ghostAlpha !== undefined) ctx.restore();
+  // After the restore, so the scaffolding and its progress bar stay solid over
+  // a building that is deliberately drawn faint.
+  if (b.progress !== undefined) drawBuilderMark(d, b, s);
+}
+
+/**
+ * Scaffolding and a progress bar.
+ *
+ * A building still going up gets poles and a wash over its footprint, so it is
+ * obvious at a glance that it is not working yet. One being upgraded gets only
+ * the bar, because it is working the whole time and dimming it would say
+ * otherwise.
+ */
+function drawBuilderMark(d: Draw, b: Renderable, size: number): void {
+  const { ctx, cam, vp } = d;
+  const z = cam.z;
+  const progress = Math.max(0, Math.min(1, b.progress ?? 0));
+  const P = (ax: number, ay: number): [number, number] => w2s(cam, vp, isoX(ax, ay), isoY(ax, ay));
+
+  if (b.scaffold) {
+    isoDiamond(d, b.gx, b.gy, size, size, 'rgba(232,178,60,.18)', 0, '#e8b23c');
+
+    // Four corner poles with a rail between them.
+    const h = 26 + size * 8;
+    ctx.strokeStyle = '#c9924f';
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+    ctx.lineCap = 'round';
+    const corners: [number, number][] = [
+      [b.gx + 0.15, b.gy + 0.15], [b.gx + size - 0.15, b.gy + 0.15],
+      [b.gx + size - 0.15, b.gy + size - 0.15], [b.gx + 0.15, b.gy + size - 0.15],
+    ];
+    const tops = corners.map(([cx, cy]) => {
+      const [px, py] = P(cx, cy);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px, py - h * z);
+      ctx.stroke();
+      return [px, py - h * z] as [number, number];
+    });
+    ctx.beginPath();
+    ctx.moveTo(tops[0]![0], tops[0]![1]);
+    for (const t of tops.slice(1)) ctx.lineTo(t[0], t[1]);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  // Sized to be readable at the zoom a whole base is framed at, which is the
+  // zoom the player actually spends their time in.
+  const [bx, by] = P(b.gx + size / 2, b.gy + size / 2);
+  const top = by - (56 + size * 22) * z;
+  const w = 46 * z;
+  const h = 8 * z;
+
+  ctx.fillStyle = 'rgba(10,14,22,.85)';
+  ctx.strokeStyle = '#e8b23c';
+  ctx.lineWidth = Math.max(1, 1.4 * z);
+  roundRect(ctx, bx - w / 2, top, w, h, h / 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#8fe07a';
+  roundRect(ctx, bx - w / 2 + 1.5 * z, top + 1.5 * z, Math.max(0, (w - 3 * z) * progress), h - 3 * z, (h - 3 * z) / 2);
+  ctx.fill();
 }

@@ -51,15 +51,22 @@ describe.skipIf(!hasDatabase)('concurrent commands cannot double-spend', () => {
     const refused = responses.filter((r) => r.statusCode === 409);
     expect(ok).toHaveLength(1);
     expect(refused).toHaveLength(49);
-    expect(refused.every((r) => r.json().error === 'cannotAfford')).toBe(true);
+    // Two refusals are correct here and both are right: the losers either
+    // cannot pay, or arrive after a builder is already on the Keep. What
+    // matters is that the payment happened exactly once.
+    expect(refused.every((r) => ['cannotAfford', 'alreadyBusy'].includes(r.json().error))).toBe(true);
 
     const after = await db.player.findUniqueOrThrow({ where: { id: playerId } });
     expect(after.gold).toBe(0n);
     expect(after.iron).toBe(0n);
-    expect(after.keepLevel).toBe(2);
+    // The Keep is under upgrade, not upgraded: the level lands when the timer
+    // does, so nothing it would unlock is available yet.
+    expect(after.keepLevel).toBe(1);
 
     const keepAfter = await db.building.findUniqueOrThrow({ where: { id: keep.id } });
-    expect(keepAfter.level).toBe(2);
+    expect(keepAfter.level).toBe(1);
+    expect(keepAfter.upgradingTo).toBe(2);
+    expect(keepAfter.completesAt).not.toBeNull();
   });
 
   it('never lets a balance go negative under a burst of builds', async () => {

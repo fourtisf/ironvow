@@ -89,7 +89,12 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
       ctx.scale(k, k);
       ctx.translate(-cx, -cy);
     }
-    drawBuilding(d, b, false);
+    // Progress is interpolated locally between polls, so the bar creeps rather
+    // than jumping every thirty seconds.
+    const job = builderProgress(b, w.now);
+    // A building still going up is drawn faint: it is a plan, not a building.
+    // One being upgraded is solid, because it is working the whole time.
+    drawBuilding(d, job ? { ...b, ...job } : b, false, job?.scaffold ? 0.5 : undefined);
     ctx.restore();
 
     if (b.id === w.selectedId) {
@@ -103,7 +108,9 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   }
 
   for (const b of w.player?.buildings ?? []) {
-    if (PROD[b.type] && b.stock >= 1) drawCollectBubble(w, d, b);
+    // No pouch over a scaffold: it is not producing anything yet.
+    const goingUp = b.completesAt !== null && b.upgradingTo === null;
+    if (PROD[b.type] && b.stock >= 1 && !goingUp) drawCollectBubble(w, d, b);
   }
   drawPopups(w, d);
 }
@@ -184,6 +191,24 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   for (const p of battle.projs) {
     drawProjectile(d, { x: p.x, y: p.y, kind: p.kind });
   }
+}
+
+/** How far along this building's job is, or null when no builder is on it. */
+function builderProgress(
+  b: ClientBuilding,
+  now: number,
+): { progress: number; scaffold: boolean } | null {
+  if (!b.completesAt) return null;
+  const ends = new Date(b.completesAt).getTime();
+  const total = b.jobSeconds && b.jobSeconds > 0 ? b.jobSeconds * 1000 : null;
+  const remaining = Math.max(0, ends - now);
+  // Without a known duration the best honest guess is a bar that fills as the
+  // remaining time shrinks against the largest job in the game.
+  const span = total ?? Math.max(remaining, 1);
+  return {
+    progress: total ? 1 - remaining / span : 1 - remaining / Math.max(span, 1),
+    scaffold: b.upgradingTo === null,
+  };
 }
 
 function drawCollectBubble(w: World, d: Draw, b: ClientBuilding): void {

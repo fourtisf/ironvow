@@ -206,3 +206,22 @@
   .tcard.hero{border-color:#e8b23c;background:linear-gradient(#4a3a18,#2a2110)}
   .tcard.hero .nm{color:#ffd97a}
   .tcard.hero.sel{border-color:#ffd97a;background:linear-gradient(#6b5220,#40310f)}
+
+  /* Builders. Sits under the trophy bar, same visual weight. */
+  #builderBar{position:absolute;top:calc(102px + env(safe-area-inset-top));right:9px;
+    display:flex;align-items:center;gap:5px;background:rgba(20,28,40,.82);
+    border:2px solid #3d5170;border-radius:11px;padding:4px 10px 4px 6px;font-size:12px}
+  #builderBar svg{width:16px;height:16px;display:block}
+  #builderBar.busy{border-color:#7a3c33}
+  #builderBar.busy span{color:#ff9a86}
+  /* The guest note drops below the builder bar so the two never collide. */
+  #guestNote{top:calc(140px + env(safe-area-inset-top))}
+
+  /* Icons inside buttons and cost lines follow the text, never the container. */
+  .btn svg{width:13px;height:13px;display:inline-block;vertical-align:-2px}
+  .card .cost svg{width:13px;height:13px}
+  .lootRow svg{width:19px;height:19px}
+  /* The inspector must never grow tall enough to swallow the field. */
+  #insp{max-height:34vh}
+  #insp .acts{max-width:46%}
+  #insp .acts .btn{white-space:nowrap;display:flex;align-items:center;gap:4px;justify-content:center}

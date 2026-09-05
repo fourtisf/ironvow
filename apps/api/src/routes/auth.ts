@@ -168,8 +168,12 @@ export function serialise(p: Awaited<ReturnType<typeof loadPlayer>>) {
     armyCap: p.armyCap,
     armyUsed: p.armyUsed,
     army: p.army,
+    buildersFree: p.buildersFree,
+    buildersTotal: p.buildersTotal,
     buildings: p.buildings.map((b) => ({
       id: b.id, type: b.type, gx: b.gx, gy: b.gy, level: b.level, stock: b.stock,
+      completesAt: b.completesAt?.toISOString() ?? null,
+      upgradingTo: b.upgradingTo ?? null,
     })),
     queue: p.queueJobs.map((j) => ({
       id: j.id, type: j.type, finishesAt: j.finishesAt.toISOString(), position: j.position,

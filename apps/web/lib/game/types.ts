@@ -9,6 +9,18 @@ export interface ClientBuilding {
   gy: number;
   level: number;
   stock: number;
+  /** ISO timestamp while a builder is on it, null when idle. */
+  completesAt: string | null;
+  /** Level it becomes; null while a fresh build is still going up. */
+  upgradingTo: number | null;
+  /**
+   * How long this job was, in seconds. Local only.
+   *
+   * The server sends a finish time, not a duration, so the client remembers the
+   * length of a job it started itself. Without it a reloaded page can still show
+   * a bar, just one that fills over whatever is left rather than the whole job.
+   */
+  jobSeconds?: number;
   /** Local-only: scale pop after a place or a collect. Never sent anywhere. */
   bump?: number;
 }
@@ -31,6 +43,8 @@ export interface PlayerState {
   keepLevel: number;
   shieldUntil: string | null;
   storageCap: number;
+  buildersFree: number;
+  buildersTotal: number;
   armyCap: number;
   armyUsed: number;
   army: Partial<Record<TroopType, number>>;

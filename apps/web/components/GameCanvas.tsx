@@ -74,6 +74,7 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       world.t += dt;
+      world.now = Date.now();
 
       if (world.mode === 'battle') {
         stepBattle(world, dt);

@@ -1,7 +1,7 @@
 'use client';
 
-import { KEEP_MAX, TYPES, costOf, countOf, hpOf, DEF_STAT, PROD } from '@ironvow/config';
-import { fmt } from '../lib/format';
+import { KEEP_MAX, TYPES, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD } from '@ironvow/config';
+import { fmt, until } from '../lib/format';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
 
@@ -20,16 +20,55 @@ export interface InspectorProps {
   onUpgrade: () => void;
   onMove: () => void;
   onCollect: () => void;
+  onFinish: () => void;
 }
 
-export function Inspector({ player, building, onClose, onUpgrade, onMove, onCollect }: InspectorProps) {
+export function Inspector({
+  player, building, onClose, onUpgrade, onMove, onCollect, onFinish,
+}: InspectorProps) {
   const def = TYPES[building.type];
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   const isKeep = building.type === 'keep';
 
   const atCap = isKeep ? building.level >= KEEP_MAX : building.level >= player.keepLevel;
-  const cost = costOf(building.type, building.level, countOf(owned, building.type));
+  const ownedCount = countOf(owned, building.type);
+  const cost = costOf(building.type, building.level, ownedCount);
   const affordable = player.gold >= cost.g && player.iron >= cost.i;
+  const seconds = buildSeconds(building.type, building.level, ownedCount);
+
+  /* --- a builder is on it --- */
+  const busy = building.completesAt !== null;
+  const remaining = busy ? Math.max(0, (new Date(building.completesAt!).getTime() - Date.now()) / 1000) : 0;
+  const rushCost = finishNowCost(remaining);
+  const scaffold = busy && building.upgradingTo === null;
+  const noBuilder = !busy && seconds > 0 && player.buildersFree === 0;
+
+  if (busy) {
+    return (
+      <div id="insp">
+        <div className="info">
+          <h3>{def.n} · {scaffold ? 'GOING UP' : `TO LEVEL ${building.upgradingTo}`}</h3>
+          <p>
+            Ready in {until(building.completesAt!)}
+            <br />
+            {scaffold
+              ? 'It earns nothing and fires nothing until it is finished.'
+              : 'Still working at its current level while the builder is on it.'}
+          </p>
+        </div>
+        <div className="acts">
+          <button
+            className={`btn gold${player.gold >= rushCost ? '' : ' grey'}`}
+            onClick={onFinish}
+            disabled={player.gold < rushCost}
+          >
+            FINISH · {fmt(rushCost)}
+          </button>
+          <button className="btn grey" onClick={onClose}>CLOSE</button>
+        </div>
+      </div>
+    );
+  }
 
   const rate = PROD[building.type];
   const defence = DEF_STAT[building.type];
@@ -53,6 +92,7 @@ export function Inspector({ player, building, onClose, onUpgrade, onMove, onColl
           {detail}
           <br />
           {fmt(hpOf(building.type, building.level))} hit points
+          {!atCap && seconds > 0 && ` · next takes ${Math.round(seconds / 60) >= 1 ? `${Math.round(seconds / 60)}m` : `${seconds}s`}`}
         </p>
       </div>
 
@@ -61,13 +101,15 @@ export function Inspector({ player, building, onClose, onUpgrade, onMove, onColl
           <button className="btn gold" onClick={onCollect}>COLLECT</button>
         )}
         <button
-          className={`btn${affordable && !atCap ? '' : ' grey'}`}
+          className={`btn${affordable && !atCap && !noBuilder ? '' : ' grey'}`}
           onClick={onUpgrade}
-          disabled={atCap || !affordable}
+          disabled={atCap || !affordable || noBuilder}
         >
           {atCap
             ? (isKeep ? 'MAX' : 'KEEP CAP')
-            : <>UPGRADE {cost.g > 0 && <><GoldIcon />{fmt(cost.g)}</>}{cost.i > 0 && <><IronIcon />{fmt(cost.i)}</>}</>}
+            : noBuilder
+              ? 'NO BUILDER'
+              : <>UPGRADE {cost.g > 0 && <><GoldIcon />{fmt(cost.g)}</>}{cost.i > 0 && <><IronIcon />{fmt(cost.i)}</>}</>}
         </button>
         {!isKeep && <button className="btn grey" onClick={onMove}>MOVE</button>}
         <button className="btn grey" onClick={onClose}>CLOSE</button>

@@ -71,10 +71,21 @@ model Building {
   /// Uncollected production, accrued lazily like the player's own resources.
   stock    Float  @default(0)
 
+  /// When the builder finishes with this building. Null means idle, and a
+  /// non-null value is what occupies one of the player's three builders.
+  completesAt DateTime?
+  /// The level this becomes when the timer runs out.
+  ///
+  /// Null while a brand-new building is still going up, which is how a fresh
+  /// build is told apart from an upgrade: the first does not work until it is
+  /// finished, the second keeps working at its current level throughout.
+  upgradingTo Int?
+
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId])
   @@index([playerId, type])
+  @@index([playerId, completesAt])
 }
 
 model Troop {

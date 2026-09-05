@@ -116,6 +116,7 @@ pnpm test
   agree cell by cell.
 - **Concurrency** — 50 simultaneous upgrades against a player who can afford
   one, run against a real Postgres.
+- **Matchmaking** — a lone player still finds an opponent, never themselves.
 - **Replay** — a raid persisted, then reproduced from stored seed, snapshot,
   commands and warband alone.
 
@@ -133,6 +134,19 @@ success, which is the worst of both worlds.
 createdb ironvow_test
 TEST_DATABASE_URL=postgresql://localhost/ironvow_test pnpm test
 ```
+
+## Operations
+
+`GET /ops/divergence` and `GET /ops/health` are guarded by a bearer token in
+`OPS_TOKEN`. Unset means the endpoints are off, not open: an unauthenticated
+divergence feed tells an attacker exactly how close their forged client is to
+matching the server.
+
+The number that matters on the first is the rate, not the count. Divergence
+should be effectively zero, because the client and the server run the same code
+on the same inputs. Anything above one in a thousand is worth looking at, and
+one in a hundred means the shared simulation is broken rather than that a
+hundredth of players are cheating.
 
 ## Deployment
 

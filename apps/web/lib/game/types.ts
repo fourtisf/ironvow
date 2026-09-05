@@ -84,6 +84,8 @@ export interface FloatingText {
 
 export interface ScoutedRaid {
   raidId: string;
+  /** False for a generated garrison, so the UI can say so plainly. */
+  isPlayer?: boolean;
   seed: number;
   snapshot: BaseSnapshot;
   army: BattleArmy;

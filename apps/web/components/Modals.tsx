@@ -18,15 +18,20 @@ export interface ScoutModalProps {
   snapshot: BaseSnapshot;
   rerollCost: number;
   canReroll: boolean;
+  /** False for a generated garrison. */
+  isPlayer: boolean;
   onAttack: () => void;
   onReroll: () => void;
   onCancel: () => void;
 }
 
-export function ScoutModal({ snapshot, rerollCost, canReroll, onAttack, onReroll, onCancel }: ScoutModalProps) {
+export function ScoutModal({
+  snapshot, rerollCost, canReroll, isPlayer, onAttack, onReroll, onCancel,
+}: ScoutModalProps) {
   const counts = new Map<string, number>();
   for (const b of snapshot.buildings) counts.set(b.type, (counts.get(b.type) ?? 0) + 1);
   const defences = (counts.get('cannon') ?? 0) + (counts.get('tower') ?? 0);
+  const vaults = counts.get('store') ?? 0;
 
   // Deliberately a sheet rather than a centred modal: the base being scouted is
   // drawn on the canvas above it, and covering that up would defeat the point.
@@ -36,7 +41,8 @@ export function ScoutModal({ snapshot, rerollCost, canReroll, onAttack, onReroll
         <div>
           <h2>{snapshot.defenderName.toUpperCase()}</h2>
           <p>
-            Keep {snapshot.keepLevel} · {defences} defence{defences === 1 ? '' : 's'} ·{' '}
+            {isPlayer ? 'Player' : 'Garrison'} · Keep {snapshot.keepLevel} ·{' '}
+            {defences} defence{defences === 1 ? '' : 's'} ·{' '}
             {counts.get('wall') ?? 0} ramparts · drag to look around
           </p>
         </div>
@@ -57,8 +63,11 @@ export function ScoutModal({ snapshot, rerollCost, canReroll, onAttack, onReroll
       </div>
 
       <p className="lead" style={{ marginBottom: 10 }}>
-        Their Vaults hold back the rest. This layout is frozen — whatever they build
-        from here changes nothing about the fight you walk into.
+        {!isPlayer
+          ? 'An abandoned garrison. Nobody loses what you take, and nobody is coming to answer it.'
+          : vaults > 0
+            ? 'Their Vaults hold back the rest. This layout is frozen — whatever they build from here changes nothing about the fight you walk into.'
+            : 'They have no Vault, so everything they hold is on the table. This layout is frozen — whatever they build from here changes nothing.'}
       </p>
 
       <div style={{ display: 'flex', gap: 8 }}>

@@ -69,7 +69,7 @@ export const api = {
   train: (type: TroopType, count = 1): Promise<CommandResponse & { queued: number }> =>
     post('/train', { type, count }),
 
-  findRaid: (reroll = false): Promise<ScoutedRaid & { player: PlayerState }> =>
+  findRaid: (reroll = false): Promise<ScoutedRaid & { isPlayer: boolean; player: PlayerState }> =>
     post('/raid/find', { reroll }),
 
   /**
@@ -121,6 +121,16 @@ export const api = {
   claimQuest: (questId: string): Promise<CommandResponse & { reward: { g: number; i: number } }> =>
     post('/quests/claim', { questId }),
 
+  /** Open a raid straight back at whoever hit you. */
+  revenge: (raidId: string): Promise<ScoutedRaid & { isPlayer: boolean; player: PlayerState }> =>
+    post('/raid/revenge', { raidId }),
+
+  leaderboard: (): Promise<{
+    top: { id: string; name: string; trophies: number; keepLevel: number; rank: number; isMe: boolean }[];
+    me: { id: string; name: string; trophies: number; keepLevel: number; rank: number } | null;
+    total: number;
+  }> => call('/leaderboard'),
+
   incoming: (): Promise<{
     raids: {
       raidId: string;
@@ -131,6 +141,7 @@ export const api = {
       trophyDelta: number;
       at: string;
       replayable: boolean;
+      avengeable: boolean;
     }[];
   }> => call('/raids/incoming'),
 

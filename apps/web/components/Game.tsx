@@ -1,6 +1,13 @@
 'use client';
 
-import { PROD, TYPES, hasClaimableQuest, type BuildingType, type TroopType } from '@ironvow/config';
+import {
+  HERO_UNLOCK_KEEP_LEVEL,
+  PROD,
+  TROOP_ORDER,
+  TYPES,
+  hasClaimableQuest,
+  type BuildingType,
+} from '@ironvow/config';
 import type { DeployCommand } from '@ironvow/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../lib/api';
@@ -18,14 +25,16 @@ import {
 } from '../lib/game/world';
 import type { BattleOutcome, Mode, PlayerState, ScoutedRaid } from '../lib/game/types';
 import { fmt } from '../lib/format';
-import { loadSoundPreference, setSoundEnabled, sfx, unlockAudio } from '../lib/sfx';
+import { loadSoundPreference, setSfxVolume, sfx, unlockAudio } from '../lib/sfx';
+import { loadMusicPreference, setMusicVolume, startMusic, stopMusic, unlockMusic } from '../lib/music';
 import { BattleHud } from './BattleHud';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
 import { ClaimModal, ResultModal, ScoutModal, SignInModal } from './Modals';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
-import { ArmySheet, BuildSheet, LogSheet, type ProgressionView } from './Sheets';
+import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
+import { SettingsSheet, type Quality } from './Settings';
 import { Toast } from './Toast';
 
 /**
@@ -37,7 +46,10 @@ import { Toast } from './Toast';
  * server state down and the world calling back when the player does something.
  */
 
-type Sheet = 'build' | 'army' | 'orders' | 'log' | null;
+type Sheet = 'build' | 'army' | 'orders' | 'log' | 'ladder' | 'settings' | null;
+
+/** The player's own row, pinned when they are not in the top fifty. */
+type LadderSheetMe = { name: string; trophies: number; rank: number } | null;
 
 export function Game() {
   const worldRef = useRef<World | null>(null);
@@ -60,7 +72,10 @@ export function Game() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [guestNoteDismissed, setGuestNoteDismissed] = useState(false);
   const [progression, setProgression] = useState<ProgressionView | null>(null);
-  const [soundOn, setSoundOn] = useState(true);
+  const [sfxLevel, setSfxLevel] = useState(1);
+  const [musicLevel, setMusicLevel] = useState(0.35);
+  const [quality, setQuality] = useState<Quality>('high');
+  const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
   /** Bumped once a frame while a battle runs, so the battle HUD tracks it. */
   const [battleTick, setBattleTick] = useState(0);
 
@@ -129,7 +144,14 @@ export function Game() {
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
-    setSoundOn(loadSoundPreference());
+    setSfxLevel(loadSoundPreference());
+    setMusicLevel(loadMusicPreference());
+    try {
+      const savedQuality = localStorage.getItem('ironvow_quality');
+      if (savedQuality === 'low' || savedQuality === 'high') setQuality(savedQuality);
+    } catch {
+      // Falls back to full quality.
+    }
     try {
       setGuestNoteDismissed(localStorage.getItem('ironvow_guest_note') === 'off');
     } catch {
@@ -163,6 +185,24 @@ export function Game() {
     const timer = setInterval(() => { void refresh(); }, 30_000);
     return () => clearInterval(timer);
   }, [signedIn, refresh, loadQuests, loadProgression]);
+
+  /*
+   * Music follows what is happening.
+   *
+   * The hold gets a slow progression with no percussion, and a raid gets a
+   * pulse: the silence in between is what makes the base feel like somewhere
+   * safe rather than just a quieter fight.
+   */
+  useEffect(() => {
+    if (!signedIn) return;
+    if (musicLevel <= 0) {
+      stopMusic();
+      return;
+    }
+    startMusic(mode === 'battle' ? 'battle' : 'base');
+  }, [signedIn, mode, musicLevel]);
+
+  useEffect(() => () => stopMusic(), []);
 
   /* --- keep the battle HUD ticking while a raid runs --- */
   useEffect(() => {
@@ -276,6 +316,26 @@ export function Game() {
   /* --------------------------------------------------------------- raids --- */
 
   const findRaid = useCallback(async (reroll = false) => {
+    /*
+     * Ported back from the prototype, which refused to open a raid with an
+     * empty warband. Without it a new player taps RAID, finds a garrison,
+     * attacks with nothing, and watches a three-minute timer run out — which
+     * looks exactly like the game being broken.
+     *
+     * The hero counts: it is a real unit and a raid with only the hero is a
+     * legitimate, if ambitious, plan.
+     */
+    const troops = TROOP_ORDER.reduce((n, t) => n + (player?.army[t] ?? 0), 0);
+    const heroReady = Boolean(player)
+      && player!.keepLevel >= HERO_UNLOCK_KEEP_LEVEL
+      && player!.heroReadyAt === null;
+    if (troops === 0 && !heroReady) {
+      sfx.bad();
+      say('Train troops in ARMY before you raid');
+      setSheet('army');
+      return;
+    }
+
     const found = await runCommand(() => api.findRaid(reroll));
     if (!found) return;
     setScout(found);
@@ -283,6 +343,23 @@ export function Game() {
     setSelectedId(null);
     if (worldRef.current) showPreview(worldRef.current, found.snapshot);
   }, [runCommand]);
+
+  const loadLadder = useCallback(async () => {
+    try {
+      setLadder(await api.leaderboard());
+    } catch {
+      // The sheet shows its empty state rather than a toast.
+    }
+  }, []);
+
+  const revenge = useCallback(async (raidId: string) => {
+    const found = await runCommand(() => api.revenge(raidId));
+    if (!found) return;
+    setScout(found);
+    setSheet(null);
+    setSelectedId(null);
+    if (worldRef.current) showPreview(worldRef.current, found.snapshot);
+  }, [runCommand, player, say]);
 
   const attack = useCallback(() => {
     const world = worldRef.current;
@@ -432,6 +509,7 @@ export function Game() {
         events={events}
         onReady={(w) => {
           worldRef.current = w;
+          w.quality = quality;
           if (player) w.player = player;
           centerOnKeep(w);
         }}
@@ -449,17 +527,12 @@ export function Game() {
           onArmy={() => { sfx.tap(); setSheet('army'); void loadProgression(); }}
           onOrders={() => { sfx.tap(); setSheet('orders'); void loadQuests(); }}
           onLog={() => { sfx.tap(); setSheet('log'); }}
+          onLadder={() => { sfx.tap(); setSheet('ladder'); void loadLadder(); }}
           onRaid={() => { unlockAudio(); sfx.tap(); void findRaid(false); }}
           onCollectAll={() => { void collectAll(); }}
           onClaimAccount={() => { setClaimOpen(true); setClaimSent(false); setClaimError(null); }}
-          soundOn={soundOn}
-          onToggleSound={() => {
-            const next = !soundOn;
-            setSoundEnabled(next);
-            setSoundOn(next);
-            // Play the confirmation after enabling, so the toggle proves itself.
-            if (next) { unlockAudio(); sfx.tap(); }
-          }}
+          soundOn={sfxLevel > 0 || musicLevel > 0}
+          onToggleSound={() => { sfx.tap(); setSheet('settings'); }}
           showGuestNote={showGuestNote}
           onDismissGuestNote={() => {
             setGuestNoteDismissed(true);
@@ -565,9 +638,58 @@ export function Game() {
         />
       )}
 
+      {sheet === 'ladder' && ladder && (
+        <LadderSheet
+          top={ladder.top}
+          me={ladder.me}
+          total={ladder.total}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
+      {sheet === 'settings' && player && (
+        <SettingsSheet
+          music={musicLevel}
+          sfx={sfxLevel}
+          quality={quality}
+          isGuest={player.isGuest}
+          playerName={player.name}
+          onMusic={(v) => {
+            setMusicLevel(v);
+            setMusicVolume(v);
+            if (v > 0) { unlockMusic(); startMusic(mode === 'battle' ? 'battle' : 'base'); }
+          }}
+          onSfx={(v) => {
+            setSfxLevel(v);
+            setSfxVolume(v);
+            // Play the confirmation after raising it, so the slider proves itself.
+            if (v > 0) { unlockAudio(); sfx.coin(); }
+          }}
+          onQuality={(q) => {
+            setQuality(q);
+            if (worldRef.current) worldRef.current.quality = q;
+            try {
+              localStorage.setItem('ironvow_quality', q);
+            } catch {
+              // Falls back to full quality next session.
+            }
+          }}
+          onClaimAccount={() => { setClaimOpen(true); setClaimSent(false); setClaimError(null); }}
+          onLogout={() => {
+            void api.logout().then(() => {
+              stopMusic();
+              setSignedIn(false);
+              setPlayer(null);
+            });
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
       {sheet === 'log' && (
         <LogSheet
           raids={incoming}
+          onRevenge={(id) => { void revenge(id); }}
           onClose={() => setSheet(null)}
           onReplay={(raidId) => {
             void api.replay(raidId).then((r) => {
@@ -591,6 +713,7 @@ export function Game() {
           snapshot={scout.snapshot}
           rerollCost={scout.rerollCost}
           canReroll={player.gold >= scout.rerollCost}
+          isPlayer={scout.isPlayer !== false}
           onAttack={attack}
           onReroll={() => { void findRaid(true); }}
           onCancel={() => {

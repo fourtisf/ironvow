@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A newer push supersedes an in-flight run on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Build, typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ironvow
+          POSTGRES_PASSWORD: ironvow
+          POSTGRES_DB: ironvow_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ironvow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://ironvow:ironvow@localhost:5432/ironvow_test
+      TEST_DATABASE_URL: postgresql://ironvow:ironvow@localhost:5432/ironvow_test
+      REDIS_URL: redis://127.0.0.1:6379
+      SESSION_SECRET: ci-session-secret-at-least-16-chars
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma generates its client in a postinstall, which pnpm 10 blocks by
+      # default. Run it explicitly rather than relying on that being unblocked.
+      - name: Generate Prisma client
+        run: pnpm --filter @ironvow/api exec prisma generate
+
+      # The cross-engine determinism test needs a real browser. Playwright's
+      # own Chromium is the one that matters: it is the engine the client runs.
+      - name: Install Chromium
+        run: pnpm --filter @ironvow/sim exec playwright install --with-deps chromium
+
+      - run: pnpm build
+
+      - name: Apply migrations
+        run: pnpm --filter @ironvow/api exec prisma migrate deploy
+
+      - run: pnpm typecheck
+
+      # IRONVOW_REQUIRE_DB turns a skipped database suite into a hard failure.
+      # Without it a misconfigured CI runs twelve fewer tests and still reports
+      # success, which is worse than red because it looks fine.
+      - name: Test
+        run: pnpm test
+        env:
+          IRONVOW_REQUIRE_DB: '1'
+
+  determinism:
+    name: Determinism gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @ironvow/api exec prisma generate
+      - name: Install Chromium
+        run: pnpm --filter @ironvow/sim exec playwright install --with-deps chromium
+      - run: pnpm build
+
+      # Run separately and visibly. If the shared simulation stops being
+      # deterministic, every battle in the game is silently invalid — a client
+      # renders one outcome and the server writes down another. This is the one
+      # failure that must never reach a merge quietly.
+      - name: Simulation must be deterministic
+        run: pnpm --filter @ironvow/sim exec vitest run
+
+      # No trigonometry or pow on a path that can change a result. IEEE-754
+      # pins down + - * / and sqrt; it says nothing about the rest, which
+      # genuinely differ between JavaScript engines.
+      - name: No engine-dependent maths in the simulation
+        run: |
+          cd packages/sim/src
+          if grep -nE 'Math\.(pow|hypot|sin|cos|tan|atan2|log|exp|cbrt)\(' simulate.ts hash.ts rng.ts; then
+            echo "::error::simulate.ts must use only IEEE-754-exact operations. See packages/config/src/math.ts."
+            exit 1
+          fi
+          echo "clean"

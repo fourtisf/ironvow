@@ -120,7 +120,12 @@ model TrainJob {
 model Raid {
   id         String @id @default(cuid())
   attackerId String
-  defenderId String
+  /// Null for a raid against a generated hold.
+  ///
+  /// Trophy matchmaking cannot always find a real opponent — a new player at
+  /// zero trophies on a quiet server has nobody in band — and a RAID button
+  /// that does nothing is worse than one that finds a garrison to hit.
+  defenderId String?
 
   /// Drives all RNG in the sim. Stored so a replay reproduces exactly.
   seed BigInt
@@ -153,8 +158,8 @@ model Raid {
   expiresAt    DateTime
   resolvedAt   DateTime?
 
-  attacker Player @relation("attacker", fields: [attackerId], references: [id], onDelete: Cascade)
-  defender Player @relation("defender", fields: [defenderId], references: [id], onDelete: Cascade)
+  attacker Player  @relation("attacker", fields: [attackerId], references: [id], onDelete: Cascade)
+  defender Player? @relation("defender", fields: [defenderId], references: [id], onDelete: Cascade)
 
   @@index([defenderId, createdAt])
   @@index([attackerId, createdAt])

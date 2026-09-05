@@ -247,6 +247,12 @@ describe.skipIf(!hasDatabase)('raiding', () => {
     const soloId = await armed('Solo', { trophies: 400 });
     const cookie = await loginAs(app, soloId);
     const found = await app.inject({ method: 'POST', url: '/raid/find', headers: { cookie }, payload: {} });
-    expect(found.statusCode).toBe(404);
+
+    // A lone player now gets a generated garrison rather than a 404 — the RAID
+    // button must always do something. What must never happen is being handed
+    // their own base to flatten.
+    expect(found.statusCode).toBe(200);
+    expect(found.json().isPlayer).toBe(false);
+    expect(found.json().snapshot.defenderId).not.toBe(soloId);
   });
 });

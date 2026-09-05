@@ -97,3 +97,9 @@ export const BuilderIcon = () => (
     <path d="M6 14l-3 3v4h4l3-3" />
   </svg>
 );
+
+export const LadderIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#8fe0c0" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20h4v-7H4zM10 20h4V4h-4zM16 20h4v-11h-4z" />
+  </svg>
+);

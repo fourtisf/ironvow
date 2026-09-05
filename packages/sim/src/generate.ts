@@ -74,14 +74,40 @@ export function generateBase(stage: number): SnapshotBuilding[] {
   return out;
 }
 
-/** A whole Phase 1 opponent, base plus loot pool. */
-export function generateOpponent(stage: number, defenderId = 'ai', defenderName = 'Raider Camp'): BaseSnapshot {
+/**
+ * Names for generated holds.
+ *
+ * Chosen from the seed rather than at random, so the same raid always shows the
+ * same name — a replay of it months later has to look like the raid that
+ * happened, not a different one.
+ */
+const GARRISON_NAMES = [
+  'Raider Camp', 'Broken Watch', 'Ashen Outpost', 'Fallow Keep', 'Mudgate',
+  'Thornwatch', 'Old Barrow', 'Rusted Hold', 'Greyditch', 'Emberfast',
+  'Stonehollow', 'Wolfstead', 'Bleak Rise', 'Duskgate', 'Harrowmoor',
+];
+
+export function garrisonName(seed: number): string {
+  const r = mulberry(seed);
+  return GARRISON_NAMES[Math.floor(r() * GARRISON_NAMES.length)] ?? GARRISON_NAMES[0]!;
+}
+
+/**
+ * A whole generated opponent, base plus loot pool.
+ *
+ * Used as the floor under trophy matchmaking: a new player at zero trophies on
+ * a quiet server has nobody in band, and a RAID button that answers "no
+ * opponent" is worse than one that finds a garrison to hit. The loot comes from
+ * the stage curve rather than from anyone's stores, so nothing is taken from a
+ * player who does not exist.
+ */
+export function generateOpponent(stage: number, defenderId = 'ai', defenderName?: string): BaseSnapshot {
   const buildings = generateBase(stage);
   const keep = buildings.find((b) => b.type === 'keep');
   return {
     version: 1,
     defenderId,
-    defenderName,
+    defenderName: defenderName ?? 'Raider Camp',
     keepLevel: keep?.level ?? 1,
     buildings,
     pool: stageLoot(stage),

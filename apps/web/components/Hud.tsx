@@ -2,7 +2,7 @@
 
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
-import { ArmyIcon, BuilderIcon, BuildIcon, GoldIcon, HomeIcon, IronIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
+import { ArmyIcon, BuilderIcon, BuildIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
 
 /**
  * The resource bar, the Keep badge and the bottom rail.
@@ -23,6 +23,7 @@ export interface HudProps {
   onArmy: () => void;
   onOrders: () => void;
   onLog: () => void;
+  onLadder: () => void;
   onRaid: () => void;
   onCollectAll: () => void;
   onClaimAccount: () => void;
@@ -35,7 +36,7 @@ export interface HudProps {
 
 export function Hud({
   player, incomingCount, ordersReady, pending, showGuestNote,
-  onHome, onBuild, onArmy, onOrders, onLog, onRaid, onCollectAll, onClaimAccount,
+  onHome, onBuild, onArmy, onOrders, onLog, onLadder, onRaid, onCollectAll, onClaimAccount,
   onDismissGuestNote, soundOn, onToggleSound,
 }: HudProps) {
   return (
@@ -61,10 +62,13 @@ export function Hud({
         <div className="t">KEEP</div>
       </div>
 
-      <div id="trophyBar">
-        <span><TrophyIcon /></span>
+      {/* Tapping the trophy count opens the ladder: the number and the thing
+          it means should be one tap apart. */}
+      <button id="trophyBar" onClick={onLadder} aria-label="Open the ladder">
+        <TrophyIcon />
         <span>{player.trophies}</span>
-      </div>
+        <LadderIcon />
+      </button>
 
       {/* Builders are free and there are only ever three, so this is a status
           line rather than an upsell. */}

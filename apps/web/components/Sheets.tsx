@@ -283,18 +283,20 @@ export interface LogSheetProps {
     trophyDelta: number;
     at: string;
     replayable: boolean;
+    avengeable: boolean;
   }[];
   onClose: () => void;
   onReplay: (raidId: string) => void;
+  onRevenge: (raidId: string) => void;
 }
 
-export function LogSheet({ raids, onClose, onReplay }: LogSheetProps) {
+export function LogSheet({ raids, onClose, onReplay, onRevenge }: LogSheetProps) {
   return (
     <div className="sheet">
       <div className="sheetHead">
         <div>
           <h2>ATTACK LOG</h2>
-          <p>Every raid against you can be watched back exactly as it happened</p>
+          <p>Watch any raid back exactly as it happened, then answer it</p>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
@@ -313,9 +315,77 @@ export function LogSheet({ raids, onClose, onReplay }: LogSheetProps) {
               {r.trophyDelta !== 0 && ` · ${r.trophyDelta > 0 ? '+' : ''}${r.trophyDelta} trophies`}
             </p>
           </div>
-          {r.replayable
-            ? <button className="btn grey" onClick={() => onReplay(r.raidId)}>WATCH</button>
-            : <span className="qrw">—</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 'none' }}>
+            {r.replayable
+              ? <button className="btn grey" onClick={() => onReplay(r.raidId)}>WATCH</button>
+              : <span className="qrw">—</span>}
+            {r.avengeable && (
+              <button className="btn red" onClick={() => onRevenge(r.raidId)}>HIT BACK</button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+export interface LadderRow {
+  id: string;
+  name: string;
+  trophies: number;
+  keepLevel: number;
+  rank: number;
+  isMe: boolean;
+}
+
+export interface LadderSheetProps {
+  top: LadderRow[];
+  me: { name: string; trophies: number; rank: number } | null;
+  total: number;
+  onClose: () => void;
+}
+
+/**
+ * The ladder.
+ *
+ * A player far down the list still gets their own rank pinned at the top,
+ * because that is the number they actually came to see.
+ */
+export function LadderSheet({ top, me, total, onClose }: LadderSheetProps) {
+  const inTop = top.some((p) => p.isMe);
+
+  return (
+    <div className="sheet">
+      <div className="sheetHead">
+        <div>
+          <h2>LADDER</h2>
+          <p>{total} hold{total === 1 ? '' : 's'} in the valley</p>
+        </div>
+        <button className="xbtn" onClick={onClose}>✕</button>
+      </div>
+
+      {me && !inTop && (
+        <div className="qrow" style={{ borderColor: '#e8b23c', marginBottom: 12 }}>
+          <div className="qi">
+            <h4>#{me.rank} · {me.name}</h4>
+            <p>{me.trophies} trophies — keep raiding to climb</p>
+          </div>
+        </div>
+      )}
+
+      {top.length === 0 && (
+        <div className="qrow"><div className="qi"><h4>Nobody has climbed yet</h4>
+          <p>Win a raid and you are on the board.</p></div></div>
+      )}
+
+      {top.map((p) => (
+        <div className={`qrow${p.isMe ? ' me' : ''}`} key={p.id}>
+          <div className="qi">
+            <h4>#{p.rank} · {p.name}</h4>
+            <p>Keep {p.keepLevel}</p>
+          </div>
+          <span className="qrw">{p.trophies}</span>
         </div>
       ))}
     </div>

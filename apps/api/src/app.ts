@@ -6,6 +6,7 @@ import { env } from './lib/env.js';
 import { PlayerNotFound } from './lib/player.js';
 import { authRoutes } from './routes/auth.js';
 import { baseRoutes } from './routes/base.js';
+import { opsRoutes } from './routes/ops.js';
 import { questRoutes } from './routes/quests.js';
 import { raidRoutes } from './routes/raid.js';
 import { upgradeRoutes } from './routes/upgrades.js';
@@ -41,6 +42,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(raidRoutes);
   await app.register(questRoutes);
   await app.register(upgradeRoutes);
+  await app.register(opsRoutes);
 
   return app;
 }

@@ -18,5 +18,5 @@ export {
   type SimUnit,
 } from './simulate.js';
 export { mulberry, randomSeed, seedToInt32, type Rng } from './rng.js';
-export { generateBase, generateOpponent, generateDefendWave } from './generate.js';
+export { generateBase, generateOpponent, generateDefendWave, garrisonName } from './generate.js';
 export { Checksum } from './hash.js';

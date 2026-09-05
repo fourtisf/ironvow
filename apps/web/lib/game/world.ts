@@ -44,6 +44,14 @@ export interface World {
   t: number;
   /** Wall-clock milliseconds, refreshed each frame for the builder bars. */
   now: number;
+  /**
+   * Graphics quality (spec S8.8).
+   *
+   * On low, the treeline is not drawn. It is four hundred swaying sprites
+   * outside the play area, which is the largest block of work in a frame that
+   * changes nothing about the game.
+   */
+  quality: 'high' | 'low';
 
   mode: Mode;
   player: PlayerState | null;
@@ -84,6 +92,7 @@ export function createWorld(events: WorldEvents): World {
     terrain: generateTerrain(),
     t: 0,
     now: Date.now(),
+    quality: 'high',
     mode: 'base',
     player: null,
     selectedId: null,

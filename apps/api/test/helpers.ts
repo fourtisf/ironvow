@@ -13,6 +13,23 @@ export const TEST_DATABASE_URL =
 
 export const hasDatabase = TEST_DATABASE_URL.length > 0;
 
+/**
+ * In CI, a skipped suite is a failure.
+ *
+ * These tests skip themselves without a database so a contributor can run the
+ * pure ones on a laptop with nothing installed. That courtesy becomes a trap
+ * the moment CI is misconfigured: twelve tests quietly do not run and the build
+ * still goes green, which is worse than a red one because it looks fine.
+ *
+ * Setting IRONVOW_REQUIRE_DB turns the skip into a loud failure. CI sets it.
+ */
+if (!hasDatabase && process.env.IRONVOW_REQUIRE_DB === '1') {
+  throw new Error(
+    'IRONVOW_REQUIRE_DB is set but TEST_DATABASE_URL is empty, so the database-backed '
+    + 'suites would skip and the run would still report success. Point TEST_DATABASE_URL at a database.',
+  );
+}
+
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 process.env.NODE_ENV = 'test';
 process.env.SESSION_SECRET ??= 'test-session-secret-at-least-16';

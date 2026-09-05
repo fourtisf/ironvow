@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../lib/env.js';
 import { consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
+import { sendLoginLink } from '../lib/mail.js';
 import { createPlayer, loadPlayer } from '../lib/player.js';
 
 const emailSchema = z.object({ email: z.string().email().max(254) });
@@ -48,13 +49,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
     const email = parsed.data.email.toLowerCase().trim();
     const { token } = await createLoginLink(email);
+    const link = `${env().WEB_ORIGIN}/auth/callback?token=${token}`;
 
-    if (env().MAIL_TRANSPORT === 'console') {
-      request.log.info({ email, link: `${env().WEB_ORIGIN}/auth/callback?token=${token}` }, 'login link issued');
-    } else {
-      // A real transport goes here. Until one is wired, production refuses to
-      // boot with MAIL_TRANSPORT=console rather than silently dropping mail.
-      request.log.warn({ email }, 'smtp transport not configured');
+    try {
+      await sendLoginLink({ to: email, link, claiming: false });
+    } catch (error) {
+      // Answering ok would send the player to an inbox that stays empty.
+      request.log.error({ err: error, email }, 'login link delivery failed');
+      return reply.code(502).send({ error: 'mailFailed' });
     }
     return reply.send({ ok: true });
   });
@@ -135,8 +137,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const { token } = await createLoginLink(email, request.playerId!);
-    if (env().MAIL_TRANSPORT === 'console') {
-      request.log.info({ email, link: `${env().WEB_ORIGIN}/auth/callback?token=${token}` }, 'claim link issued');
+    const link = `${env().WEB_ORIGIN}/auth/callback?token=${token}`;
+
+    try {
+      await sendLoginLink({ to: email, link, claiming: true });
+    } catch (error) {
+      request.log.error({ err: error, email }, 'claim link delivery failed');
+      return reply.code(502).send({ error: 'mailFailed' });
     }
     return reply.send({ ok: true });
   });

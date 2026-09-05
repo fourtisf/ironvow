@@ -16,6 +16,18 @@ const schema = z.object({
    * of sent. Allowed in development only; production refuses to start.
    */
   MAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().default('IRONVOW <no-reply@ironvow.example.com>'),
+
+  /**
+   * Guards the operations endpoints. Unset means they are refused outright,
+   * which is the right default: an unauthenticated divergence feed tells an
+   * attacker exactly how close their forged client is to matching.
+   */
+  OPS_TOKEN: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -35,6 +47,9 @@ export function env(): Env {
     }
     if (parsed.data.SESSION_SECRET.startsWith('dev-only')) {
       throw new Error('SESSION_SECRET is still the development default.');
+    }
+    if (parsed.data.MAIL_TRANSPORT === 'smtp' && !parsed.data.SMTP_HOST) {
+      throw new Error('MAIL_TRANSPORT=smtp needs SMTP_HOST, or no login link will ever arrive.');
     }
   }
   cached = parsed.data;

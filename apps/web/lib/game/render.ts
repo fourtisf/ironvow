@@ -54,9 +54,11 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   }
 
   const ents: BaseEntity[] = [];
-  w.terrain.deco.forEach((deco, i) => {
-    if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
-  });
+  if (w.quality === 'high') {
+    w.terrain.deco.forEach((deco, i) => {
+      if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
+    });
+  }
   for (const b of w.player?.buildings ?? []) {
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'building', b });
   }
@@ -118,9 +120,11 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
 function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
   const snapshot = w.preview!;
   const ents: BattleEntity[] = [];
-  w.terrain.deco.forEach((deco, i) => {
-    if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
-  });
+  if (w.quality === 'high') {
+    w.terrain.deco.forEach((deco, i) => {
+      if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
+    });
+  }
   snapshot.buildings.forEach((b, i) => {
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'struct', i });
   });
@@ -141,9 +145,11 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   drawTerrain(d, w.terrain);
 
   const ents: BattleEntity[] = [];
-  w.terrain.deco.forEach((deco, i) => {
-    if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
-  });
+  if (w.quality === 'high') {
+    w.terrain.deco.forEach((deco, i) => {
+      if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
+    });
+  }
   battle.structs.forEach((s, i) => {
     if (!s.dead) ents.push({ d: s.gx + s.gy + s.size * 0.5, k: 'struct', i });
   });

@@ -102,14 +102,36 @@ Each is either structurally unreachable now or covered by a test:
 6. **Culling used a grid-space bounding box.** `onScreen` projects the point and
    tests it against the screen rectangle.
 
+### Operations and delivery
+
+| | |
+|---|---|
+| Matchmaking floor | A generated garrison when no human is in band, so RAID always does something |
+| Revenge | `POST /raid/revenge` from the attack log; skips the band and the cooldown, respects shields |
+| Ladder | `GET /leaderboard`, with the player's own rank pinned even when they are nowhere near the top |
+| Email | Real SMTP via nodemailer; production refuses to start with `MAIL_TRANSPORT=smtp` and no host |
+| Divergence alarm | `GET /ops/divergence` reports the rate and calls anything above 1% a determinism bug, not cheating |
+| Health | `GET /ops/health` flags a maintenance worker that has stopped expiring raids |
+| CI | Two jobs; the second exists only to guard determinism |
+| Music | Generated at runtime — a chord progression, a bass note, a sparse melody, a pulse only in battle |
+| Settings | Music and effects as sliders, graphics as a switch, sign out, claim account |
+
+The `check` job sets `IRONVOW_REQUIRE_DB=1`, which turns a skipped database
+suite into a hard failure. Those suites skip themselves without a database so a
+contributor can run the pure tests with nothing installed, and a skipped run
+still reports success — which is worse than red, because it looks fine.
+
+The `determinism` job runs the simulation suite alone and greps
+`packages/sim/src` for `Math.pow`, `hypot`, `sin`, `cos` and `atan2`. If that
+property breaks, a client renders one outcome and the server writes down
+another for every battle in the game, and the only visible symptom is a slow
+rise in the `Divergence` table.
+
 ## Not done
 
-- **Phase 4 remainder.** Layout editor (§8.7), a graphics-quality switch
-  (§8.8), and push notifications for finished builds and incoming raids. The
-  sound toggle from §8.8 is done.
-- **Revenge.** The data is all there — an incoming raid names its attacker and
-  the raid is replayable — but there is no endpoint that opens a raid against a
-  specific player.
+- **Layout editor (§8.7)** — saved layouts for defence and farming.
+- **Push notifications** for finished builds and incoming raids.
+- **Clans and chat.** A large genre feature, not in the build document.
 - **Defend mode.** The simulation supports it and the snapshot carries a
   pre-rolled wave, but no route starts one. In PvP the attack log replaces the
   prototype's random defend event, which the spec calls for in §8.5.
@@ -157,6 +179,7 @@ mechanic but not the value, and each one changes the feel of raiding:
 | `BUILDERS` | `3` | How many jobs can run at once |
 | `buildSeconds` | `sqrt(gold + iron × 2) × 1.2`, capped at 600s | The whole timer curve |
 | `finishNowCost` | `max(10, remaining × 3)` gold | Price of skipping a wait |
+| `stageFromTrophies` | one stage per 120 trophies | How hard a generated garrison is |
 | `HERO_BASE` + growth | 1400 hp, 55 dmg; ×1.18 / ×1.15 per rank | How much a hero swings a raid |
 | `heroRespawnMinutes` | `10 + level × 5` | What losing the hero costs |
 | `HERO_UNLOCK_KEEP_LEVEL` | `3` | When a hero first appears |

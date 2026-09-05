@@ -4,10 +4,11 @@ import {
   TROOP_ORDER,
   heroRespawnMinutes,
   heroUnlocked,
+  stageFromTrophies,
   type BuildingType,
   type TroopType,
 } from '@ironvow/config';
-import { randomSeed, seedToInt32, simulate } from '@ironvow/sim';
+import { garrisonName, generateOpponent, randomSeed, seedToInt32, simulate } from '@ironvow/sim';
 import type { BaseSnapshot, BattleArmy, DeployCommand, DeployableType, HeroLoadout, TroopLevels } from '@ironvow/types';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -101,7 +102,11 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         where: { attackerId: me.id, createdAt: { gte: revengeCutoff(now) } },
         select: { defenderId: true },
       });
-      const excluded = new Set<string>([me.id, ...recent.map((r) => r.defenderId)]);
+      // Raids against generated holds carry no defender id and exclude nobody.
+      const excluded = new Set<string>([
+        me.id,
+        ...recent.map((r) => r.defenderId).filter((id): id is string => id !== null),
+      ]);
 
       // Widen the trophy band on each attempt until somebody qualifies.
       let opponent: Awaited<ReturnType<typeof tx.player.findFirst>> = null;
@@ -117,7 +122,36 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           orderBy: { trophies: 'asc' },
         });
       }
-      if (!opponent) return { kind: 'none' as const };
+      /*
+       * No human in band, so fall back to a generated hold.
+       *
+       * This is the floor under matchmaking, not a substitute for it: the band
+       * has already widened twelve times looking for a real player. Without it
+       * the first player on a new server presses RAID and nothing happens,
+       * which is the worst possible answer to the most important button.
+       */
+      if (!opponent) {
+        const seed = randomSeed();
+        const stage = stageFromTrophies(me.trophies);
+        const snapshot = generateOpponent(stage, 'ai', garrisonName(seed));
+
+        const raid = await tx.raid.create({
+          data: {
+            attackerId: me.id,
+            defenderId: null,
+            seed: BigInt(seed),
+            snapshot: snapshot as unknown as object,
+            army: armyOf(me.army) as unknown as object,
+            hero: {
+              level: me.heroLevel,
+              available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+            } satisfies HeroLoadout as unknown as object,
+            troopLevels: me.troopLevels as unknown as object,
+            expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
+          },
+        });
+        return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id) };
+      }
 
       const withBuildings = opponent as typeof opponent & {
         buildings: {
@@ -162,7 +196,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id) };
     }, COMMAND_TX);
 
-    if (result.kind === 'none') return reply.code(404).send({ error: 'noOpponent' });
+
     if (result.kind === 'poor') return reply.code(409).send({ error: 'cannotAfford' });
 
     const snapshot = result.raid.snapshot as unknown as BaseSnapshot;
@@ -175,6 +209,97 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       troopLevels: (result.raid.troopLevels as unknown as TroopLevels | null) ?? {},
       expiresAt: result.raid.expiresAt.toISOString(),
       rerollCost: SCOUT_REROLL_COST,
+      /** False for a generated hold, so the client can say so plainly. */
+      isPlayer: result.raid.defenderId !== null,
+      player: serialise(result.player),
+    });
+  });
+
+  /**
+   * Hit back at someone who raided you.
+   *
+   * The attack log was watchable but not answerable, which made it a record
+   * rather than a hook. Revenge skips the trophy band and the twelve-hour
+   * cooldown deliberately — the point is to go after that specific player —
+   * but every other rule holds: they must still be unshielded, and the base is
+   * snapshotted fresh at the moment the raid opens, not as it stood when they
+   * hit you.
+   */
+  app.post('/raid/revenge', async (request, reply) => {
+    const parsed = z.object({ raidId: z.string().min(1).max(40) }).safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const now = new Date();
+    const result = await prisma.$transaction(async (tx) => {
+      const source = await tx.raid.findUnique({ where: { id: parsed.data.raidId } });
+      if (!source) return { kind: 'notFound' as const };
+      // Only the player who was raided may answer it.
+      if (source.defenderId !== request.playerId) return { kind: 'notYours' as const };
+      if (source.status !== 'resolved') return { kind: 'notFound' as const };
+
+      await lockPlayer(tx, request.playerId!);
+      const me = await settleAndLoad(tx, request.playerId!, now);
+
+      await tx.raid.updateMany({
+        where: { attackerId: me.id, status: 'open' },
+        data: { status: 'expired' },
+      });
+
+      const target = await tx.player.findUnique({
+        where: { id: source.attackerId },
+        include: { buildings: true },
+      });
+      if (!target) return { kind: 'goneAway' as const };
+      if (target.shieldUntil && target.shieldUntil.getTime() > now.getTime()) {
+        return { kind: 'shielded' as const };
+      }
+
+      const snapshot = snapshotBase({
+        id: target.id,
+        name: target.name,
+        keepLevel: target.keepLevel,
+        gold: target.gold,
+        iron: target.iron,
+        buildings: target.buildings
+          .filter((b) => !(b.completesAt !== null && b.upgradingTo === null))
+          .map((b) => ({
+            id: b.id, type: b.type as BuildingType, gx: b.gx, gy: b.gy, level: b.level,
+          })),
+      });
+
+      const raid = await tx.raid.create({
+        data: {
+          attackerId: me.id,
+          defenderId: target.id,
+          seed: BigInt(randomSeed()),
+          snapshot: snapshot as unknown as object,
+          army: armyOf(me.army) as unknown as object,
+          hero: {
+            level: me.heroLevel,
+            available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+          } satisfies HeroLoadout as unknown as object,
+          troopLevels: me.troopLevels as unknown as object,
+          expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
+        },
+      });
+      return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id) };
+    }, COMMAND_TX);
+
+    if (result.kind === 'notFound') return reply.code(404).send({ error: 'noSuchRaid' });
+    if (result.kind === 'notYours') return reply.code(403).send({ error: 'notYours' });
+    if (result.kind === 'goneAway') return reply.code(410).send({ error: 'playerGone' });
+    if (result.kind === 'shielded') return reply.code(409).send({ error: 'shielded' });
+
+    return reply.send({
+      raidId: result.raid.id,
+      seed: Number(result.raid.seed),
+      snapshot: result.raid.snapshot as unknown as BaseSnapshot,
+      army: result.raid.army as unknown as BattleArmy,
+      hero: (result.raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
+      troopLevels: (result.raid.troopLevels as unknown as TroopLevels | null) ?? {},
+      expiresAt: result.raid.expiresAt.toISOString(),
+      rerollCost: SCOUT_REROLL_COST,
+      isPlayer: true,
       player: serialise(result.player),
     });
   });
@@ -227,10 +352,9 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // Lock both sides in a fixed id order, so two raids that happen to point
-      // at each other cannot deadlock.
-      const [first, second] = [raid.attackerId, raid.defenderId].sort();
-      await lockPlayer(tx, first!);
-      if (second !== first) await lockPlayer(tx, second!);
+      // at each other cannot deadlock. A generated hold has nothing to lock.
+      const ids = [raid.attackerId, ...(raid.defenderId ? [raid.defenderId] : [])].sort();
+      for (const id of ids) await lockPlayer(tx, id);
 
       const attacker = await settleAndLoad(tx, raid.attackerId, now);
       const snapshot = raid.snapshot as unknown as BaseSnapshot;
@@ -249,18 +373,24 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         troopLevels,
       });
 
-      const defender = await tx.player.findUnique({
-        where: { id: raid.defenderId },
-        select: { gold: true, iron: true, trophies: true },
-      });
-      if (!defender) return { kind: 'notFound' as const };
+      // A generated hold has no row to read and nothing to lose. Its loot comes
+      // from the stage curve already frozen into the snapshot, so the attacker
+      // is paid without anybody being charged.
+      const defender = raid.defenderId
+        ? await tx.player.findUnique({
+            where: { id: raid.defenderId },
+            select: { gold: true, iron: true, trophies: true },
+          })
+        : null;
+      if (raid.defenderId && !defender) return { kind: 'notFound' as const };
 
       const settlement = settleRaid({
         stars: sim.stars,
         simLoot: sim.loot,
-        defenderGold: defender.gold,
-        defenderIron: defender.iron,
-        defenderTrophies: defender.trophies,
+        // Against a generated hold the pool is the cap, so pass it through.
+        defenderGold: defender?.gold ?? BigInt(snapshot.pool.g),
+        defenderIron: defender?.iron ?? BigInt(snapshot.pool.i),
+        defenderTrophies: defender?.trophies ?? stageFromTrophies(attacker.trophies) * 120,
         now,
       });
 
@@ -309,16 +439,18 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       });
 
       /* --- the defender pays, and is shielded if they were hurt --- */
-      const debited = debitDefender(defender.gold, defender.iron, settlement.loot);
-      await tx.player.update({
-        where: { id: raid.defenderId },
-        data: {
-          gold: debited.gold,
-          iron: debited.iron,
-          trophies: Math.max(0, defender.trophies - settlement.trophyDelta),
-          ...(settlement.shieldUntil ? { shieldUntil: settlement.shieldUntil } : {}),
-        },
-      });
+      if (raid.defenderId && defender) {
+        const debited = debitDefender(defender.gold, defender.iron, settlement.loot);
+        await tx.player.update({
+          where: { id: raid.defenderId },
+          data: {
+            gold: debited.gold,
+            iron: debited.iron,
+            trophies: Math.max(0, defender.trophies - settlement.trophyDelta),
+            ...(settlement.shieldUntil ? { shieldUntil: settlement.shieldUntil } : {}),
+          },
+        });
+      }
 
       const saved = await tx.raid.update({
         where: { id: raid.id },
@@ -410,7 +542,49 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         trophyDelta: -r.trophyDelta,
         at: r.createdAt.toISOString(),
         replayable: r.commands !== null,
+        /** Whether the attacker is still around to be hit back. */
+        avengeable: r.attacker !== null,
       })),
+    });
+  });
+
+  /**
+   * The ladder.
+   *
+   * Trophies existed with nothing to compare them against, which makes a number
+   * rather than a competition. The player's own rank is computed even when they
+   * are nowhere near the top, because that is the number they actually care
+   * about.
+   */
+  app.get('/leaderboard', async (request, reply) => {
+    const top = await prisma.player.findMany({
+      orderBy: [{ trophies: 'desc' }, { createdAt: 'asc' }],
+      take: 50,
+      select: { id: true, name: true, trophies: true, keepLevel: true },
+    });
+
+    const me = await prisma.player.findUnique({
+      where: { id: request.playerId! },
+      select: { id: true, name: true, trophies: true, keepLevel: true, createdAt: true },
+    });
+
+    // Rank is the count of players strictly ahead, plus one. Ties break on who
+    // got there first, matching the ordering above.
+    const ahead = me
+      ? await prisma.player.count({
+          where: {
+            OR: [
+              { trophies: { gt: me.trophies } },
+              { trophies: me.trophies, createdAt: { lt: me.createdAt } },
+            ],
+          },
+        })
+      : 0;
+
+    return reply.send({
+      top: top.map((p, i) => ({ ...p, rank: i + 1, isMe: p.id === request.playerId })),
+      me: me ? { id: me.id, name: me.name, trophies: me.trophies, keepLevel: me.keepLevel, rank: ahead + 1 } : null,
+      total: await prisma.player.count(),
     });
   });
 

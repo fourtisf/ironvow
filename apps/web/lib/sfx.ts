@@ -7,31 +7,47 @@
  */
 
 let ctx: AudioContext | null = null;
-let enabled = true;
+let volume = 1;
 
 const STORAGE_KEY = 'ironvow_sound';
+const STORAGE_VOLUME = 'ironvow_sfx_volume';
 
 export function soundEnabled(): boolean {
-  return enabled;
+  return volume > 0;
 }
 
-export function setSoundEnabled(on: boolean): void {
-  enabled = on;
+export function sfxVolume(): number {
+  return volume;
+}
+
+export function setSfxVolume(next: number): void {
+  volume = Math.max(0, Math.min(1, next));
   try {
-    localStorage.setItem(STORAGE_KEY, on ? '1' : '0');
+    localStorage.setItem(STORAGE_VOLUME, String(volume));
   } catch {
     // Private browsing can refuse storage; the setting just will not persist.
   }
 }
 
-export function loadSoundPreference(): boolean {
+export function setSoundEnabled(on: boolean): void {
+  setSfxVolume(on ? 1 : 0);
+}
+
+export function loadSoundPreference(): number {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved !== null) enabled = saved === '1';
+    const saved = localStorage.getItem(STORAGE_VOLUME);
+    if (saved !== null) {
+      const parsed = Number(saved);
+      if (Number.isFinite(parsed)) volume = Math.max(0, Math.min(1, parsed));
+    } else {
+      // Migrate the older on/off setting rather than silently resetting it.
+      const legacy = localStorage.getItem(STORAGE_KEY);
+      if (legacy !== null) volume = legacy === '1' ? 1 : 0;
+    }
   } catch {
-    // Same as above: fall back to on.
+    // Fall back to full volume.
   }
-  return enabled;
+  return volume;
 }
 
 /**
@@ -56,7 +72,7 @@ function context(): AudioContext | null {
 }
 
 function beep(freq: number, dur = 0.12, type: OscillatorType = 'square', vol = 0.06): void {
-  if (!enabled) return;
+  if (volume <= 0) return;
   const audio = context();
   if (!audio) return;
   if (audio.state === 'suspended') void audio.resume();
@@ -66,7 +82,7 @@ function beep(freq: number, dur = 0.12, type: OscillatorType = 'square', vol = 0
   osc.type = type;
   osc.frequency.value = freq;
   gain.gain.setValueAtTime(0, audio.currentTime);
-  gain.gain.linearRampToValueAtTime(vol, audio.currentTime + 0.012);
+  gain.gain.linearRampToValueAtTime(Math.max(0.0001, vol * volume), audio.currentTime + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
   osc.connect(gain);
   gain.connect(audio.destination);

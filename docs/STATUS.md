@@ -39,10 +39,18 @@ what does not, and what needs a decision.
 | Collect all | One button for every full producer |
 | Raid result | Stars land one at a time with a sound each; loot counts up |
 
-### Phase 3 — partly
+### Phase 3
 
 - **Scout before you raid (§8.1)** — done. The defender's real layout is drawn
   on the canvas before committing, with a gold-charged reroll.
+- **A hero (§8.2)** — done. One Vowkeeper per player, unlocked at Keep 3,
+  levels to 9 but never above the Keep, deployed once per raid, costs no
+  warband room, and is away for `10 + level × 5` minutes if it falls. Its
+  level is frozen onto the raid alongside the warband, so upgrading mid-raid
+  cannot change what a replay may field.
+- **Troop upgrade lab (§8.3)** — done. A War Lab building (one, from Keep 3)
+  gates per-troop levels at +12% hit points and damage each. Levels are frozen
+  onto the raid for the same reason.
 - **Vaults actually protect (§8.6)** — done. Each Vault shields a fixed amount
   from looting rather than a flat percentage of everything.
 - **Attack log and revenge (§8.5)** — the log and replay are done; the revenge
@@ -69,10 +77,6 @@ Each is either structurally unreachable now or covered by a test:
 
 ## Not done
 
-- **Phase 3: a hero (§8.2) and the troop upgrade lab (§8.3).** Both add
-  gameplay, and both are straightforward on this foundation: a hero is a unit
-  with persistent state on the `Player` row and a respawn timestamp; the lab is
-  a per-troop level multiplier read out of `@ironvow/config` in `simulate`.
 - **Phase 4 entirely.** Build timers and builders are flagged in the spec as
   needing ALFA's sign-off before implementation, so they were not started.
   Layout editor, sound and quality settings, and push notifications likewise.
@@ -123,6 +127,11 @@ mechanic but not the value, and each one changes the feel of raiding:
 | `LOOT_SHARE` | `0.2` | Share of a defender's unprotected stock on the table |
 | `LOOT_CEILING` | `250,000` | Ceiling on one raid's take |
 | `SCOUT_REROLL_COST` | `50` gold | Price of rerolling a scouted opponent |
+| `HERO_BASE` + growth | 1400 hp, 55 dmg; ×1.18 / ×1.15 per rank | How much a hero swings a raid |
+| `heroRespawnMinutes` | `10 + level × 5` | What losing the hero costs |
+| `HERO_UNLOCK_KEEP_LEVEL` | `3` | When a hero first appears |
+| `TROOP_POWER_STEP` | `0.12` per level | How much the War Lab is worth |
+| `troopUpgradeCost` | derived from each troop's own price, ×1.8 per level | Lab pacing |
 
 `stageFromTrophies` (one stage per 120 trophies) is also a judgement call: it is
 what converts PvP matchmaking back into the `stage` the prototype's trophy

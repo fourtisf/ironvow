@@ -174,6 +174,9 @@ export function serialise(p: Awaited<ReturnType<typeof loadPlayer>>) {
     queue: p.queueJobs.map((j) => ({
       id: j.id, type: j.type, finishesAt: j.finishesAt.toISOString(), position: j.position,
     })),
+    heroLevel: p.heroLevel,
+    heroReadyAt: p.heroReadyAt?.toISOString() ?? null,
+    troopLevels: p.troopLevels,
     counters: p.counters,
     claimedQuests: p.claimedQuests,
     serverTime: new Date().toISOString(),

@@ -10,12 +10,14 @@ import {
   clamp,
   dist,
   facingOf,
+  heroStats,
   hpOf,
   isDefensive,
   isRanged,
   isTroopType,
   starsFor,
   stepToward,
+  troopPower,
   type BuildingType,
   type TroopType,
 } from '@ironvow/config';
@@ -23,6 +25,7 @@ import type {
   BattleArmy,
   BattleKind,
   DeployCommand,
+  DeployableType,
   RejectedCommand,
   SimInput,
   SimResult,
@@ -38,6 +41,45 @@ import { Checksum } from './hash.js';
  * or an object's keys on a path that can change a result, so no outcome
  * can depend on insertion order (spec S4.2).
  * ------------------------------------------------------------------ */
+
+/**
+ * One place that answers "what are this unit's numbers".
+ *
+ * A troop's are its base stats scaled by its lab level; the hero's come from
+ * its own curve. Every read of a unit's speed, range or cooldown goes through
+ * here, so there is no path where a hero is accidentally treated as a raider.
+ */
+export interface UnitStats {
+  hp: number;
+  dmg: number;
+  cd: number;
+  spd: number;
+  rng: number;
+  pref: 'any' | 'def' | 'wall';
+  ranged: boolean;
+}
+
+export function statsFor(
+  type: DeployableType,
+  troopLevels: Partial<Record<TroopType, number>>,
+  heroLevel: number,
+): UnitStats {
+  if (type === 'hero') {
+    const h = heroStats(heroLevel);
+    return { ...h, pref: 'any', ranged: false };
+  }
+  const def = TROOP[type];
+  const power = troopPower(troopLevels[type] ?? 1);
+  return {
+    hp: def.hp * power,
+    dmg: def.dmg * power,
+    cd: def.cd,
+    spd: def.spd,
+    rng: def.rng,
+    pref: def.pref,
+    ranged: isRanged(type),
+  };
+}
 
 export interface SimStruct {
   i: number;
@@ -59,7 +101,7 @@ export interface SimStruct {
 
 export interface SimUnit {
   i: number;
-  t: TroopType;
+  t: DeployableType;
   x: number;
   y: number;
   side: 'atk' | 'def';
@@ -134,7 +176,9 @@ export interface Battle {
    * Client-side entry point. Returns the command it recorded, or the reason it
    * was refused — the same reasons the server will produce when it replays.
    */
-  deploy(type: TroopType, gx: number, gy: number): { ok: true; command: DeployCommand } | { ok: false; reason: RejectedCommand['reason'] };
+  deploy(type: DeployableType, gx: number, gy: number): { ok: true; command: DeployCommand } | { ok: false; reason: RejectedCommand['reason'] };
+  /** Whether the hero is still available to commit. */
+  heroReady(): boolean;
   result(): SimOutcome;
   /** Events recorded so far, when the battle was created with `timeline`. */
   readonly events: readonly TimelineEvent[];
@@ -170,6 +214,9 @@ export function simulate(input: SimInput, options: SimOptions = {}): SimOutcome 
 export function createBattle(input: SimInput, options: SimOptions = {}): Battle {
   const { snapshot, commands, army, seed } = input;
   const kind: BattleKind = input.kind ?? 'raid';
+  const troopLevels = input.troopLevels ?? {};
+  const heroLevel = input.hero?.level ?? 1;
+  const heroAvailable = input.hero?.available === true;
   const events: TimelineEvent[] = [];
   const wantTimeline = options.timeline === true;
 
@@ -216,10 +263,12 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   /* ---- the attacker's warband, drawn down by each deploy ---- */
   const avail: BattleArmy = { raider: army.raider | 0, archer: army.archer | 0, lancer: army.lancer | 0, ram: army.ram | 0 };
   const rejected: RejectedCommand[] = [];
+  /** Index of the hero once committed, or -1. There is only ever one. */
+  let heroUnit = -1;
   const mySide: 'atk' | 'def' = kind === 'raid' ? 'atk' : 'def';
 
-  const spawn = (t: TroopType, x: number, y: number, side: 'atk' | 'def', scale: number, tick: number): void => {
-    const d = TROOP[t];
+  const spawn = (t: DeployableType, x: number, y: number, side: 'atk' | 'def', scale: number, tick: number): void => {
+    const d = statsFor(t, troopLevels, heroLevel);
     const u: SimUnit = {
       i: units.length,
       t,
@@ -254,7 +303,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       return;
     }
     lastTick = cmd.tickIndex;
-    if (!isTroopType(cmd.troopType)) {
+    if (cmd.troopType !== 'hero' && !isTroopType(cmd.troopType)) {
       rejected.push({ index, reason: 'unknownTroop' });
       return;
     }
@@ -273,7 +322,10 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       const reject = (reason: RejectedCommand['reason']): void => {
         if (index >= 0) rejected.push({ index, reason });
       };
-      if ((avail[t] ?? 0) <= 0) {
+      if (t === 'hero') {
+        if (!heroAvailable) { reject('heroUnavailable'); continue; }
+        if (heroUnit >= 0) { reject('heroAlreadyDeployed'); continue; }
+      } else if ((avail[t] ?? 0) <= 0) {
         reject('noTroopsLeft');
         continue;
       }
@@ -293,7 +345,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
         reject('tooCloseToStructure');
         continue;
       }
-      avail[t]--;
+      if (t === 'hero') heroUnit = units.length;
+      else avail[t]--;
       spawn(t, cmd.gx, cmd.gy, mySide, 1, tick);
     }
   };
@@ -308,7 +361,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
    * rather than stalling in front of nothing.
    */
   const pickTarget = (u: SimUnit): void => {
-    const pref = TROOP[u.t].pref;
+    const pref = statsFor(u.t, troopLevels, heroLevel).pref;
     let best = -1;
     let bd = 1e9;
     for (const s of structs) {
@@ -381,6 +434,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   const maxTicks = kind === 'raid' ? RAID_TICKS : DEFEND_TICKS;
   const check = new Checksum();
   check.addInt(seed).addInt(structs.length).addInt(maxTicks);
+  check.addInt(heroAvailable ? heroLevel : 0);
+  for (const t of TROOP_ORDER) check.addInt(troopLevels[t] ?? 1);
 
   let deployed = 0;
   let endedBy: SimResult['endedBy'] = 'timeout';
@@ -406,7 +461,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     /* --- units --- */
     for (const u of units) {
       if (u.dead) continue;
-      const d = TROOP[u.t];
+      const d = statsFor(u.t, troopLevels, heroLevel);
 
       if (u.side === 'def') {
         // Defenders hunt the attacking units rather than walking a base down.
@@ -441,7 +496,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
         u.cd -= DT;
         if (u.cd <= 0) {
           u.cd = d.cd;
-          if (isRanged(u.t)) {
+          if (d.ranged) {
             projs.push({
               x: u.x, y: u.y, tx: tgt.cx, ty: tgt.cy,
               spd: 6.5, dmg: u.dmg, kind: 'arrow', tgtStruct: tgt.i, tgtUnit: -1,
@@ -537,6 +592,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     /* --- end conditions --- */
     let left = 0;
     for (const t of TROOP_ORDER) left += avail[t] ?? 0;
+    // A hero still in hand is a reason to keep the clock running.
+    if (heroAvailable && heroUnit < 0) left++;
     const pending = pendingAfter(byTick, tick);
     const finish = (why: SimResult['endedBy']): boolean => {
       endedBy = why;
@@ -581,6 +638,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       ticks: tick,
       endedBy,
       rejected,
+      heroDeployed: heroUnit >= 0,
+      heroDied: heroUnit >= 0 && units[heroUnit]!.dead,
       checksum: final.digest(),
     };
     if (wantTimeline) out.timeline = { events };
@@ -595,11 +654,16 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
    * `applyDeploys` the server will run, reached by scheduling and stepping.
    */
   const deploy = (
-    type: TroopType, gx: number, gy: number,
+    type: DeployableType, gx: number, gy: number,
   ): { ok: true; command: DeployCommand } | { ok: false; reason: RejectedCommand['reason'] } => {
     if (over) return { ok: false, reason: 'badTick' };
-    if (!isTroopType(type)) return { ok: false, reason: 'unknownTroop' };
-    if ((avail[type] ?? 0) <= 0) return { ok: false, reason: 'noTroopsLeft' };
+    if (type === 'hero') {
+      if (!heroAvailable) return { ok: false, reason: 'heroUnavailable' };
+      if (heroUnit >= 0) return { ok: false, reason: 'heroAlreadyDeployed' };
+    } else {
+      if (!isTroopType(type)) return { ok: false, reason: 'unknownTroop' };
+      if ((avail[type] ?? 0) <= 0) return { ok: false, reason: 'noTroopsLeft' };
+    }
     if (gx < DEPLOY_MARGIN || gy < DEPLOY_MARGIN || gx > N - DEPLOY_MARGIN || gy > N - DEPLOY_MARGIN) {
       return { ok: false, reason: 'outOfBounds' };
     }
@@ -624,6 +688,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     get tick() { return tick; },
     get ended() { return over; },
     get avail() { return avail; },
+    heroReady: () => heroAvailable && heroUnit < 0,
     get events() { return events; },
     destroyedPct,
     stars,

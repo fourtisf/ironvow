@@ -8,6 +8,7 @@ import { authRoutes } from './routes/auth.js';
 import { baseRoutes } from './routes/base.js';
 import { questRoutes } from './routes/quests.js';
 import { raidRoutes } from './routes/raid.js';
+import { upgradeRoutes } from './routes/upgrades.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const config = env();
@@ -39,6 +40,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(baseRoutes);
   await app.register(raidRoutes);
   await app.register(questRoutes);
+  await app.register(upgradeRoutes);
 
   return app;
 }

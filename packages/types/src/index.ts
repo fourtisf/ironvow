@@ -54,15 +54,34 @@ export interface SnapshotBuilding {
   level: number;
 }
 
+/**
+ * Anything that can be put on the field.
+ *
+ * The hero is not a troop: it is not trained, costs no warband room, and there
+ * is only ever one. Keeping it out of TroopType stops it leaking into training
+ * queues and army counts, but a deploy command has to be able to name it.
+ */
+export type DeployableType = TroopType | 'hero';
+
 /** One deploy, as submitted by the client. Intent only — never an outcome. */
 export interface DeployCommand {
   /** Which simulation tick the deploy lands on. Must be non-decreasing across the list. */
   tickIndex: number;
-  troopType: TroopType;
+  troopType: DeployableType;
   /** Deploy position in grid coordinates. Fractional; the sim does not round. */
   gx: number;
   gy: number;
 }
+
+/** The hero as it enters a battle. Frozen onto the raid, like the warband. */
+export interface HeroLoadout {
+  level: number;
+  /** False while the hero is still recovering from the last raid. */
+  available: boolean;
+}
+
+/** Per-troop lab levels, frozen onto the raid alongside the warband. */
+export type TroopLevels = Partial<Record<TroopType, number>>;
 
 export type BattleKind = 'raid' | 'defend';
 
@@ -80,6 +99,10 @@ export interface SimInput {
   army: BattleArmy;
   seed: number;
   kind?: BattleKind;
+  /** Omitted means the attacker fields no hero. */
+  hero?: HeroLoadout;
+  /** Omitted means every troop is at level 1. */
+  troopLevels?: TroopLevels;
 }
 
 export interface SimResult {
@@ -93,13 +116,26 @@ export interface SimResult {
   endedBy: 'wiped' | 'timeout' | 'exhausted' | 'keepFell';
   /** Deploys the simulation refused, with a reason. An honest client produces none. */
   rejected: RejectedCommand[];
+  /** Whether the hero was deployed and fell. Drives the respawn timer. */
+  heroDied: boolean;
+  /** Whether the hero was committed at all. */
+  heroDeployed: boolean;
   /** A hash over the result plus per-tick state, used to detect divergence. */
   checksum: string;
 }
 
 export interface RejectedCommand {
   index: number;
-  reason: 'noTroopsLeft' | 'outOfBounds' | 'tooCloseToStructure' | 'badTick' | 'unknownTroop';
+  reason:
+    | 'noTroopsLeft'
+    | 'outOfBounds'
+    | 'tooCloseToStructure'
+    | 'badTick'
+    | 'unknownTroop'
+    /** The hero is still recovering from the last raid. */
+    | 'heroUnavailable'
+    /** There is only ever one hero, and it is already on the field. */
+    | 'heroAlreadyDeployed';
 }
 
 /** Recorded state for the renderer. Produced only when the caller asks for it. */
@@ -108,7 +144,7 @@ export interface SimTimeline {
 }
 
 export type TimelineEvent =
-  | { t: number; k: 'spawn'; unit: number; type: TroopType; x: number; y: number; side: 'atk' | 'def' }
+  | { t: number; k: 'spawn'; unit: number; type: DeployableType; x: number; y: number; side: 'atk' | 'def' }
   | { t: number; k: 'structDead'; struct: number }
   | { t: number; k: 'unitDead'; unit: number }
   | { t: number; k: 'shot'; from: 'unit' | 'struct'; src: number; x: number; y: number; tx: number; ty: number; kind: 'arrow' | 'ball' }

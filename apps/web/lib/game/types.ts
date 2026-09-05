@@ -1,5 +1,5 @@
 import type { BuildingType, QuestCounter, TroopType } from '@ironvow/config';
-import type { BaseSnapshot, BattleArmy, DeployCommand } from '@ironvow/types';
+import type { BaseSnapshot, BattleArmy, DeployCommand, HeroLoadout, TroopLevels } from '@ironvow/types';
 
 /** A building on the player's own base, as the server reports it. */
 export interface ClientBuilding {
@@ -39,6 +39,10 @@ export interface PlayerState {
   /** War Order counters, incremented by the server. */
   counters: Partial<Record<QuestCounter, number>>;
   claimedQuests: string[];
+  heroLevel: number;
+  /** ISO timestamp, or null when the hero is ready. */
+  heroReadyAt: string | null;
+  troopLevels: Record<TroopType, number>;
   serverTime: string;
 }
 
@@ -69,6 +73,8 @@ export interface ScoutedRaid {
   seed: number;
   snapshot: BaseSnapshot;
   army: BattleArmy;
+  hero: HeroLoadout;
+  troopLevels: TroopLevels;
   expiresAt: string;
   rerollCost: number;
 }

@@ -2,7 +2,7 @@ import { KEEP_MAX } from './world.js';
 import { ipow } from './math.js';
 
 export const BUILDING_TYPES = [
-  'keep', 'mine', 'forge', 'store', 'barr', 'cannon', 'tower', 'wall',
+  'keep', 'mine', 'forge', 'store', 'barr', 'lab', 'cannon', 'tower', 'wall',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
 
@@ -37,6 +37,8 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   forge:  { n: 'Iron Forge',  s: 2, cat: 'eco',  hp: 460,  hpG: 1.24, base: { g: 400, i: 0   }, up: { g: 520, i: 90  }, upG: 1.85, blurb: 'Smelts iron for archers and rams. Tap the ingot to collect.' },
   store:  { n: 'Vault',       s: 2, cat: 'eco',  hp: 700,  hpG: 1.28, base: { g: 320, i: 0   }, up: { g: 480, i: 120 }, upG: 1.90, blurb: 'Raises how much gold and iron you can hold at once.' },
   barr:   { n: 'Barracks',    s: 3, cat: 'mil',  hp: 640,  hpG: 1.26, base: { g: 280, i: 60  }, up: { g: 440, i: 140 }, upG: 1.90, blurb: 'Trains troops and adds room in your warband.' },
+  // TUNABLE. Spec S8.3 asks for a lab but does not price one.
+  lab:    { n: 'War Lab',     s: 2, cat: 'mil',  hp: 520,  hpG: 1.26, base: { g: 600, i: 200 }, up: { g: 700, i: 400 }, upG: 1.95, blurb: 'Makes your troops stronger, not just more numerous.' },
   cannon: { n: 'Cannon',      s: 2, cat: 'def',  hp: 560,  hpG: 1.30, base: { g: 220, i: 80  }, up: { g: 340, i: 180 }, upG: 1.92, blurb: 'Slow, heavy shots. Wrecks anything that walks into range.' },
   tower:  { n: 'Arrow Tower', s: 2, cat: 'def',  hp: 400,  hpG: 1.27, base: { g: 180, i: 120 }, up: { g: 280, i: 220 }, upG: 1.92, blurb: 'Fast arrows with long reach. Melts light troops.' },
   wall:   { n: 'Rampart',     s: 1, cat: 'def',  hp: 340,  hpG: 1.35, base: { g: 60,  i: 20  }, up: { g: 90,  i: 60  }, upG: 1.70, blurb: 'Blocks the path. Enemies must stop and break it.' },
@@ -51,6 +53,8 @@ export const CAP: Record<Exclude<BuildingType, 'keep'>, readonly number[]> = {
   forge:  [0,  1,  2,  3,  4,   5,   6,   7,   8,   9],
   store:  [0,  1,  2,  2,  3,   3,   4,   4,   5,   6],
   barr:   [0,  1,  1,  2,  2,   3,   3,   4,   4,   5],
+  // One lab, ever, from Keep 3. Its level is what gates troop levels.
+  lab:    [0,  0,  0,  1,  1,   1,   1,   1,   1,   1],
   cannon: [0,  2,  3,  4,  5,   6,   8,   9,  10,  12],
   tower:  [0,  0,  2,  3,  4,   5,   6,   8,   9,  11],
   wall:   [0, 20, 40, 65, 95, 130, 170, 215, 265, 320],

@@ -84,16 +84,35 @@ export function BuildSheet({ player, onClose, onPick }: BuildSheetProps) {
   );
 }
 
-export interface ArmySheetProps {
-  player: PlayerState;
-  onClose: () => void;
-  onTrain: (type: TroopType, count: number) => void;
+export interface ProgressionView {
+  hero: {
+    name: string; level: number; maxLevel: number; unlockKeepLevel: number;
+    unlocked: boolean; upgradeCost: Cost; readyAt: string | null; respawnMinutes: number;
+    stats: { hp: number; dmg: number };
+  };
+  lab: {
+    level: number;
+    troops: { type: TroopType; level: number; power: number; upgradeCost: Cost }[];
+  };
 }
 
-export function ArmySheet({ player, onClose, onTrain }: ArmySheetProps) {
+export interface ArmySheetProps {
+  player: PlayerState;
+  progression: ProgressionView | null;
+  onClose: () => void;
+  onTrain: (type: TroopType, count: number) => void;
+  onUpgradeHero: () => void;
+  onUpgradeTroop: (type: TroopType) => void;
+}
+
+export function ArmySheet({
+  player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop,
+}: ArmySheetProps) {
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   const barracks = bestBarracksLevel(owned);
   const now = Date.now();
+  const hero = progression?.hero;
+  const lab = progression?.lab;
 
   return (
     <div className="sheet">
@@ -129,6 +148,112 @@ export function ArmySheet({ player, onClose, onTrain }: ArmySheetProps) {
           );
         })}
       </div>
+
+      {/*
+        The hero, above the queue and apart from the troop grid: it is the one
+        unit that persists, so it does not belong in a list of things you spend.
+      */}
+      {hero?.unlocked && (
+        <>
+          <div className="sheetHead" style={{ marginTop: 14 }}>
+            <div>
+              <h2>{hero.name.toUpperCase()}</h2>
+              <p>
+                {hero.readyAt
+                  ? `Recovering — back in ${until(hero.readyAt, now)}`
+                  : `Ready · ${fmt(hero.stats.hp)} hit points · ${fmt(hero.stats.dmg)} damage`}
+              </p>
+            </div>
+          </div>
+          <div className="qrow">
+            <div className="qi">
+              <h4>Rank {hero.level}{hero.level >= hero.maxLevel ? ' · highest' : ''}</h4>
+              <p>
+                Deployed once per raid, and away for {hero.respawnMinutes} minutes if it falls.
+                Costs no warband room.
+              </p>
+              <div className="qbarBg">
+                <div className="qbar" style={{ width: `${(hero.level / hero.maxLevel) * 100}%` }} />
+              </div>
+            </div>
+            {hero.level < hero.maxLevel && hero.level < player.keepLevel ? (
+              <button
+                className={`btn gold${player.gold >= hero.upgradeCost.g && player.iron >= hero.upgradeCost.i ? '' : ' grey'}`}
+                onClick={onUpgradeHero}
+                disabled={player.gold < hero.upgradeCost.g || player.iron < hero.upgradeCost.i}
+              >
+                RAISE
+              </button>
+            ) : (
+              <span className="qrw">{hero.level >= hero.maxLevel ? 'MAX' : 'KEEP CAP'}</span>
+            )}
+          </div>
+          {hero.level < hero.maxLevel && hero.level < player.keepLevel && (
+            <p className="lead" style={{ textAlign: 'center', marginTop: 6 }}>
+              Next rank: {fmt(hero.upgradeCost.g)} gold, {fmt(hero.upgradeCost.i)} iron
+            </p>
+          )}
+        </>
+      )}
+
+      {hero && !hero.unlocked && (
+        <div className="qrow" style={{ marginTop: 12 }}>
+          <div className="qi">
+            <h4>A hero awaits</h4>
+            <p>Raise your Keep to level {hero.unlockKeepLevel} to call one.</p>
+          </div>
+        </div>
+      )}
+
+      {/* The War Lab: the answer to "my troops never get stronger". */}
+      {lab && lab.level > 0 && (
+        <>
+          <div className="sheetHead" style={{ marginTop: 14 }}>
+            <div>
+              <h2>WAR LAB {lab.level}</h2>
+              <p>Every level is +12% hit points and damage, for good</p>
+            </div>
+          </div>
+          {lab.troops.map((t) => {
+            const capped = t.level >= lab.level;
+            const affordable = player.gold >= t.upgradeCost.g && player.iron >= t.upgradeCost.i;
+            return (
+              <div className="qrow" key={t.type}>
+                <div className="qi">
+                  <h4>{TROOP[t.type].n} · level {t.level}</h4>
+                  <p>
+                    {Math.round(t.power * 100 - 100)}% stronger than base
+                    {!capped && ` · next: ${fmt(t.upgradeCost.g)} gold, ${fmt(t.upgradeCost.i)} iron`}
+                  </p>
+                  <div className="qbarBg">
+                    <div className="qbar" style={{ width: `${(t.level / 9) * 100}%` }} />
+                  </div>
+                </div>
+                {capped ? (
+                  <span className="qrw">{lab.level >= 9 ? 'MAX' : 'LAB CAP'}</span>
+                ) : (
+                  <button
+                    className={`btn${affordable ? '' : ' grey'}`}
+                    disabled={!affordable}
+                    onClick={() => onUpgradeTroop(t.type)}
+                  >
+                    UPGRADE
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {lab && lab.level === 0 && (
+        <div className="qrow" style={{ marginTop: 12 }}>
+          <div className="qi">
+            <h4>No War Lab</h4>
+            <p>Build one to make your troops stronger, not just more numerous.</p>
+          </div>
+        </div>
+      )}
 
       {player.queue.length > 0 && (
         <>

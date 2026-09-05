@@ -33,6 +33,12 @@ model Player {
   lastTickAt  DateTime  @default(now())
   shieldUntil DateTime?
 
+  /// The hero. There is exactly one per player, so it lives on this row
+  /// rather than in a table of its own.
+  heroLevel   Int       @default(1)
+  /// When the hero returns after falling. Null means it is ready.
+  heroReadyAt DateTime?
+
   /// War Order counters. Server-incremented, because a quest a client can
   /// report progress on is a quest a client can award itself.
   collected     Int @default(0)
@@ -77,6 +83,9 @@ model Troop {
   /// raider | archer | lancer | ram
   type     String
   count    Int    @default(0)
+  /// War Lab level for this troop type. Capped by the Lab, which is capped
+  /// by the Keep — the same gate as everything else.
+  level    Int    @default(1)
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
@@ -115,6 +124,11 @@ model Raid {
   /// mid-raid would otherwise change what a replay is allowed to deploy and the
   /// stored result would stop reproducing.
   army Json
+  /// The hero as it stood when the raid opened: its level, and whether it was
+  /// available at all. Frozen for the same reason as the warband.
+  hero Json?
+  /// War Lab levels per troop type at the moment the raid opened.
+  troopLevels Json?
 
   status       String   @default("open") // open | resolved | expired
   stars        Int      @default(0)

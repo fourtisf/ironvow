@@ -25,7 +25,7 @@ import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
 import { ClaimModal, ResultModal, ScoutModal, SignInModal } from './Modals';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
-import { ArmySheet, BuildSheet, LogSheet } from './Sheets';
+import { ArmySheet, BuildSheet, LogSheet, type ProgressionView } from './Sheets';
 import { Toast } from './Toast';
 
 /**
@@ -59,6 +59,7 @@ export function Game() {
   const [claimSent, setClaimSent] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [guestNoteDismissed, setGuestNoteDismissed] = useState(false);
+  const [progression, setProgression] = useState<ProgressionView | null>(null);
   const [soundOn, setSoundOn] = useState(true);
   /** Bumped once a frame while a battle runs, so the battle HUD tracks it. */
   const [battleTick, setBattleTick] = useState(0);
@@ -107,6 +108,14 @@ export function Game() {
     }
   }, []);
 
+  const loadProgression = useCallback(async () => {
+    try {
+      setProgression(await api.progression());
+    } catch {
+      // The panels fall back to a quiet placeholder rather than a toast.
+    }
+  }, []);
+
   const loadQuests = useCallback(async () => {
     try {
       setQuests((await api.quests()).quests);
@@ -119,11 +128,12 @@ export function Game() {
     if (!signedIn) return;
     void api.incoming().then((r) => setIncoming(r.raids)).catch(() => undefined);
     void loadQuests();
+    void loadProgression();
     // The server settles production lazily, so a periodic re-read is what keeps
     // the HUD honest without a socket.
     const timer = setInterval(() => { void refresh(); }, 30_000);
     return () => clearInterval(timer);
-  }, [signedIn, refresh, loadQuests]);
+  }, [signedIn, refresh, loadQuests, loadProgression]);
 
   /* --- keep the battle HUD ticking while a raid runs --- */
   useEffect(() => {
@@ -401,7 +411,7 @@ export function Game() {
           pending={pendingStock}
           onHome={() => { if (worldRef.current) centerOnKeep(worldRef.current); }}
           onBuild={() => { sfx.tap(); setSheet('build'); }}
-          onArmy={() => { sfx.tap(); setSheet('army'); }}
+          onArmy={() => { sfx.tap(); setSheet('army'); void loadProgression(); }}
           onOrders={() => { sfx.tap(); setSheet('orders'); void loadQuests(); }}
           onLog={() => { sfx.tap(); setSheet('log'); }}
           onRaid={() => { unlockAudio(); sfx.tap(); void findRaid(false); }}
@@ -434,7 +444,9 @@ export function Game() {
           stars={battle.stars()}
           avail={battle.avail}
           selected={world?.selectedTroop ?? null}
-          onSelect={(t: TroopType) => { if (world) world.selectedTroop = t; }}
+          heroReady={battle.heroReady()}
+          heroLevel={world?.raid?.hero.level ?? player?.heroLevel ?? 1}
+          onSelect={(t) => { if (world) { world.selectedTroop = t; sfx.tap(); } }}
           onEnd={() => { if (world?.battle) void finishBattle(world.battleCommands); }}
         />
       )}
@@ -481,8 +493,19 @@ export function Game() {
       {sheet === 'army' && player && (
         <ArmySheet
           player={player}
+          progression={progression}
           onClose={() => setSheet(null)}
           onTrain={(type, count) => { void runCommand(() => api.train(type, count)); }}
+          onUpgradeHero={() => {
+            void runCommand(() => api.upgradeHero()).then((r) => {
+              if (r) { sfx.up(); say(`Hero raised to rank ${r.toLevel}`); void loadProgression(); }
+            });
+          }}
+          onUpgradeTroop={(type) => {
+            void runCommand(() => api.upgradeTroop(type)).then((r) => {
+              if (r) { sfx.up(); say(`Troop upgraded to level ${r.toLevel}`); void loadProgression(); }
+            });
+          }}
         />
       )}
 
@@ -505,6 +528,7 @@ export function Game() {
               setSheet(null);
               beginBattle(worldRef.current, {
                 raidId: r.raidId, seed: r.seed, snapshot: r.snapshot, army: r.army,
+                hero: r.hero, troopLevels: r.troopLevels,
                 expiresAt: new Date().toISOString(), rerollCost: 0,
               });
               // A replay is watched, not played: feed it the recorded commands.

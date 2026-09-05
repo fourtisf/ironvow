@@ -209,6 +209,40 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     ctx.lineTo(K[0], K[1] - 11 * z);
     ctx.closePath(); ctx.fill(); ctx.stroke();
 
+  } else if (b.type === 'lab') {
+    // A workshop: stone base, tiled roof, and a bubbling crucible whose glow
+    // pulses on the same clock as the forge, so the pair read as related.
+    isoBox(d, gx + 0.06, gy + 0.06, s - 0.12, s - 0.12, 9, C.stone, C.stoneD, '#77848f');
+    isoBox(d, gx + 0.26, gy + 0.26, 1.48, 1.48, 38, '#8d84a8', '#4c4560', '#6d6584');
+    isoRoof(d, gx + 0.16, gy + 0.16, 1.68, 1.68, 38, 72, '#7f6fb0', '#4e4276');
+
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const top = py - 38 * z;
+
+    // Crucible on a tripod.
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+    ctx.fillStyle = '#3f4a56';
+    ctx.beginPath();
+    ctx.ellipse(px, top - 6 * z, 9 * z, 6 * z, 0, 0, 6.29);
+    ctx.fill();
+    ctx.stroke();
+
+    const bubble = 0.55 + Math.sin(t * 3.1) * 0.25;
+    ctx.fillStyle = `rgba(150,240,190,${bubble.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.ellipse(px, top - 8 * z, 6.5 * z, 3.6 * z, 0, 0, 6.29);
+    ctx.fill();
+
+    // Vapour, drifting and fading.
+    for (let i = 0; i < 3; i++) {
+      const p = (t * 0.42 + i * 0.33) % 1;
+      ctx.fillStyle = `rgba(170,240,205,${(0.34 * (1 - p)).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(px + Math.sin(p * 4 + i * 2) * 6 * z, top - 12 * z - p * 34 * z, (2.6 + p * 6) * z, 0, 6.29);
+      ctx.fill();
+    }
+
   } else if (b.type === 'cannon') {
     isoBox(d, gx + 0.1, gy + 0.1, s - 0.2, s - 0.2, 12, C.stone, C.stoneD, '#77848f');
     isoBox(d, gx + 0.42, gy + 0.42, 1.16, 1.16, 30, C.stoneL, C.stoneD, C.stone);

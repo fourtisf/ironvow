@@ -12,7 +12,7 @@ import {
 import { createBattle, type Battle } from '@ironvow/sim';
 import { type Camera, centerOn, clampCam, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
-import type { BaseSnapshot, DeployCommand } from '@ironvow/types';
+import type { BaseSnapshot, DeployableType, DeployCommand } from '@ironvow/types';
 import type { FloatingText, Mode, Placement, PlayerState, ScoutedRaid } from './types';
 
 /**
@@ -62,8 +62,8 @@ export interface World {
    */
   preview: BaseSnapshot | null;
   battleCommands: DeployCommand[];
-  /** Troop the tray has selected for the next deploy. */
-  selectedTroop: TroopType | null;
+  /** What the tray has selected for the next deploy. */
+  selectedTroop: DeployableType | null;
   /** Leftover time not yet consumed by a fixed step. */
   tickAccumulator: number;
   /** Cosmetic per-structure state the simulation does not carry. */
@@ -180,7 +180,16 @@ export function beginBattle(w: World, raid: ScoutedRaid): void {
   w.raid = raid;
   w.battleCommands = [];
   w.battle = createBattle(
-    { snapshot: raid.snapshot, commands: [], army: raid.army, seed: raid.seed },
+    {
+      snapshot: raid.snapshot,
+      commands: [],
+      army: raid.army,
+      seed: raid.seed,
+      // The loadout the server froze when the raid opened, not whatever the
+      // player has upgraded to since.
+      hero: raid.hero,
+      troopLevels: raid.troopLevels,
+    },
     { timeline: false },
   );
   w.tickAccumulator = 0;
@@ -196,13 +205,15 @@ export function beginBattle(w: World, raid: ScoutedRaid): void {
   setMode(w, 'battle');
 }
 
-export function firstAvailableTroop(w: World): TroopType | null {
-  const avail = w.battle?.avail;
-  if (!avail) return null;
+export function firstAvailableTroop(w: World): DeployableType | null {
+  const battle = w.battle;
+  if (!battle) return null;
   for (const t of ['raider', 'archer', 'lancer', 'ram'] as const) {
-    if ((avail[t] ?? 0) > 0) return t;
+    if ((battle.avail[t] ?? 0) > 0) return t;
   }
-  return null;
+  // The hero is the last thing offered, not the first: picking it by default
+  // would get it committed by accident on the opening tap.
+  return battle.heroReady() ? 'hero' : null;
 }
 
 /**
@@ -296,7 +307,7 @@ export function deployAt(w: World, gx: number, gy: number): void {
   }
   w.battleCommands.push(out.command);
   w.unitBorn.set(battle.units.length - 1, w.t);
-  if ((battle.avail[type] ?? 0) <= 0) w.selectedTroop = firstAvailableTroop(w);
+  if (type === 'hero' || (battle.avail[type] ?? 0) <= 0) w.selectedTroop = firstAvailableTroop(w);
   w.events.onPlayerChanged();
 }
 

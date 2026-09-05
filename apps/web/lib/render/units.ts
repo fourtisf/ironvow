@@ -1,4 +1,5 @@
 import { TROOP, type TroopType } from '@ironvow/config';
+import type { DeployableType } from '@ironvow/types';
 import { isoX, isoY, w2s } from './camera';
 import type { Draw } from './primitives';
 import { C } from './palette';
@@ -13,7 +14,7 @@ import { drawHpBar, roundRect } from './primitives';
  */
 
 export interface DrawableUnit {
-  type: TroopType;
+  type: DeployableType;
   x: number;
   y: number;
   /** True when this unit belongs to the viewer. */
@@ -33,11 +34,16 @@ export interface DrawableUnit {
 export function drawUnit(d: Draw, u: DrawableUnit): void {
   const { ctx, cam, vp, t } = d;
   const z = cam.z;
-  const def = TROOP[u.type];
+  const hero = u.type === 'hero';
+  // The hero borrows the lancer's silhouette and then departs from it: larger,
+  // gold-liveried, crowned. It has to be findable at a glance in a crowd of
+  // twenty identical raiders, because deciding where it is standing is the
+  // whole point of having one.
+  const def = hero ? TROOP.lancer : TROOP[u.type as TroopType];
   const [sx, sy] = w2s(cam, vp, isoX(u.x, u.y), isoY(u.x, u.y));
-  const S = (u.type === 'ram' ? 1.5 : 1) * 2.0 * z;
-  const team = u.mine ? '#3f7fd6' : '#c2412d';
-  const teamL = u.mine ? '#6ba4f0' : '#e0684f';
+  const S = (u.type === 'ram' ? 1.5 : hero ? 1.35 : 1) * 2.0 * z;
+  const team = hero ? '#e8b23c' : u.mine ? '#3f7fd6' : '#c2412d';
+  const teamL = hero ? '#ffd97a' : u.mine ? '#6ba4f0' : '#e0684f';
   const f = u.face;
   const walk = u.moving ? Math.sin(t * 11 + u.born * 7) : 0;
   const bob = u.moving ? Math.abs(Math.sin(t * 11 + u.born * 7)) * 1.1 * S : 0;
@@ -100,8 +106,24 @@ export function drawUnit(d: Draw, u: DrawableUnit): void {
     // head and helm
     ctx.fillStyle = P('#e6bd93');
     ctx.beginPath(); ctx.arc(sx, Y(28.5), 5.4 * S, 0, 6.29); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = P(u.type === 'archer' ? '#3f7a44' : '#9aa7b4');
+    ctx.fillStyle = P(hero ? '#e8b23c' : u.type === 'archer' ? '#3f7a44' : '#9aa7b4');
     ctx.beginPath(); ctx.arc(sx, Y(29.5), 5.8 * S, Math.PI * 1.03, Math.PI * 2.02); ctx.fill(); ctx.stroke();
+    if (hero) {
+      // A crown rather than a plume, so the hero reads as the hero even at the
+      // zoom where every other unit is a smudge.
+      ctx.fillStyle = P('#ffd25c');
+      ctx.beginPath();
+      ctx.moveTo(sx - 6 * S, Y(34));
+      ctx.lineTo(sx - 6 * S, Y(39));
+      ctx.lineTo(sx - 3 * S, Y(36.5));
+      ctx.lineTo(sx, Y(40));
+      ctx.lineTo(sx + 3 * S, Y(36.5));
+      ctx.lineTo(sx + 6 * S, Y(39));
+      ctx.lineTo(sx + 6 * S, Y(34));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
     if (u.type === 'lancer') {
       ctx.fillStyle = P(team);
       roundRect(ctx, sx - 1.6 * S, Y(38), 3.2 * S, 6 * S, 1.4 * S); ctx.fill(); ctx.stroke();
@@ -134,6 +156,7 @@ export function drawUnit(d: Draw, u: DrawableUnit): void {
       ctx.strokeStyle = C.line;
       ctx.lineWidth = LW;
     } else {
+      // Lancer and hero both swing a polearm.
       ctx.save();
       ctx.translate(sx + 6 * S * f, Y(21));
       ctx.rotate((-1.35 + sw * 0.9) * f);
@@ -154,7 +177,9 @@ export function drawUnit(d: Draw, u: DrawableUnit): void {
     }
   }
 
-  if (u.hp < u.maxHp) drawHpBar(d, sx, Y(u.type === 'ram' ? 34 : 41), 30 * z, u.hp / u.maxHp);
+  if (u.hp < u.maxHp) {
+    drawHpBar(d, sx, Y(u.type === 'ram' ? 34 : hero ? 44 : 41), (hero ? 40 : 30) * z, u.hp / u.maxHp);
+  }
 }
 
 export type FxKind = 'boom' | 'spark' | 'ring';

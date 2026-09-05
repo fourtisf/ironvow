@@ -1,7 +1,7 @@
 'use client';
 
-import { TROOP, TROOP_ORDER, type TroopType } from '@ironvow/config';
-import type { BattleArmy } from '@ironvow/types';
+import { HERO_NAME, TROOP, TROOP_ORDER } from '@ironvow/config';
+import type { BattleArmy, DeployableType } from '@ironvow/types';
 import { mmss } from '../lib/format';
 import { StarIcon } from './icons';
 
@@ -18,13 +18,17 @@ export interface BattleHudProps {
   destroyedPct: number;
   stars: number;
   avail: BattleArmy;
-  selected: TroopType | null;
-  onSelect: (type: TroopType) => void;
+  selected: DeployableType | null;
+  /** The hero can still be committed. */
+  heroReady: boolean;
+  /** Shown greyed when the hero was already sent in or is recovering. */
+  heroLevel: number;
+  onSelect: (type: DeployableType) => void;
   onEnd: () => void;
 }
 
 export function BattleHud({
-  secondsLeft, destroyedPct, stars, avail, selected, onSelect, onEnd,
+  secondsLeft, destroyedPct, stars, avail, selected, heroReady, heroLevel, onSelect, onEnd,
 }: BattleHudProps) {
   return (
     <div id="btHud">
@@ -57,6 +61,17 @@ export function BattleHud({
             <span className="n">{avail[t] ?? 0}</span>
           </button>
         ))}
+
+        {/* The hero sits apart from the warband, because it is not one of them. */}
+        {(heroReady || selected === 'hero') && (
+          <button
+            className={`tcard hero${selected === 'hero' ? ' sel' : ''}${heroReady ? '' : ' out'}`}
+            onClick={() => onSelect('hero')}
+          >
+            <span className="nm" style={{ fontSize: 9 }}>{HERO_NAME}</span>
+            <span className="n">{heroReady ? `Lv ${heroLevel}` : '—'}</span>
+          </button>
+        )}
       </div>
     </div>
   );

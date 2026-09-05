@@ -24,5 +24,5 @@ export const bannerColor = (enemy: boolean): string => (enemy ? '#c2412d' : '#3f
 
 /** Vertical offset of the level pip above each building type. */
 export const PIPH: Record<string, number> = {
-  keep: 172, mine: 74, forge: 104, store: 78, barr: 122, cannon: 56, tower: 132, wall: 0,
+  keep: 172, mine: 74, forge: 104, store: 78, barr: 122, lab: 108, cannon: 56, tower: 132, wall: 0,
 };

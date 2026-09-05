@@ -31,6 +31,11 @@ export interface LoadedPlayer extends PlayerView {
   name: string;
   isGuest: boolean;
   trophies: number;
+  heroLevel: number;
+  /** Null once the hero has returned. */
+  heroReadyAt: Date | null;
+  /** War Lab level per troop type. */
+  troopLevels: Record<TroopType, number>;
   keepLevel: number;
   shieldUntil: Date | null;
   buildings: (OwnedBuildingRow & { stock: number })[];
@@ -104,7 +109,11 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   const resolved = resolveQueue(jobs, now);
 
   const army: Partial<Record<TroopType, number>> = {};
-  for (const t of player.troops) army[t.type as TroopType] = t.count;
+  const troopLevels = { raider: 1, archer: 1, lancer: 1, ram: 1 } as Record<TroopType, number>;
+  for (const t of player.troops) {
+    army[t.type as TroopType] = t.count;
+    troopLevels[t.type as TroopType] = t.level;
+  }
 
   if (resolved.finished.length > 0) {
     await tx.trainJob.deleteMany({ where: { id: { in: resolved.finished.map((j) => j.id) } } });
@@ -154,6 +163,13 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     id: player.id,
     name: player.name,
     isGuest: player.isGuest,
+    heroLevel: player.heroLevel,
+    // A timer that has already run out is the same as no timer, and settling it
+    // here means no route has to remember the comparison.
+    heroReadyAt: player.heroReadyAt && player.heroReadyAt.getTime() > now.getTime()
+      ? player.heroReadyAt
+      : null,
+    troopLevels,
     gold: player.gold,
     iron: player.iron,
     trophies: player.trophies,

@@ -2,11 +2,13 @@ import {
   RAID_EXPIRY_MINUTES,
   SCOUT_REROLL_COST,
   TROOP_ORDER,
+  heroRespawnMinutes,
+  heroUnlocked,
   type BuildingType,
   type TroopType,
 } from '@ironvow/config';
 import { randomSeed, seedToInt32, simulate } from '@ironvow/sim';
-import type { BaseSnapshot, BattleArmy, DeployCommand } from '@ironvow/types';
+import type { BaseSnapshot, BattleArmy, DeployCommand, DeployableType, HeroLoadout, TroopLevels } from '@ironvow/types';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { debitDefender, revengeCutoff, settleRaid, snapshotBase, trophyBand } from '../domain/raid.js';
@@ -27,9 +29,11 @@ import { serialise } from './auth.js';
 
 const findSchema = z.object({ reroll: z.boolean().default(false) });
 
+const DEPLOYABLE = [...TROOP_ORDER, 'hero'] as const;
+
 const commandSchema = z.object({
   tickIndex: z.number().int().min(0).max(20_000),
-  troopType: z.enum(TROOP_ORDER as unknown as [TroopType, ...TroopType[]]),
+  troopType: z.enum(DEPLOYABLE as unknown as [DeployableType, ...DeployableType[]]),
   gx: z.number().min(-10).max(70),
   gy: z.number().min(-10).max(70),
 });
@@ -137,6 +141,13 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           seed: BigInt(randomSeed()),
           snapshot: snapshot as unknown as object,
           army: armyOf(me.army) as unknown as object,
+          // Frozen for the same reason as the warband: upgrading the hero or
+          // the lab mid-raid would change what a replay is allowed to field.
+          hero: {
+            level: me.heroLevel,
+            available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+          } satisfies HeroLoadout as unknown as object,
+          troopLevels: me.troopLevels as unknown as object,
           expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
         },
       });
@@ -152,6 +163,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       seed: Number(result.raid.seed),
       snapshot,
       army: result.raid.army as unknown as BattleArmy,
+      hero: (result.raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
+      troopLevels: (result.raid.troopLevels as unknown as TroopLevels | null) ?? {},
       expiresAt: result.raid.expiresAt.toISOString(),
       rerollCost: SCOUT_REROLL_COST,
       player: serialise(result.player),
@@ -216,12 +229,16 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       // The frozen warband, not the current one: the client fought with what it
       // had when the raid opened, and a replay must be able to do the same.
       const army = raid.army as unknown as BattleArmy;
+      const hero = (raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false };
+      const troopLevels = (raid.troopLevels as unknown as TroopLevels | null) ?? {};
 
       const sim = simulate({
         snapshot,
         commands: parsed.data.commands,
         army,
         seed: seedToInt32(raid.seed),
+        hero,
+        troopLevels,
       });
 
       const defender = await tx.player.findUnique({
@@ -244,6 +261,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       const rejectedIndexes = new Set(sim.rejected.map((r) => r.index));
       parsed.data.commands.forEach((c, i) => {
         if (rejectedIndexes.has(i)) return;
+        // The hero costs no warband room and is not drawn from any count.
+        if (c.troopType === 'hero') return;
         spent[c.troopType] = (spent[c.troopType] ?? 0) + 1;
       });
       for (const type of TROOP_ORDER) {
@@ -273,6 +292,11 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           raids: { increment: 1 },
           ...(sim.stars >= 1 ? { wins: { increment: 1 } } : {}),
           ...(sim.stars === 3 ? { threeStars: { increment: 1 } } : {}),
+          // A fallen hero is away for a while. That cost is what makes
+          // committing it a decision rather than a reflex.
+          ...(sim.heroDied
+            ? { heroReadyAt: new Date(now.getTime() + heroRespawnMinutes(hero.level) * 60_000) }
+            : {}),
         },
       });
 
@@ -346,6 +370,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       destroyedPct: outcome.sim.destroyedPct,
       loot: outcome.settlement.loot,
       trophyDelta: outcome.settlement.trophyDelta,
+      heroDied: outcome.sim.heroDied,
+      heroDeployed: outcome.sim.heroDeployed,
       rejected: outcome.sim.rejected,
       checksum: outcome.sim.checksum,
       player: serialise(outcome.player),
@@ -400,6 +426,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       seed: Number(raid.seed),
       snapshot: raid.snapshot as unknown as BaseSnapshot,
       army: raid.army as unknown as BattleArmy,
+      hero: (raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
+      troopLevels: (raid.troopLevels as unknown as TroopLevels | null) ?? {},
       commands: raid.commands as unknown as DeployCommand[],
       attackerName: attacker?.name ?? 'Unknown',
       stars: raid.stars,

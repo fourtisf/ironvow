@@ -201,3 +201,8 @@
     border:2px solid #46608a;box-shadow:0 4px 0 #0d1420;display:flex;align-items:center;justify-content:center}
   #soundBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d1420}
   #soundBtn svg{width:19px;height:19px;display:block}
+
+  /* The hero's tray card is gold, not blue: it is not part of the warband. */
+  .tcard.hero{border-color:#e8b23c;background:linear-gradient(#4a3a18,#2a2110)}
+  .tcard.hero .nm{color:#ffd97a}
+  .tcard.hero.sel{border-color:#ffd97a;background:linear-gradient(#6b5220,#40310f)}

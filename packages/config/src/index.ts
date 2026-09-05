@@ -11,3 +11,5 @@ export * from './troops.js';
 export * from './economy.js';
 export * from './rewards.js';
 export * from './quests.js';
+export * from './hero.js';
+export * from './lab.js';

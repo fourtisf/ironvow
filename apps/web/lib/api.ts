@@ -85,9 +85,27 @@ export const api = {
     destroyedPct: number;
     loot: { g: number; i: number };
     trophyDelta: number;
+    heroDied: boolean;
+    heroDeployed: boolean;
     checksum: string;
     rejected: { index: number; reason: string }[];
   }> => post(`/raid/${raidId}/submit`, { commands, clientChecksum, clientStars }),
+
+  progression: (): Promise<{
+    hero: {
+      name: string; level: number; maxLevel: number; unlockKeepLevel: number;
+      unlocked: boolean; stats: { hp: number; dmg: number; cd: number; spd: number; rng: number };
+      upgradeCost: { g: number; i: number }; readyAt: string | null; respawnMinutes: number;
+    };
+    lab: {
+      level: number;
+      troops: { type: TroopType; level: number; power: number; upgradeCost: { g: number; i: number } }[];
+    };
+  }> => call('/progression'),
+
+  upgradeHero: (): Promise<CommandResponse & { toLevel: number }> => post('/hero/upgrade'),
+  upgradeTroop: (type: TroopType): Promise<CommandResponse & { toLevel: number }> =>
+    post('/troop/upgrade', { type }),
 
   quests: (): Promise<{
     quests: {
@@ -117,6 +135,8 @@ export const api = {
     seed: number;
     snapshot: ScoutedRaid['snapshot'];
     army: ScoutedRaid['army'];
+    hero: ScoutedRaid['hero'];
+    troopLevels: ScoutedRaid['troopLevels'];
     commands: DeployCommand[];
     attackerName: string;
     stars: number;

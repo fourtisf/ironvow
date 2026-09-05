@@ -39,7 +39,7 @@ import { Checksum } from './hash.js';
  * can depend on insertion order (spec S4.2).
  * ------------------------------------------------------------------ */
 
-interface SimStruct {
+export interface SimStruct {
   i: number;
   id: string;
   t: BuildingType;
@@ -57,7 +57,7 @@ interface SimStruct {
   cd: number;
 }
 
-interface SimUnit {
+export interface SimUnit {
   i: number;
   t: TroopType;
   x: number;
@@ -74,7 +74,7 @@ interface SimUnit {
   moving: boolean;
 }
 
-interface SimProj {
+export interface SimProj {
   x: number;
   y: number;
   tx: number;
@@ -105,6 +105,42 @@ export interface SimOutcome extends SimResult {
 }
 
 /**
+ * A battle in progress.
+ *
+ * `simulate()` drives this to completion in one call, which is what the server
+ * does. The client drives it one tick per rendered frame-step so it can draw
+ * the fight as it happens, and records the deploys it made as commands. Both
+ * run the identical `step()`, so there is no second implementation to drift.
+ */
+export interface Battle {
+  readonly structs: readonly SimStruct[];
+  readonly units: readonly SimUnit[];
+  readonly projs: readonly SimProj[];
+  readonly kind: BattleKind;
+  /** Ticks elapsed. */
+  readonly tick: number;
+  readonly ended: boolean;
+  readonly avail: Readonly<BattleArmy>;
+  /** 0..1 of total structure hit points destroyed. */
+  destroyedPct(): number;
+  stars(): number;
+  /** Seconds left on the clock. */
+  secondsLeft(): number;
+  /** Advance exactly one fixed timestep. Returns true once the battle is over. */
+  step(): boolean;
+  /**
+   * Queue a deploy for the tick about to be simulated.
+   *
+   * Client-side entry point. Returns the command it recorded, or the reason it
+   * was refused — the same reasons the server will produce when it replays.
+   */
+  deploy(type: TroopType, gx: number, gy: number): { ok: true; command: DeployCommand } | { ok: false; reason: RejectedCommand['reason'] };
+  result(): SimOutcome;
+  /** Events recorded so far, when the battle was created with `timeline`. */
+  readonly events: readonly TimelineEvent[];
+}
+
+/**
  * The one function that decides a battle.
  *
  * Pure: same snapshot, same commands, same seed always produce the same
@@ -118,6 +154,20 @@ export interface SimOutcome extends SimResult {
  * future rule that does need a die roll stays replayable without a migration.
  */
 export function simulate(input: SimInput, options: SimOptions = {}): SimOutcome {
+  const battle = createBattle(input, options);
+  while (!battle.step()) {
+    /* run to an end condition or the clock */
+  }
+  return battle.result();
+}
+
+/**
+ * Build a battle without running it.
+ *
+ * Shares every rule with `simulate()`, because `simulate()` is nothing but a
+ * loop over `step()`.
+ */
+export function createBattle(input: SimInput, options: SimOptions = {}): Battle {
   const { snapshot, commands, army, seed } = input;
   const kind: BattleKind = input.kind ?? 'raid';
   const events: TimelineEvent[] = [];
@@ -218,12 +268,17 @@ export function simulate(input: SimInput, options: SimOptions = {}): SimOutcome 
     if (!bucket) return;
     for (const { cmd, index } of bucket) {
       const t = cmd.troopType;
+      // index < 0 marks a deploy scheduled live by this same battle, which was
+      // already validated in `deploy()`. Only a submitted command is reported.
+      const reject = (reason: RejectedCommand['reason']): void => {
+        if (index >= 0) rejected.push({ index, reason });
+      };
       if ((avail[t] ?? 0) <= 0) {
-        rejected.push({ index, reason: 'noTroopsLeft' });
+        reject('noTroopsLeft');
         continue;
       }
       if (cmd.gx < DEPLOY_MARGIN || cmd.gy < DEPLOY_MARGIN || cmd.gx > N - DEPLOY_MARGIN || cmd.gy > N - DEPLOY_MARGIN) {
-        rejected.push({ index, reason: 'outOfBounds' });
+        reject('outOfBounds');
         continue;
       }
       let blocked = false;
@@ -235,7 +290,7 @@ export function simulate(input: SimInput, options: SimOptions = {}): SimOutcome 
         }
       }
       if (blocked) {
-        rejected.push({ index, reason: 'tooCloseToStructure' });
+        reject('tooCloseToStructure');
         continue;
       }
       avail[t]--;
@@ -330,8 +385,20 @@ export function simulate(input: SimInput, options: SimOptions = {}): SimOutcome 
   let deployed = 0;
   let endedBy: SimResult['endedBy'] = 'timeout';
   let tick = 0;
+  let over = false;
 
-  for (; tick < maxTicks; tick++) {
+  /**
+   * Advance exactly one fixed timestep.
+   *
+   * The order inside a tick is part of the contract: deploys, then units, then
+   * defensive fire, then projectiles, then the end conditions. Reordering any
+   * of it changes results, so the client and the server share this one body
+   * rather than each having a loop of their own.
+   */
+  const step = (): boolean => {
+    if (over) return true;
+    if (tick >= maxTicks) { over = true; return true; }
+
     const before = units.length;
     applyDeploys(tick);
     deployed += units.length - before;
@@ -471,36 +538,100 @@ export function simulate(input: SimInput, options: SimOptions = {}): SimOutcome 
     let left = 0;
     for (const t of TROOP_ORDER) left += avail[t] ?? 0;
     const pending = pendingAfter(byTick, tick);
+    const finish = (why: SimResult['endedBy']): boolean => {
+      endedBy = why;
+      tick++;
+      over = true;
+      return true;
+    };
 
     if (kind === 'raid') {
-      if (!structs.some((s) => !s.dead)) { endedBy = 'wiped'; tick++; break; }
+      if (!structs.some((s) => !s.dead)) return finish('wiped');
       const aliveMine = units.some((u) => !u.dead && u.side === 'atk');
-      if (deployed > 0 && left === 0 && !pending && !aliveMine) { endedBy = 'exhausted'; tick++; break; }
+      if (deployed > 0 && left === 0 && !pending && !aliveMine) return finish('exhausted');
     } else {
-      if (!units.some((u) => !u.dead && u.side === 'atk')) { endedBy = 'wiped'; tick++; break; }
-      if (!structs.some((s) => !s.dead && s.t === 'keep')) { endedBy = 'keepFell'; tick++; break; }
+      if (!units.some((u) => !u.dead && u.side === 'atk')) return finish('wiped');
+      if (!structs.some((s) => !s.dead && s.t === 'keep')) return finish('keepFell');
     }
-  }
 
-  const destroyedPct = clamp(killedHp / totalHp, 0, 1);
-  const keepDestroyed = !structs.some((s) => s.t === 'keep' && !s.dead);
-  const stars = starsFor(destroyedPct, keepDestroyed);
-  const loot = { g: Math.floor(lootG), i: Math.floor(lootI) };
-
-  check.addInt(stars).addFloat(destroyedPct).addInt(loot.g).addInt(loot.i).addInt(tick);
-  for (const s of structs) check.addFloat(s.hp);
-
-  const result: SimOutcome = {
-    stars,
-    destroyedPct,
-    loot,
-    ticks: tick,
-    endedBy,
-    rejected,
-    checksum: check.digest(),
+    tick++;
+    if (tick >= maxTicks) { over = true; return true; }
+    return false;
   };
-  if (wantTimeline) result.timeline = { events };
-  return result;
+
+  const destroyedPct = (): number => clamp(killedHp / totalHp, 0, 1);
+  const keepDestroyed = (): boolean => !structs.some((s) => s.t === 'keep' && !s.dead);
+  const stars = (): number => starsFor(destroyedPct(), keepDestroyed());
+
+  const result = (): SimOutcome => {
+    const pct = destroyedPct();
+    const st = stars();
+    const loot = { g: Math.floor(lootG), i: Math.floor(lootI) };
+
+    // The checksum is finalised on a copy, so calling result() twice mid-battle
+    // cannot change what a later call produces.
+    const final = check.clone();
+    final.addInt(st).addFloat(pct).addInt(loot.g).addInt(loot.i).addInt(tick);
+    for (const s of structs) final.addFloat(s.hp);
+
+    const out: SimOutcome = {
+      stars: st,
+      destroyedPct: pct,
+      loot,
+      ticks: tick,
+      endedBy,
+      rejected,
+      checksum: final.digest(),
+    };
+    if (wantTimeline) out.timeline = { events };
+    return out;
+  };
+
+  /**
+   * Deploy at the tick about to be simulated.
+   *
+   * The command is appended to this battle's own schedule and returned, so the
+   * client can send exactly what it played. Validation is the same
+   * `applyDeploys` the server will run, reached by scheduling and stepping.
+   */
+  const deploy = (
+    type: TroopType, gx: number, gy: number,
+  ): { ok: true; command: DeployCommand } | { ok: false; reason: RejectedCommand['reason'] } => {
+    if (over) return { ok: false, reason: 'badTick' };
+    if (!isTroopType(type)) return { ok: false, reason: 'unknownTroop' };
+    if ((avail[type] ?? 0) <= 0) return { ok: false, reason: 'noTroopsLeft' };
+    if (gx < DEPLOY_MARGIN || gy < DEPLOY_MARGIN || gx > N - DEPLOY_MARGIN || gy > N - DEPLOY_MARGIN) {
+      return { ok: false, reason: 'outOfBounds' };
+    }
+    for (const s of structs) {
+      if (s.dead) continue;
+      if (dist(gx, gy, s.cx, s.cy) < s.size / 2 + DEPLOY_CLEARANCE) {
+        return { ok: false, reason: 'tooCloseToStructure' };
+      }
+    }
+    const command: DeployCommand = { tickIndex: tick, troopType: type, gx, gy };
+    const bucket = byTick.get(tick);
+    if (bucket) bucket.push({ cmd: command, index: -1 });
+    else byTick.set(tick, [{ cmd: command, index: -1 }]);
+    return { ok: true, command };
+  };
+
+  return {
+    structs,
+    units,
+    projs,
+    kind,
+    get tick() { return tick; },
+    get ended() { return over; },
+    get avail() { return avail; },
+    get events() { return events; },
+    destroyedPct,
+    stars,
+    secondsLeft: () => Math.max(0, (maxTicks - tick) * DT),
+    step,
+    deploy,
+    result,
+  };
 }
 
 /** True while any accepted deploy is still scheduled for a later tick. */

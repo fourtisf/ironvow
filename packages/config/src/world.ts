@@ -29,8 +29,17 @@ export const APRON = 26;
 /** Terrain is generated from this fixed seed so every client draws the same map. */
 export const TERRAIN_SEED = 20260905;
 
-/** Camera limits. */
-export const ZOOM_MIN = 0.7;
+/**
+ * Camera limits.
+ *
+ * The prototype floored zoom at 0.7, which was right for it: it generated its
+ * own opponents in a tight ring around the middle of the map, so a whole enemy
+ * base always fitted. A real player's base can span the field, and a raider who
+ * cannot see the layout cannot choose where to come in from — which is the
+ * decision scouting exists to inform. The floor is lowered to fit one on a
+ * phone. The 26-cell apron already covers what the wider view exposes.
+ */
+export const ZOOM_MIN = 0.4;
 export const ZOOM_MAX = 1.9;
 
 /** Client render cap. Uncapped DPR on high-density Android is the biggest frame-rate risk. */

@@ -6,7 +6,17 @@
  * same code on the same inputs, the client has nothing to lie about beyond its
  * own deploy commands, and those are validated here too.
  */
-export { simulate, simulateRaid, type SimOptions, type SimOutcome } from './simulate.js';
+export {
+  createBattle,
+  simulate,
+  simulateRaid,
+  type Battle,
+  type SimOptions,
+  type SimOutcome,
+  type SimProj,
+  type SimStruct,
+  type SimUnit,
+} from './simulate.js';
 export { mulberry, randomSeed, seedToInt32, type Rng } from './rng.js';
 export { generateBase, generateOpponent, generateDefendWave } from './generate.js';
 export { Checksum } from './hash.js';

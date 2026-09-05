@@ -44,6 +44,14 @@ export class Checksum {
     this.h2 = (this.h2 ^ (this.h2 >>> 13)) >>> 0;
   }
 
+  /** A detached copy, so finalising a running battle cannot disturb it. */
+  clone(): Checksum {
+    const c = new Checksum();
+    c.h1 = this.h1;
+    c.h2 = this.h2;
+    return c;
+  }
+
   digest(): string {
     return this.h1.toString(16).padStart(8, '0') + this.h2.toString(16).padStart(8, '0');
   }

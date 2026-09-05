@@ -11,7 +11,9 @@
     "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "worker": "node dist/worker.js",
+    "worker:dev": "tsx watch src/worker.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.1",

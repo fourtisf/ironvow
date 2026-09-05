@@ -1,0 +1,140 @@
+# IRONVOW — build status
+
+Written against `docs/BUILD_SPEC.md`. This is an honest account of what runs,
+what does not, and what needs a decision.
+
+## Done
+
+### Phase 1 — single player on the server
+
+| Spec | State |
+|---|---|
+| Auth, session in an httpOnly cookie | Email magic link, tokens stored only as SHA-256 hashes |
+| Base persistence | Prisma on Postgres, schema as sketched in §3 plus two additions (below) |
+| Lazy production | `accrueProduction`, capped at the 12-minute buffer and the 4-hour window |
+| Build / upgrade / move / train / collect | All validated server-side, cost re-derived from `@ironvow/config` |
+| Placement validation on the server | `cellsFree` ported; build and move share it |
+| Training queue | Absolute `finishesAt`, resolved lazily on read |
+| Row-level lock on resource changes | `SELECT … FOR UPDATE` inside one transaction per command |
+
+### Phase 2 — real PvP
+
+| Spec | State |
+|---|---|
+| Shared deterministic sim | `packages/sim`, fixed 1/30 s, seeded mulberry32, no `Date.now` |
+| Snapshots | Frozen onto the `Raid` row when it opens |
+| Command submission and server replay | Client sends deploys only; server decides |
+| Trophy matchmaking | ±150 band, widened on each retry, excluding self, recent targets and shielded players |
+| Shields | 12 h at 2+ stars, 8 h at 1, none if undamaged |
+| Attack log | `/raids/incoming` and `/raid/:id/replay` |
+| Divergence logging | `Divergence` table, written when a client's checksum disagrees |
+
+### Phase 3 — partly
+
+- **Scout before you raid (§8.1)** — done. The defender's real layout is drawn
+  on the canvas before committing, with a gold-charged reroll.
+- **Vaults actually protect (§8.6)** — done. Each Vault shields a fixed amount
+  from looting rather than a flat percentage of everything.
+- **Attack log and revenge (§8.5)** — the log and replay are done; the revenge
+  button is not wired yet.
+
+### The six fixed bugs from §9
+
+Each is either structurally unreachable now or covered by a test:
+
+1. **Starting gold equalled storage.** `@ironvow/config` throws at module load
+   if `START_GOLD >= BASE_STORAGE`; asserted again in the economy tests.
+2. **Move was destructive.** There is one placement path. A move is a single
+   `UPDATE` of `gx`/`gy`; the building is never removed from the set it is
+   validated against.
+3. **Confirming a move pushed the building twice.** Not reachable for the same
+   reason; a concurrency test fires twenty overlapping moves and asserts one row
+   survives with its original id.
+4. **Hit flash never decayed on non-defensive buildings.** All per-frame entity
+   state decays in `decayFx`, in one place.
+5. **Camera clamp used the widest point of the diamond.** `clampCam` clamps the
+   grid coordinate under the screen centre.
+6. **Culling used a grid-space bounding box.** `onScreen` projects the point and
+   tests it against the screen rectangle.
+
+## Not done
+
+- **Phase 3: a hero (§8.2) and the troop upgrade lab (§8.3).** Both add
+  gameplay, and both are straightforward on this foundation: a hero is a unit
+  with persistent state on the `Player` row and a respawn timestamp; the lab is
+  a per-troop level multiplier read out of `@ironvow/config` in `simulate`.
+- **Phase 4 entirely.** Build timers and builders are flagged in the spec as
+  needing ALFA's sign-off before implementation, so they were not started.
+  Layout editor, sound and quality settings, and push notifications likewise.
+- **War Orders (the 12 quests).** They exist in the prototype and are not yet
+  ported. They need a server-side progress model, since the counters they read
+  (`collected`, `trainedTotal`, `threeStars`) are now server state.
+- **Revenge.** The data is all there — an incoming raid names its attacker and
+  the raid is replayable — but there is no endpoint that opens a raid against a
+  specific player.
+- **Defend mode.** The simulation supports it and the snapshot carries a
+  pre-rolled wave, but no route starts one. In PvP the attack log replaces the
+  prototype's random defend event, which the spec calls for in §8.5.
+
+## Deviations from the spec, and why
+
+**Deterministic maths (§4.2).** The spec says no `Math.random` and no
+`Date.now`. That is necessary but not sufficient: `pow`, `hypot`, `sin`, `cos`
+and `atan2` are not correctly rounded by IEEE-754 and genuinely differ between
+JavaScript engines, so a client on Safari and a server on Node could disagree in
+the last bits and diverge. None of them appear anywhere a result can change. See
+`packages/config/src/math.ts`.
+
+**The attacker's warband is frozen onto the raid.** Not in the §3 sketch. The
+replay test forced it: reading the army at submission time lets a player train
+troops mid-raid and change what a stored raid is allowed to deploy, at which
+point the recorded result stops reproducing.
+
+**A `Divergence` table.** Not in the sketch. §4.6 asks for divergences to be
+logged; this is where.
+
+**Minimum zoom lowered from 0.7 to 0.4.** The prototype generated its own
+opponents in a tight ring around the map centre, so a whole enemy base always
+fitted on screen. A real player's base can span the field, and at 0.7 a raider
+cannot see the layout they are supposed to be planning against — which defeats
+the scouting feature. The 26-cell apron already covers the wider view.
+
+**Offline auto-collection dropped.** The prototype emptied every producer into
+the purse on load so you never returned to a dead base. With lazy production
+there is no "load" — every read accrues — so keeping it would mean collecting
+on every request and removing the collect interaction entirely, including the
+tap that the first War Order asks for. Producers now fill their buffer and wait.
+
+## Numbers that need sign-off
+
+These are marked `TUNABLE` in `packages/config`. The spec describes the
+mechanic but not the value, and each one changes the feel of raiding:
+
+| Constant | Current | What it controls |
+|---|---|---|
+| `vaultProtectionOf(level)` | `0.2 × CAPACITY(level)` | How much each Vault shields from raiders |
+| `LOOT_SHARE` | `0.2` | Share of a defender's unprotected stock on the table |
+| `LOOT_CEILING` | `250,000` | Ceiling on one raid's take |
+| `SCOUT_REROLL_COST` | `50` gold | Price of rerolling a scouted opponent |
+
+`stageFromTrophies` (one stage per 120 trophies) is also a judgement call: it is
+what converts PvP matchmaking back into the `stage` the prototype's trophy
+formulas expect, so §6's reward numbers could be kept exactly.
+
+## Performance
+
+The prototype's frame cost was 0.58 ms with roughly 30 structures and 16 units.
+The port keeps what made that possible: procedural art with no asset pipeline,
+exact screen-space culling, one depth-sorted draw list per frame, device pixel
+ratio capped at 2, and no React state on the render path — the world is a single
+mutable ref driven by `requestAnimationFrame`, and buildings are not components.
+
+Measured: a 430 × 900 viewport at DPR 2, mid-raid against a 46-structure base
+with 21 units and projectiles in flight, held a locked 60 fps over 230 frames —
+median, p95 and max frame interval all 16.7–16.8 ms, so nothing was dropped and
+the renderer never approached the vsync budget.
+
+That was headless Chromium in a container, which is a far kinder environment
+than the target. §10 asks for 60 fps on a mid-range Android handset, and that
+measurement has not been taken. It is the one that matters, and the DPR cap is
+there for it.

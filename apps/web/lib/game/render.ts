@@ -1,10 +1,11 @@
-import { PROD, TYPES } from '@ironvow/config';
-import { isoX, isoY, onScreen, w2s } from '../render/camera';
+import { PROD, TYPES, type BuildingType } from '@ironvow/config';
+import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
-import { drawBuilding } from '../render/buildings';
+import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
+import { blitBuilding, blitDeco } from '../render/sprites';
 import { C } from '../render/palette';
 import { drawHpBar, isoDiamond, roundRect } from '../render/primitives';
-import { drawDeco, drawTerrain } from '../render/terrain';
+import { drawTerrain } from '../render/terrain';
 import { drawProjectile, drawUnit } from '../render/units';
 import type { ClientBuilding } from './types';
 import type { World } from './world';
@@ -60,6 +61,9 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     });
   }
   for (const b of w.player?.buildings ?? []) {
+    // Culled here rather than inside the draw call, so an off-screen structure
+    // costs neither a sprite lookup nor a slot in the depth sort.
+    if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'building', b });
   }
   ents.sort((a, b) => a.d - b.d);
@@ -74,7 +78,7 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
 
   for (const e of ents) {
     if (e.k === 'deco') {
-      drawDeco(d, w.terrain.deco[e.i]!);
+      blitDeco(d, w.terrain.deco[e.i]!);
       continue;
     }
     const b = e.b;
@@ -96,8 +100,12 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     const job = builderProgress(b, w.now);
     // A building still going up is drawn faint: it is a plan, not a building.
     // One being upgraded is solid, because it is working the whole time.
-    drawBuilding(d, job ? { ...b, ...job } : b, false, job?.scaffold ? 0.5 : undefined);
+    const ghost = job?.scaffold ? 0.5 : undefined;
+    if (ghost !== undefined) ctx.globalAlpha = ghost;
+    drawStruct(w, d, b.type, b.level, false, b.gx, b.gy);
     ctx.restore();
+
+    if (job) drawBuilderMark(d, { ...b, ...job }, TYPES[b.type].s);
 
     if (b.id === w.selectedId) {
       const s = TYPES[b.type].s;
@@ -112,7 +120,9 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   for (const b of w.player?.buildings ?? []) {
     // No pouch over a scaffold: it is not producing anything yet.
     const goingUp = b.completesAt !== null && b.upgradingTo === null;
-    if (PROD[b.type] && b.stock >= 1 && !goingUp) drawCollectBubble(w, d, b);
+    if (!PROD[b.type] || b.stock < 1 || goingUp) continue;
+    if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
+    drawCollectBubble(w, d, b);
   }
   drawPopups(w, d);
 }
@@ -126,15 +136,16 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
     });
   }
   snapshot.buildings.forEach((b, i) => {
+    if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) return;
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'struct', i });
   });
   ents.sort((a, b) => a.d - b.d);
 
   for (const e of ents) {
-    if (e.k === 'deco') drawDeco(d, w.terrain.deco[e.i]!);
+    if (e.k === 'deco') blitDeco(d, w.terrain.deco[e.i]!);
     else if (e.k === 'struct') {
       const b = snapshot.buildings[e.i]!;
-      drawBuilding(d, { type: b.type, gx: b.gx, gy: b.gy, level: b.level }, true);
+      drawStruct(w, d, b.type, b.level, true, b.gx, b.gy);
     }
   }
 }
@@ -151,7 +162,8 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
     });
   }
   battle.structs.forEach((s, i) => {
-    if (!s.dead) ents.push({ d: s.gx + s.gy + s.size * 0.5, k: 'struct', i });
+    if (s.dead || !structOnScreen(w.cam, w.vp, s.gx, s.gy, s.size)) return;
+    ents.push({ d: s.gx + s.gy + s.size * 0.5, k: 'struct', i });
   });
   battle.units.forEach((u, i) => {
     if (!u.dead) ents.push({ d: u.x + u.y, k: 'unit', i });
@@ -160,7 +172,7 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
 
   for (const e of ents) {
     if (e.k === 'deco') {
-      drawDeco(d, w.terrain.deco[e.i]!);
+      blitDeco(d, w.terrain.deco[e.i]!);
     } else if (e.k === 'unit') {
       const u = battle.units[e.i]!;
       drawUnit(d, {
@@ -178,11 +190,8 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
       });
     } else {
       const s = battle.structs[e.i]!;
-      drawBuilding(d, {
-        type: s.t, gx: s.gx, gy: s.gy, level: s.lv,
-        aim: w.fx.aim.get(e.i),
-        recoil: w.fx.recoil.get(e.i),
-      }, battle.kind === 'raid');
+      drawStruct(w, d, s.t, s.lv, battle.kind === 'raid', s.gx, s.gy,
+        w.fx.aim.get(e.i), w.fx.recoil.get(e.i));
 
       if (w.fx.flash.has(e.i)) {
         isoDiamond(d, s.gx, s.gy, s.size, s.size, 'rgba(255,255,255,.28)');
@@ -196,6 +205,25 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
 
   for (const p of battle.projs) {
     drawProjectile(d, { x: p.x, y: p.y, kind: p.kind });
+  }
+}
+
+/**
+ * One structure: cached body, then whatever moves.
+ *
+ * The body is a blit of a canvas rasterised once per (type, level, livery,
+ * zoom); only banners, smoke and a cannon's barrel are still real path work.
+ * On low quality the decorative half is dropped, but the barrel is not — it
+ * points at what the cannon is shooting, which is information, not garnish.
+ */
+function drawStruct(
+  w: World, d: Draw, type: BuildingType, level: number, enemy: boolean,
+  gx: number, gy: number, aim?: number, recoil?: number,
+): void {
+  const [ax, ay] = w2s(w.cam, w.vp, isoX(gx, gy), isoY(gx, gy));
+  blitBuilding(d, type, level, enemy, ax, ay);
+  if (w.quality === 'high' ? ANIMATED.has(type) : type === 'cannon') {
+    drawBuildingFx(d, { type, gx, gy, level, aim, recoil }, enemy);
   }
 }
 

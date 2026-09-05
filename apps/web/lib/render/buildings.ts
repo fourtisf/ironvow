@@ -10,6 +10,13 @@ import { drawLevelPip, isoBox, isoDiamond, isoRoof, roundRect, shadowAt } from '
  * Every structure is drawn from primitives at runtime. There is no sprite
  * sheet and no asset pipeline, which is what keeps the download tiny and lets a
  * level-9 Keep differ from a level-1 one without a second texture.
+ *
+ * It is split in two halves on purpose. `drawBuildingBody` depends only on
+ * type, level and livery, so a full base of two hundred structures can be
+ * rasterised once and blitted (see sprites.ts); `drawBuildingFx` is the handful
+ * of parts that move — banners, smoke, a cannon barrel — and has to be redrawn
+ * every frame. Before the split a single frame issued about 4,700 path
+ * operations and ran at 10fps on a mid-range phone.
  */
 
 export interface Renderable {
@@ -27,18 +34,25 @@ export interface Renderable {
   recoil?: number;
 }
 
-export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?: number): void {
-  const { ctx, cam, vp, t } = d;
+/** Types with a moving part. Everything else needs no per-frame work at all. */
+export const ANIMATED: ReadonlySet<BuildingType> = new Set<BuildingType>([
+  'keep', 'forge', 'barr', 'lab', 'cannon',
+]);
+
+/**
+ * The static half: the structure itself.
+ *
+ * Must stay a pure function of (type, level, enemy, zoom), because that tuple
+ * is the sprite cache key. Anything reading the clock belongs in the fx half.
+ */
+export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
+  const { ctx, cam, vp } = d;
   const def = TYPES[b.type];
   const s = def.s;
   const { gx, gy } = b;
   const z = cam.z;
   const lv = b.level;
 
-  if (ghostAlpha !== undefined) {
-    ctx.save();
-    ctx.globalAlpha = ghostAlpha;
-  }
   shadowAt(d, gx, gy, s, s);
 
   const P = (ax: number, ay: number): [number, number] => w2s(cam, vp, isoX(ax, ay), isoY(ax, ay));
@@ -91,15 +105,6 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     ctx.strokeStyle = C.line;
     ctx.lineWidth = Math.max(1.5, 2.4 * z);
     ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, top - 30 * z); ctx.stroke();
-    const wave = Math.sin(t * 2.4) * 3 * z;
-    ctx.fillStyle = bannerColor(enemy);
-    ctx.beginPath();
-    ctx.moveTo(px, top - 30 * z);
-    ctx.lineTo(px + 22 * z + wave, top - 25 * z);
-    ctx.lineTo(px + 16 * z + wave, top - 17 * z);
-    ctx.lineTo(px + 22 * z + wave, top - 10 * z);
-    ctx.lineTo(px, top - 13 * z);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
 
   } else if (b.type === 'mine') {
     isoBox(d, gx + 0.05, gy + 0.05, s - 0.1, s - 0.1, 10, C.dirt, C.dirt2, '#a87a41');
@@ -147,20 +152,6 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     isoBox(d, gx + 0.22, gy + 0.22, 1.55, 1.55, 42, '#a8927c', '#6b5a49', '#8a765f');
     isoRoof(d, gx + 0.22, gy + 0.22, 1.55, 1.55, 42, 60, '#7d5a3c', '#54402c');
 
-    const [px, py] = P(gx + 0.575, gy + 0.575);
-    const chimney = py - 74 * z;
-    for (let i = 0; i < 4; i++) {
-      const p = (t * 0.55 + i * 0.25) % 1;
-      ctx.fillStyle = `rgba(190,200,212,${(0.4 * (1 - p)).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(px + Math.sin(p * 5 + i) * 8 * z, chimney - p * 42 * z, (3.5 + p * 9) * z, 0, 6.29);
-      ctx.fill();
-    }
-    const glow = 0.55 + Math.sin(t * 4.5) * 0.2;
-    ctx.fillStyle = `rgba(255,140,40,${glow.toFixed(2)})`;
-    const [ax, ay] = P(gx + 1.5, gy + 1.5);
-    ctx.beginPath(); ctx.ellipse(ax, ay - 10 * z, 8 * z, 5.5 * z, 0, 0, 6.29); ctx.fill();
-
   } else if (b.type === 'store') {
     isoBox(d, gx + 0.08, gy + 0.08, s - 0.16, s - 0.16, 8, '#6b5340', '#4a382b', '#5a4636');
     const r = isoBox(d, gx + 0.25, gy + 0.25, 1.5, 1.5, 44, C.wood, C.woodD, '#734829');
@@ -205,13 +196,6 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     ctx.strokeStyle = C.line;
     ctx.lineWidth = Math.max(1.3, 2.1 * z);
     ctx.beginPath(); ctx.moveTo(K[0], K[1]); ctx.lineTo(K[0], K[1] - 20 * z); ctx.stroke();
-    ctx.fillStyle = bannerColor(enemy);
-    const wave2 = Math.sin(t * 2.8 + 1.4) * 2.5 * z;
-    ctx.beginPath();
-    ctx.moveTo(K[0], K[1] - 20 * z);
-    ctx.lineTo(K[0] + 15 * z + wave2, K[1] - 16 * z);
-    ctx.lineTo(K[0], K[1] - 11 * z);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
 
   } else if (b.type === 'lab') {
     // A workshop: stone base, tiled roof, and a bubbling crucible whose glow
@@ -232,40 +216,11 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     ctx.fill();
     ctx.stroke();
 
-    const bubble = 0.55 + Math.sin(t * 3.1) * 0.25;
-    ctx.fillStyle = `rgba(150,240,190,${bubble.toFixed(2)})`;
-    ctx.beginPath();
-    ctx.ellipse(px, top - 8 * z, 6.5 * z, 3.6 * z, 0, 0, 6.29);
-    ctx.fill();
-
-    // Vapour, drifting and fading.
-    for (let i = 0; i < 3; i++) {
-      const p = (t * 0.42 + i * 0.33) % 1;
-      ctx.fillStyle = `rgba(170,240,205,${(0.34 * (1 - p)).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(px + Math.sin(p * 4 + i * 2) * 6 * z, top - 12 * z - p * 34 * z, (2.6 + p * 6) * z, 0, 6.29);
-      ctx.fill();
-    }
-
   } else if (b.type === 'cannon') {
     isoBox(d, gx + 0.1, gy + 0.1, s - 0.2, s - 0.2, 12, C.stone, C.stoneD, '#77848f');
     isoBox(d, gx + 0.42, gy + 0.42, 1.16, 1.16, 30, C.stoneL, C.stoneD, C.stone);
     const [px, py] = P(gx + s / 2, gy + s / 2);
     const top = py - 30 * z;
-    const ang = b.aim ?? -0.5;
-    const recoil = b.recoil ? b.recoil * 6 * z : 0;
-    ctx.save();
-    ctx.translate(px, top);
-    ctx.rotate(ang);
-    ctx.fillStyle = '#3f4a56';
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = Math.max(1.5, 2.4 * z);
-    roundRect(ctx, -7 * z - recoil, -6 * z, 38 * z, 12 * z, 5 * z);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#5b6875';
-    roundRect(ctx, -7 * z - recoil, -6 * z, 38 * z, 5 * z, 3 * z);
-    ctx.fill();
-    ctx.restore();
     ctx.fillStyle = '#3f4a56';
     ctx.strokeStyle = C.line;
     ctx.beginPath(); ctx.ellipse(px, top + 3 * z, 10 * z, 7 * z, 0, 0, 6.29); ctx.fill(); ctx.stroke();
@@ -303,10 +258,122 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
     const [px, py] = P(gx + s / 2, gy + s / 2);
     drawLevelPip(d, px, py - (PIPH[b.type] ?? 0) * z, lv);
   }
+}
+
+/**
+ * The moving half: banners, smoke, glow, a cannon barrel.
+ *
+ * Drawn straight to the frame on top of the cached body, so it is the only
+ * per-building path work left in a steady-state frame. Skipped entirely on low
+ * graphics quality.
+ */
+export function drawBuildingFx(d: Draw, b: Renderable, enemy: boolean): void {
+  const { ctx, cam, vp, t } = d;
+  const def = TYPES[b.type];
+  const s = def.s;
+  const { gx, gy } = b;
+  const z = cam.z;
+  const lv = b.level;
+  const P = (ax: number, ay: number): [number, number] => w2s(cam, vp, isoX(ax, ay), isoY(ax, ay));
+
+  if (b.type === 'keep') {
+    const wallH = 92 + lv * 4;
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const top = py - (wallH + 34) * z;
+    const wave = Math.sin(t * 2.4) * 3 * z;
+    ctx.fillStyle = bannerColor(enemy);
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.5, 2.4 * z);
+    ctx.beginPath();
+    ctx.moveTo(px, top - 30 * z);
+    ctx.lineTo(px + 22 * z + wave, top - 25 * z);
+    ctx.lineTo(px + 16 * z + wave, top - 17 * z);
+    ctx.lineTo(px + 22 * z + wave, top - 10 * z);
+    ctx.lineTo(px, top - 13 * z);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  } else if (b.type === 'forge') {
+    const [px, py] = P(gx + 0.575, gy + 0.575);
+    const chimney = py - 74 * z;
+    for (let i = 0; i < 4; i++) {
+      const p = (t * 0.55 + i * 0.25) % 1;
+      ctx.fillStyle = `rgba(190,200,212,${(0.4 * (1 - p)).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(px + Math.sin(p * 5 + i) * 8 * z, chimney - p * 42 * z, (3.5 + p * 9) * z, 0, 6.29);
+      ctx.fill();
+    }
+    const glow = 0.55 + Math.sin(t * 4.5) * 0.2;
+    ctx.fillStyle = `rgba(255,140,40,${glow.toFixed(2)})`;
+    const [ax, ay] = P(gx + 1.5, gy + 1.5);
+    ctx.beginPath(); ctx.ellipse(ax, ay - 10 * z, 8 * z, 5.5 * z, 0, 0, 6.29); ctx.fill();
+
+  } else if (b.type === 'barr') {
+    const K = P(gx + s / 2, gy + s / 2);
+    K[1] -= 104 * z;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.3, 2.1 * z);
+    ctx.fillStyle = bannerColor(enemy);
+    const wave2 = Math.sin(t * 2.8 + 1.4) * 2.5 * z;
+    ctx.beginPath();
+    ctx.moveTo(K[0], K[1] - 20 * z);
+    ctx.lineTo(K[0] + 15 * z + wave2, K[1] - 16 * z);
+    ctx.lineTo(K[0], K[1] - 11 * z);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  } else if (b.type === 'lab') {
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const top = py - 38 * z;
+    const bubble = 0.55 + Math.sin(t * 3.1) * 0.25;
+    ctx.fillStyle = `rgba(150,240,190,${bubble.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.ellipse(px, top - 8 * z, 6.5 * z, 3.6 * z, 0, 0, 6.29);
+    ctx.fill();
+
+    // Vapour, drifting and fading.
+    for (let i = 0; i < 3; i++) {
+      const p = (t * 0.42 + i * 0.33) % 1;
+      ctx.fillStyle = `rgba(170,240,205,${(0.34 * (1 - p)).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(px + Math.sin(p * 4 + i * 2) * 6 * z, top - 12 * z - p * 34 * z, (2.6 + p * 6) * z, 0, 6.29);
+      ctx.fill();
+    }
+
+  } else if (b.type === 'cannon') {
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const top = py - 30 * z;
+    const ang = b.aim ?? -0.5;
+    const recoil = b.recoil ? b.recoil * 6 * z : 0;
+    ctx.save();
+    ctx.translate(px, top);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#3f4a56';
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.5, 2.4 * z);
+    roundRect(ctx, -7 * z - recoil, -6 * z, 38 * z, 12 * z, 5 * z);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#5b6875';
+    roundRect(ctx, -7 * z - recoil, -6 * z, 38 * z, 5 * z, 3 * z);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/**
+ * Uncached path: body then fx, straight to the frame.
+ *
+ * Kept for anywhere a one-off structure is drawn (the placement ghost) where a
+ * cache entry would be evicted before it were ever reused.
+ */
+export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?: number): void {
+  const { ctx } = d;
+  if (ghostAlpha !== undefined) {
+    ctx.save();
+    ctx.globalAlpha = ghostAlpha;
+  }
+  drawBuildingBody(d, b, enemy);
+  drawBuildingFx(d, b, enemy);
   if (ghostAlpha !== undefined) ctx.restore();
-  // After the restore, so the scaffolding and its progress bar stay solid over
-  // a building that is deliberately drawn faint.
-  if (b.progress !== undefined) drawBuilderMark(d, b, s);
+  if (b.progress !== undefined) drawBuilderMark(d, b, TYPES[b.type].s);
 }
 
 /**
@@ -317,7 +384,7 @@ export function drawBuilding(d: Draw, b: Renderable, enemy: boolean, ghostAlpha?
  * the bar, because it is working the whole time and dimming it would say
  * otherwise.
  */
-function drawBuilderMark(d: Draw, b: Renderable, size: number): void {
+export function drawBuilderMark(d: Draw, b: Renderable, size: number): void {
   const { ctx, cam, vp } = d;
   const z = cam.z;
   const progress = Math.max(0, Math.min(1, b.progress ?? 0));

@@ -57,11 +57,14 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
 
     const world = createWorld(forward);
     worldRef.current = world;
+    const onResize = (): void => resizeWorld(world, canvas, ctx);
+    // Before onReady, which is where the saved graphics quality is applied and
+    // that has to be able to re-size the backing store.
+    world.resize = onResize;
     resizeWorld(world, canvas, ctx);
     onReady(world);
 
     const input = attachInput(world, canvas, (id) => tapRef.current(id));
-    const onResize = (): void => resizeWorld(world, canvas, ctx);
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
 

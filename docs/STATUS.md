@@ -234,12 +234,96 @@ exact screen-space culling, one depth-sorted draw list per frame, device pixel
 ratio capped at 2, and no React state on the render path — the world is a single
 mutable ref driven by `requestAnimationFrame`, and buildings are not components.
 
-Measured: a 430 × 900 viewport at DPR 2, mid-raid against a 46-structure base
+Measured: a 430 x 900 viewport at DPR 2, mid-raid against a 46-structure base
 with 21 units and projectiles in flight, held a locked 60 fps over 230 frames —
-median, p95 and max frame interval all 16.7–16.8 ms, so nothing was dropped and
-the renderer never approached the vsync budget.
+median, p95 and max frame interval all 16.7-16.8 ms.
 
-That was headless Chromium in a container, which is a far kinder environment
-than the target. §10 asks for 60 fps on a mid-range Android handset, and that
-measurement has not been taken. It is the one that matters, and the DPR cap is
-there for it.
+That was a small base. A maxed one is a
+different game: 164 structures, Keep 8, 120 ramparts, on a 412 x 892 phone
+viewport. Under Chrome's CPU throttle — the standard stand-in for a mid-range
+handset, at 4x — that base ran at **10 fps**, and setting graphics to low
+changed nothing. A single frame was issuing about 4,700 canvas path operations.
+Three things were wrong:
+
+1. **Buildings were never culled.** Deco was, units were, structures were not:
+   every building went into the draw list every frame whatever the camera was
+   looking at.
+2. **Static art was redrawn every frame.** A rampart's fifteen paths do not
+   depend on the clock, and there were a hundred and twenty of them.
+3. **Low quality only skipped the treeline**, which the measurement proved was
+   never the cost.
+
+What it does now: each structure's static art is rasterised once per
+(type, level, livery, size) into its own canvas and blitted — see
+`apps/web/lib/render/sprites.ts`. Only the parts that actually move — banners,
+forge smoke, the lab's vapour, a cannon's barrel — are still drawn as paths, and
+`ANIMATED` in `buildings.ts` names exactly those types. The treeline is cached
+the same way, a tree in two pieces so its canopy can still sway. Sprite bounds
+are measured from the art by rendering it oversized once and scanning the alpha
+extent, rather than from a table that would be wrong the first time anyone
+changed a roof height. The sprite's scale is derived from a whole number of
+device pixels, which makes the blit a one-to-one copy: no resampling, and the
+outlines come out marginally crisper than drawing straight to the frame.
+
+Two other things were pure overdraw. The terrain laid down three full-screen
+fills — a sentinel rect and two diamonds each wider than the viewport — before
+anything else; when the field already covers the screen, which is nearly always,
+one rect now does it. And the apron was painted a tile at a time, up to 432
+diamonds, in the same green a diamond above it had already laid down.
+
+Low quality now also drops the device pixel ratio to 1. Fill cost is quadratic
+in pixel ratio, so that one line is worth more than every path the other two
+savings put together, and it is what turns the setting from cosmetic into the
+thing a player on a slow phone actually reaches for.
+
+Measured after, same base, same viewport, `median frame interval (dropped of
+180)`:
+
+| | before | after |
+| --- | --- | --- |
+| no throttle | 16.7 ms (19 dropped) | 16.7 ms (0 dropped) |
+| 4x — mid-range phone | 99.9 ms (180) | 16.8 ms (83) |
+| 6x — slow phone | 150 ms (180) | 33.4 ms (178) |
+| 4x, graphics low | 100 ms (180) | 16.7 ms (0) |
+| 6x, graphics low | 150 ms (180) | 16.7 ms (0) |
+| 4x, mid-raid | — | 33.3 ms (152) |
+
+CPU time per frame, which unlike the interval above is not quantised to the
+display's cadence, went from 8.2 ms to 5.2 ms at full quality and 2.1 ms on low;
+the JavaScript half of that is now 1.0 ms.
+
+`apps/web/test/render.test.ts` guards the invariant the cache rests on: the
+static half of a building must draw identically whatever the clock says. If
+someone puts a flicker in a forge's body, the frame it happens to be rasterised
+on is baked into the bitmap and every forge in the game freezes on it, and
+nothing about the code would look wrong.
+
+This is still headless Chromium in a container, and the throttle is a proxy for
+a phone, not a phone. It is also a pessimistic one in a specific way: there is
+no GPU here, so every pixel is filled on the CPU, which is exactly the work a
+real handset's canvas implementation hands to hardware. §10 asks for 60 fps on a
+mid-range Android handset and that measurement still has not been taken on one.
+It remains the one that matters.
+
+## Scale
+
+The other unknown was what happens with a real population behind the
+matchmaker, so `apps/api/scripts/seed-scale.ts` seeds one: N players with a
+long-tail trophy distribution, a fifth of them shielded, layouts pruned for
+overlap. `apps/api/scripts/scale-check.ts` then measures the endpoints a session
+actually hits and asserts the two things that would be silently wrong.
+
+At 5,000 players: `/me` 10 ms median, `/raid/find` 19 ms median and 23 ms p95,
+`/leaderboard` 7 ms, thirty concurrent matchmaking requests in 177 ms with no
+failures. Essentially flat against 500. And the assertions that matter held:
+**zero open raids against a shielded player, zero against oneself.**
+
+It surfaced two real bugs, both now covered by `apps/api/test/limits.test.ts`:
+
+1. **Rate limiting was keyed on IP address.** Behind carrier-grade NAT that is
+   one budget shared by a city. It is keyed on the player now, with the address
+   as the fallback for requests that have not identified themselves yet, which
+   needs the player resolved in an `onRequest` hook before the limiter runs.
+2. **A 429 was being turned into a 500** by the error handler, so a client could
+   not tell "slow down" from "the server is broken" — and neither could the
+   scale test, which is how it was found.

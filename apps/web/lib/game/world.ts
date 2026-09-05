@@ -12,6 +12,7 @@ import {
 import { createBattle, type Battle } from '@ironvow/sim';
 import { type Camera, centerOn, clampCam, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
+import { clearSpriteCache } from '../render/sprites';
 import type { BaseSnapshot, BattleKind, DeployableType, DeployCommand } from '@ironvow/types';
 import type { FloatingText, Mode, Placement, PlayerState, ScoutedRaid } from './types';
 
@@ -47,11 +48,15 @@ export interface World {
   /**
    * Graphics quality (spec S8.8).
    *
-   * On low, the treeline is not drawn. It is four hundred swaying sprites
-   * outside the play area, which is the largest block of work in a frame that
-   * changes nothing about the game.
+   * On low the treeline and the decorative animation — banners, forge smoke,
+   * the lab's vapour — are dropped, and the canvas is rendered at one device
+   * pixel per CSS pixel. That last one is the setting's real weight: fill cost
+   * is quadratic in pixel ratio, so it is worth more than every path the other
+   * two save put together.
    */
   quality: 'high' | 'low';
+  /** Set by the canvas so a quality change can re-size the backing store. */
+  resize: (() => void) | null;
 
   mode: Mode;
   player: PlayerState | null;
@@ -93,6 +98,7 @@ export function createWorld(events: WorldEvents): World {
     t: 0,
     now: Date.now(),
     quality: 'high',
+    resize: null,
     mode: 'base',
     player: null,
     selectedId: null,
@@ -115,8 +121,9 @@ export function createWorld(events: WorldEvents): World {
 export function resizeWorld(w: World, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
   // Capping device pixel ratio at 2 is the single biggest frame-rate lever on
   // high-density Android, where uncapped DPR quadruples the fill cost for a
-  // difference nobody can see.
-  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+  // difference nobody can see. Low quality caps it at 1, which is the same
+  // lever pulled harder.
+  const dpr = Math.min(window.devicePixelRatio || 1, w.quality === 'low' ? 1 : MAX_DPR);
   const width = window.innerWidth;
   const height = window.innerHeight;
   w.vp = { w: width, h: height, dpr };
@@ -126,6 +133,20 @@ export function resizeWorld(w: World, canvas: HTMLCanvasElement, ctx: CanvasRend
   canvas.style.height = height + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   clampCam(w.cam);
+}
+
+/**
+ * Change graphics quality.
+ *
+ * Goes through here rather than assigning the field, because the setting
+ * changes the size of the canvas backing store and invalidates every cached
+ * sprite: both are rasterised per device pixel ratio.
+ */
+export function setQuality(w: World, quality: 'high' | 'low'): void {
+  if (w.quality === quality) return;
+  w.quality = quality;
+  clearSpriteCache();
+  w.resize?.();
 }
 
 export function setMode(w: World, mode: Mode): void {

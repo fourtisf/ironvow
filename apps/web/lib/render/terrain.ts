@@ -67,24 +67,30 @@ export function generateTerrain(): Terrain {
 
 export function drawTerrain(d: Draw, ter: Terrain): void {
   const { ctx, cam, vp } = d;
-  // Sentinel. If this ever shows through, the apron is too small.
-  ctx.fillStyle = '#0e1a12';
-  ctx.fillRect(0, 0, vp.w, vp.h);
 
-  isoDiamond(d, -APRON, -APRON, N + APRON * 2, N + APRON * 2, '#69a141');
-  isoDiamond(d, -APRON * 0.45, -APRON * 0.45, N + APRON * 0.9, N + APRON * 0.9, C.grass);
-
+  // Three full-screen fills — a sentinel rect and two overlapping diamonds each
+  // far wider than the viewport — were being laid down every frame before a
+  // single building was drawn. At DPR 2 that is over four million pixels of
+  // pure overdraw. Almost always the inner field alone already covers the
+  // screen, and then one rect does the whole job.
   const v = visibleGrid(cam, vp);
-  const gx0 = clamp(Math.floor(v[0]), 0, N - 1);
-  const gx1 = clamp(Math.ceil(v[1]), 0, N);
-  const gy0 = clamp(Math.floor(v[2]), 0, N - 1);
-  const gy1 = clamp(Math.ceil(v[3]), 0, N);
-  for (let gy = gy0; gy < gy1; gy++) {
-    for (let gx = gx0; gx < gx1; gx++) {
-      if (ter.tile[gy * N + gx] === 0) continue;
-      isoDiamond(d, gx, gy, 1.04, 1.04, C.grass);
-    }
+  const inner = APRON * 0.45;
+  const covered = v[0] >= -inner && v[1] <= N + inner && v[2] >= -inner && v[3] <= N + inner;
+  if (covered) {
+    ctx.fillStyle = C.grass;
+    ctx.fillRect(0, 0, vp.w, vp.h);
+  } else {
+    // Sentinel. If this ever shows through, the apron is too small.
+    ctx.fillStyle = '#0e1a12';
+    ctx.fillRect(0, 0, vp.w, vp.h);
+    isoDiamond(d, -APRON, -APRON, N + APRON * 2, N + APRON * 2, '#69a141');
+    isoDiamond(d, -inner, -inner, N + inner * 2, N + inner * 2, C.grass);
   }
+
+  // The apron used to be painted a tile at a time here, up to 432 diamonds a
+  // frame, in the same green the diamond above had already laid down. It was
+  // pure cost and is gone; `tile` survives because the apron/field split is
+  // still what the camera clamp is written against.
 
   ctx.save();
   ctx.globalAlpha = 0.34;
@@ -92,49 +98,57 @@ export function drawTerrain(d: Draw, ter: Terrain): void {
   ctx.restore();
 }
 
-export function drawDeco(d: Draw, deco: Deco): void {
-  const { ctx, cam, vp, t } = d;
-  const z = cam.z;
-  const [sx, sy] = w2s(cam, vp, isoX(deco.gx, deco.gy), isoY(deco.gx, deco.gy));
-  if (sx < -60 || sx > vp.w + 60 || sy < -60 || sy > vp.h + 80) return;
-  const s = deco.s * z;
-
+/**
+ * Deco painters.
+ *
+ * These draw at the origin in screen space at a given scale, which is what lets
+ * the sprite cache rasterise each one once instead of re-issuing seven path
+ * operations per tree per frame. A tree comes in two pieces because its canopy
+ * sways and its trunk does not.
+ */
+export function paintDecoBase(ctx: CanvasRenderingContext2D, kind: DecoKind, s: number): void {
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(1.3, 2.2 * z);
+  ctx.lineWidth = Math.max(1.3, 2.2 * s);
   ctx.strokeStyle = C.line;
 
-  if (deco.k === 'tree') {
-    const sway = Math.sin(t * 1.1 + deco.p) * 1.8 * s;
+  if (kind === 'tree') {
     ctx.fillStyle = 'rgba(20,40,18,.24)';
-    ctx.beginPath(); ctx.ellipse(sx, sy + 2 * z, 11 * s, 5 * s, 0, 0, 6.29); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 2 * s, 11 * s, 5 * s, 0, 0, 6.29); ctx.fill();
     ctx.fillStyle = C.woodD;
-    roundRect(ctx, sx - 2.6 * s, sy - 16 * s, 5.2 * s, 17 * s, 2 * s);
+    roundRect(ctx, -2.6 * s, -16 * s, 5.2 * s, 17 * s, 2 * s);
     ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#3f8a41';
-    ctx.beginPath(); ctx.ellipse(sx + sway, sy - 26 * s, 14 * s, 12 * s, 0, 0, 6.29); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#54a84f';
-    ctx.beginPath(); ctx.ellipse(sx + sway - 3 * s, sy - 30 * s, 8 * s, 6.5 * s, 0, 0, 6.29); ctx.fill();
-  } else if (deco.k === 'rock') {
+  } else if (kind === 'rock') {
     ctx.fillStyle = 'rgba(20,40,18,.22)';
-    ctx.beginPath(); ctx.ellipse(sx, sy + 2 * z, 10 * s, 4.5 * s, 0, 0, 6.29); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 2 * s, 10 * s, 4.5 * s, 0, 0, 6.29); ctx.fill();
     ctx.fillStyle = C.stone;
     ctx.beginPath();
-    ctx.moveTo(sx - 9 * s, sy);
-    ctx.lineTo(sx - 5 * s, sy - 9 * s);
-    ctx.lineTo(sx + 3 * s, sy - 11 * s);
-    ctx.lineTo(sx + 9 * s, sy - 3 * s);
-    ctx.lineTo(sx + 6 * s, sy + s);
+    ctx.moveTo(-9 * s, 0);
+    ctx.lineTo(-5 * s, -9 * s);
+    ctx.lineTo(3 * s, -11 * s);
+    ctx.lineTo(9 * s, -3 * s);
+    ctx.lineTo(6 * s, s);
     ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = C.stoneL;
     ctx.beginPath();
-    ctx.moveTo(sx - 5 * s, sy - 9 * s);
-    ctx.lineTo(sx + 3 * s, sy - 11 * s);
-    ctx.lineTo(sx + s, sy - 6 * s);
+    ctx.moveTo(-5 * s, -9 * s);
+    ctx.lineTo(3 * s, -11 * s);
+    ctx.lineTo(s, -6 * s);
     ctx.closePath(); ctx.fill();
   } else {
     ctx.fillStyle = '#3f8a41';
-    ctx.beginPath(); ctx.ellipse(sx, sy - 5 * s, 9 * s, 7 * s, 0, 0, 6.29); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, -5 * s, 9 * s, 7 * s, 0, 0, 6.29); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#54a84f';
-    ctx.beginPath(); ctx.ellipse(sx - 2 * s, sy - 8 * s, 5 * s, 4 * s, 0, 0, 6.29); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-2 * s, -8 * s, 5 * s, 4 * s, 0, 0, 6.29); ctx.fill();
   }
+}
+
+/** A tree's canopy, which sways independently of its trunk. */
+export function paintDecoCanopy(ctx: CanvasRenderingContext2D, s: number): void {
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1.3, 2.2 * s);
+  ctx.strokeStyle = C.line;
+  ctx.fillStyle = '#3f8a41';
+  ctx.beginPath(); ctx.ellipse(0, -26 * s, 14 * s, 12 * s, 0, 0, 6.29); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#54a84f';
+  ctx.beginPath(); ctx.ellipse(-3 * s, -30 * s, 8 * s, 6.5 * s, 0, 0, 6.29); ctx.fill();
 }

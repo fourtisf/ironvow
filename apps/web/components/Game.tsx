@@ -19,6 +19,7 @@ import {
   clearPreview,
   popup,
   setMode,
+  setQuality as applyQuality,
   showPreview,
   startPlacement,
   type World,
@@ -167,6 +168,13 @@ export function Game() {
       // Private browsing refuses storage; the note simply reappears next visit.
     }
   }, []);
+
+  // The saved preference is read after the first paint, by which time the
+  // canvas has already been created at full quality; without this the setting
+  // only took effect when the player toggled it by hand.
+  useEffect(() => {
+    if (worldRef.current) applyQuality(worldRef.current, quality);
+  }, [quality]);
 
   const loadProgression = useCallback(async () => {
     try {
@@ -353,7 +361,10 @@ export function Game() {
     setSheet(null);
     setSelectedId(null);
     if (worldRef.current) showPreview(worldRef.current, found.snapshot);
-  }, [runCommand]);
+    // `player` and `say` belong here: without them this closure keeps the state
+    // it was created with, which is null, and every RAID tap is answered with
+    // "train troops first" no matter how large the warband is.
+  }, [player, runCommand, say]);
 
   const demolish = useCallback((buildingId: string) => {
     const b = player?.buildings.find((x) => x.id === buildingId);
@@ -607,7 +618,7 @@ export function Game() {
         events={events}
         onReady={(w) => {
           worldRef.current = w;
-          w.quality = quality;
+          applyQuality(w, quality);
           if (player) w.player = player;
           centerOnKeep(w);
         }}
@@ -768,7 +779,7 @@ export function Game() {
           }}
           onQuality={(q) => {
             setQuality(q);
-            if (worldRef.current) worldRef.current.quality = q;
+            if (worldRef.current) applyQuality(worldRef.current, q);
             try {
               localStorage.setItem('ironvow_quality', q);
             } catch {

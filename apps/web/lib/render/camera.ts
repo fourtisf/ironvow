@@ -92,6 +92,24 @@ export function onScreen(cam: Camera, vp: Viewport, gx: number, gy: number, pad 
 }
 
 /**
+ * Visibility test for a structure rather than a point.
+ *
+ * A building is drawn upward from its anchor and outward across its footprint,
+ * so testing the anchor alone would pop the tallest ones out of frame while
+ * their roofs were still visible. The vertical allowance covers a maxed Keep
+ * with its banner; erring high only costs a few extra draws at the screen edge.
+ */
+export function structOnScreen(
+  cam: Camera, vp: Viewport, gx: number, gy: number, size: number,
+): boolean {
+  const [sx, sy] = w2s(cam, vp, isoX(gx, gy), isoY(gx, gy));
+  const halfW = (size * TW) / 2 * cam.z;
+  const above = 260 * cam.z;
+  const below = size * TH * cam.z;
+  return sx + halfW > 0 && sx - halfW < vp.w && sy + below > 0 && sy - above < vp.h;
+}
+
+/**
  * Frame a set of buildings so the whole base is on screen.
  *
  * The prototype could hard-code `centerOn(N/2, N/2, 0.95)` because it generated

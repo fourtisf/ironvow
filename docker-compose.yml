@@ -58,6 +58,8 @@ services:
       # NOT console — the API refuses to start in production with console mail,
       # and the first deployment crash-looped on exactly that for an hour.
       MAIL_TRANSPORT: ${MAIL_TRANSPORT:-off}
+      # The door. Nobody plays without typing this. Blank it to open the game.
+      ACCESS_CODE: ${ACCESS_CODE-1010}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

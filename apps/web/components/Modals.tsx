@@ -205,6 +205,11 @@ export interface SignInModalProps {
   sent: boolean;
   busy: boolean;
   error: string | null;
+  /** null: not known yet; true: the server wants a code before anything else. */
+  gate: boolean | null;
+  /** The code the server has accepted this session, if any. */
+  unlocked: boolean;
+  onCode: (code: string) => void;
 }
 
 /**
@@ -215,8 +220,10 @@ export interface SignInModalProps {
  * gets a real hold on the server; attaching an email later upgrades that same
  * hold rather than starting a new one.
  */
-export function SignInModal({ onGuest, onRequest, sent, busy, error }: SignInModalProps) {
+export function SignInModal({ onGuest, onRequest, sent, busy, error, gate, unlocked, onCode }: SignInModalProps) {
   const [showEmail, setShowEmail] = useState(false);
+  const [code, setCode] = useState('');
+  const locked = gate !== false && !unlocked;
 
   return (
     <div className="ovl">
@@ -231,7 +238,32 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error }: SignInMod
           </ul>
         )}
 
-        {sent ? (
+        {locked ? (
+          <form
+            className="gate"
+            onSubmit={(e) => { e.preventDefault(); if (code.trim()) onCode(code.trim()); }}
+          >
+            <label htmlFor="accessCode">ACCESS CODE</label>
+            <input
+              id="accessCode"
+              name="accessCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              placeholder="····"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              style={inputStyle}
+              disabled={gate === null}
+            />
+            <button className="btn gold big" type="submit" disabled={busy || gate === null || code.trim().length === 0}>
+              {gate === null ? 'ONE MOMENT…' : busy ? 'CHECKING…' : 'ENTER'}
+            </button>
+            <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
+              This hold is by invitation. Ask whoever sent you here for the code.
+            </p>
+          </form>
+        ) : sent ? (
           <p className="lead">Check your email for a link. It is good for fifteen minutes.</p>
         ) : showEmail ? (
           <form

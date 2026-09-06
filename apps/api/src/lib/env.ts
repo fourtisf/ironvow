@@ -12,6 +12,12 @@ const schema = z.object({
   SESSION_SECRET: z.string().min(16).default('dev-only-session-secret-change-me'),
   COOKIE_DOMAIN: z.string().optional(),
   /**
+   * A door on the game. When set, nobody can raise a hold or ask for a login
+   * link without it. For a private test with friends, not a secret worth
+   * anything: it is typed on a phone, so it is short.
+   */
+  ACCESS_CODE: z.string().min(1).max(64).optional(),
+  /**
    * How login links leave the server.
    *
    * `console` writes them to the log — development only; production refuses

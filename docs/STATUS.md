@@ -390,6 +390,15 @@ Still no audio files: all of it is oscillators and shaped noise.
 - **REPORT A PROBLEM** in settings: stored with the player and their
   browser, read back at `/ops/feedback` with the ops token.
 
+### The door
+
+The game is by invitation for now: `ACCESS_CODE` in `.env` (1010 out of the
+box in `docker-compose.yml`; set it empty to open the game). The first screen
+asks for the code before it offers PLAY NOW, the server checks it in constant
+time on every call that creates or reaches a hold, and a browser that got it
+right once tries it again quietly next visit. Twenty tries in ten minutes per
+address. It is a door, not a lock: four digits typed on a phone.
+
 ## Not done
 
 - **Clan wars.** See above: a second game mode, and none of its decisions have

@@ -420,3 +420,7 @@
   .features li b{color:#f2e4c4}
   textarea.report{width:100%;background:#0d1420;border:2px solid #3d5170;border-radius:11px;color:#f2e4c4;padding:10px;
     font-family:Arial;font-weight:700;font-size:11px;line-height:1.45;resize:vertical;margin-bottom:10px}
+
+  /* ---------- the door ---------- */
+  .gate label{display:block;font-size:9px;letter-spacing:2px;color:#e8b23c;margin-bottom:6px;font-family:Arial;font-weight:900}
+  .gate input{text-align:center;font-size:22px;letter-spacing:10px;font-family:'Arial Black',Arial,sans-serif}

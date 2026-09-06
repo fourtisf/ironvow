@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
@@ -5,6 +6,20 @@ import { env } from '../lib/env.js';
 import { consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
 import { MailOff, mailIsOff, sendLoginLink } from '../lib/mail.js';
 import { createPlayer, loadPlayer } from '../lib/player.js';
+
+/**
+ * The access code, if the server has one, must come with anything that
+ * creates or reaches a hold. Compared in constant time, and never echoed.
+ */
+function gateOpen(body: unknown): boolean {
+  const expected = env().ACCESS_CODE;
+  if (!expected) return true;
+  const given = typeof body === 'object' && body !== null && typeof (body as { accessCode?: unknown }).accessCode === 'string'
+    ? (body as { accessCode: string }).accessCode.trim()
+    : '';
+  if (given.length === 0 || given.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
 
 const emailSchema = z.object({ email: z.string().email().max(254) });
 const redeemSchema = z.object({ token: z.string().min(10).max(200), name: z.string().min(2).max(24).optional() });
@@ -41,11 +56,30 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
    * Always answers the same way whether or not the address is known, so this
    * endpoint cannot be used to enumerate who plays.
    */
+  /* ------------------------------------------------------------- the door --- */
+
+  /** Whether a code is needed at all, so the client knows to ask for one. */
+  app.get('/auth/gate', async (_request, reply) =>
+    reply.send({ required: Boolean(env().ACCESS_CODE) }));
+
+  /**
+   * Try a code. Answers only yes or no, and slowly: a four-digit code has ten
+   * thousand possibilities, and twenty tries in ten minutes from one address
+   * is not a search.
+   */
+  app.post('/auth/gate', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    if (!gateOpen(request.body)) return reply.code(403).send({ error: 'badAccessCode' });
+    return reply.send({ ok: true });
+  });
+
   app.post('/auth/request', {
     config: { rateLimit: { max: 5, timeWindow: '10 minutes' } },
   }, async (request, reply) => {
     const parsed = emailSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badEmail' });
+    if (!gateOpen(request.body)) return reply.code(403).send({ error: 'badAccessCode' });
 
     const email = parsed.data.email.toLowerCase().trim();
     // Checked before a link is minted, so a server with no mail does not fill
@@ -122,6 +156,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const existing = await playerIdFromRequest(request);
     if (existing) return reply.send({ ok: true, playerId: existing });
+    if (!gateOpen(request.body)) return reply.code(403).send({ error: 'badAccessCode' });
 
     const name = await freeGuestName();
     const playerId = await createPlayer(name, undefined, true);

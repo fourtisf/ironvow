@@ -122,9 +122,11 @@ export interface ClanLadderRow {
 export const api = {
   me: (): Promise<PlayerState> => call('/me'),
 
-  requestLogin: (email: string): Promise<{ ok: true }> => post('/auth/request', { email }),
+  requestLogin: (email: string, accessCode?: string): Promise<{ ok: true }> => post('/auth/request', { email, accessCode }),
+  gate: (): Promise<{ required: boolean }> => call('/auth/gate'),
+  tryGate: (accessCode: string): Promise<{ ok: true }> => post('/auth/gate', { accessCode }),
   /** Start playing immediately, with no email. */
-  guest: (): Promise<{ ok: true; playerId: string; name?: string }> => post('/auth/guest'),
+  guest: (accessCode?: string): Promise<{ ok: true; playerId: string; name?: string }> => post('/auth/guest', accessCode ? { accessCode } : {}),
   /** Attach an email to the hold already signed in. */
   claimAccount: (email: string): Promise<{ ok: true }> => post('/auth/claim', { email }),
   redeemLogin: (token: string, name?: string): Promise<{ ok: true; playerId: string }> =>

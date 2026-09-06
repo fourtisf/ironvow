@@ -109,6 +109,30 @@ export function Game() {
   /** Tutorial steps finished, remembered per hold in this browser. */
   const [tutorialDone, setTutorialDone] = useState<string[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
+  /** The door: whether the server wants an access code, and the one it took. */
+  const [gate, setGate] = useState<boolean | null>(null);
+  const [accessCode, setAccessCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    let remembered: string | null = null;
+    try {
+      remembered = localStorage.getItem('ironvow_access');
+    } catch {
+      // No storage: the code is typed once per visit.
+    }
+    void api.gate()
+      .then((g) => {
+        setGate(g.required);
+        if (!g.required) return;
+        // A code that was right last time is tried again quietly; if the
+        // server has changed it, the door simply stays shut and asks.
+        if (remembered) {
+          void api.tryGate(remembered).then(() => setAccessCode(remembered)).catch(() => undefined);
+        }
+      })
+      // An old server without the route: no door.
+      .catch(() => setGate(false));
+  }, []);
 
   /* --- toasts are the game's only error channel, as in the prototype --- */
   const say = useCallback((message: string) => setToast(message + '​'.repeat(Math.random() * 3 | 0)), []);
@@ -737,19 +761,49 @@ export function Game() {
         sent={signInSent}
         busy={signInBusy}
         error={signInError}
+        gate={gate}
+        unlocked={accessCode !== null}
+        onCode={(code) => {
+          unlockAudio();
+          setSignInBusy(true);
+          setSignInError(null);
+          api.tryGate(code)
+            .then(() => {
+              setAccessCode(code);
+              sfx.done();
+              try {
+                localStorage.setItem('ironvow_access', code);
+              } catch {
+                // It will ask again next visit.
+              }
+            })
+            .catch((e: unknown) => {
+              sfx.bad();
+              setSignInError(e instanceof ApiError && e.code === 'badAccessCode'
+                ? 'That is not the code.'
+                : e instanceof ApiError && e.status === 429
+                  ? 'Too many tries. Wait a few minutes.'
+                  : 'Could not check the code. Try again in a moment.');
+            })
+            .finally(() => setSignInBusy(false));
+        }}
         onGuest={() => {
           unlockAudio();
           setSignInBusy(true);
           setSignInError(null);
-          api.guest()
+          api.guest(accessCode ?? undefined)
             .then(() => refresh())
-            .catch(() => setSignInError('Could not raise a hold. Try again in a moment.'))
+            .catch((e: unknown) => setSignInError(
+              e instanceof ApiError && e.code === 'badAccessCode'
+                ? 'The access code has changed. Reload and enter the new one.'
+                : 'Could not raise a hold. Try again in a moment.',
+            ))
             .finally(() => setSignInBusy(false));
         }}
         onRequest={(email) => {
           setSignInBusy(true);
           setSignInError(null);
-          api.requestLogin(email)
+          api.requestLogin(email, accessCode ?? undefined)
             .then(() => setSignInSent(true))
             .catch((e: unknown) => setSignInError(
               e instanceof ApiError && e.code === 'mailOff'

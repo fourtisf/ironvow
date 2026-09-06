@@ -339,6 +339,57 @@ Three things found on the way, all fixed:
   drag that followed panned the camera instead of moving the mine. It does
   both now.
 
+### Clan wars
+
+The second game mode, built after sign-off. The rules are one comment at the
+top of `packages/config/src/war.ts`; what follows is why.
+
+- **Declare, or challenge.** The leader or an elder presses DECLARE WAR and
+  the clan waits for any other clan that does the same; the worker pairs them
+  a minute later at the latest. Or they press WAR next to a clan on the ladder
+  and that clan's elders ACCEPT or DECLINE. Both exist because a small server
+  cannot promise a stranger will ever be searching at the same time.
+- **Frozen rosters.** The strongest N of each side by trophies, N set by the
+  smaller clan (at most ten). Every base is snapshotted the moment the war
+  starts, exactly as a raid snapshots one, with an empty loot pool. Rebuilding
+  during the war changes nothing.
+- **Two attacks each, best result per base counts.** Any base, the same one
+  twice if they like. A base's score is the best anyone got against it, so a
+  weak second attempt costs nothing but the attack.
+- **One day, then settled.** More stars wins; the tie-break is destruction;
+  then a draw. The worker settles it, pays every member per star they earned
+  (doubled on the winning side, scaled by the Keep like the daily orders),
+  writes the result into both clans' chats, and pushes it to phones.
+- **Nothing decided by the client.** A war attack is a raid row with a war id:
+  it goes through the same replayed simulation, and the war reads the stars the
+  server found. A war attack takes no loot, moves no trophies, and puts no
+  shield on the defender — nobody is robbed for being on a roster.
+
+Found on the way: `grant()` clamped a player's holdings *down* to the storage
+cap, so a player above it (a reward landed, then a Vault was demolished) lost
+gold on their next raid. It now never takes what was held.
+
+### Sound
+
+The battle is heard from the simulation's own event stream rather than
+guessed at by the renderer: cannons, arrows, steel on stone, ramparts giving
+way, buildings coming down, troops landing and falling, the hero taking the
+field. Every effect is throttled so a volley is one whistle. The raid music
+has a drum kit — kick, snare, hats, a fill every fourth bar — and the hold a
+slow arpeggio. Victory and defeat have their own stingers; a war has a horn.
+Still no audio files: all of it is oscillators and shaped noise.
+
+### The small things
+
+- **Push works on a fresh server.** The API generates a VAPID key pair on
+  first start and keeps it in `ServerSetting`, so nobody has to run a key
+  generator and paste the output into `.env` — the step that was skipped on
+  the first deployment and left notifications dead.
+- **The first screen says what the game is** in three lines before asking
+  for anything.
+- **REPORT A PROBLEM** in settings: stored with the player and their
+  browser, read back at `/ops/feedback` with the ops token.
+
 ## Not done
 
 - **Clan wars.** See above: a second game mode, and none of its decisions have

@@ -34,7 +34,7 @@ import { BattleHud } from './BattleHud';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
-import { ClaimModal, ServerDownModal, ConfirmModal, ResultModal, ScoutModal, SignInModal } from './Modals';
+import { ClaimModal, ServerDownModal, ConfirmModal, ReportModal, ResultModal, ScoutModal, SignInModal } from './Modals';
 import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { Coach } from './Coach';
@@ -108,6 +108,7 @@ export function Game() {
 
   /** Tutorial steps finished, remembered per hold in this browser. */
   const [tutorialDone, setTutorialDone] = useState<string[]>([]);
+  const [reportOpen, setReportOpen] = useState(false);
 
   /* --- toasts are the game's only error channel, as in the prototype --- */
   const say = useCallback((message: string) => setToast(message + '​'.repeat(Math.random() * 3 | 0)), []);
@@ -454,6 +455,25 @@ export function Game() {
     }
   }, []);
 
+  /** A war attack: the same scout-then-fight flow, against a frozen roster base. */
+  const warAttack = useCallback(async (memberId: string) => {
+    const troops = TROOP_ORDER.reduce((n, t) => n + (player?.army[t] ?? 0), 0);
+    const heroReady = Boolean(player) && player!.keepLevel >= HERO_UNLOCK_KEEP_LEVEL && player!.heroReadyAt === null;
+    if (troops === 0 && !heroReady) {
+      sfx.bad();
+      say('Train troops in ARMY before you attack');
+      setSheet('army');
+      return;
+    }
+    const found = await runCommand(() => api.warAttack(memberId));
+    if (!found) return;
+    sfx.horn();
+    setScout({ ...found, war: true });
+    setSheet(null);
+    setSelectedId(null);
+    if (worldRef.current) showPreview(worldRef.current, found.snapshot);
+  }, [player, runCommand, say]);
+
   const revenge = useCallback(async (raidId: string) => {
     const found = await runCommand(() => api.revenge(raidId));
     if (!found) return;
@@ -551,7 +571,7 @@ export function Game() {
       api.submitRaid(raidId, commands, local.checksum, local.stars));
 
     if (settled) {
-      if (settled.stars >= 1) sfx.win(); else sfx.bad();
+      if (settled.stars >= 1) sfx.victory(); else sfx.defeat();
       // The server's numbers replace the client's, always.
       setOutcome({
         stars: settled.stars,
@@ -560,6 +580,7 @@ export function Game() {
         trophyDelta: settled.trophyDelta,
         commands,
         pending: false,
+        war: settled.war === true,
       });
       void api.incoming().then((r) => setIncoming(r.raids)).catch(() => undefined);
     void loadQuests();
@@ -808,7 +829,7 @@ export function Game() {
           onUpgrade={() => {
             void runCommand(() => api.upgrade(selected.id)).then((r) => {
               if (!r) return;
-              sfx.place();
+              sfx.build();
               rememberJob(selected.id, r.seconds);
               if (r.seconds > 0) say(`Builder started — ready in ${Math.max(1, Math.round(r.seconds / 60))} min`);
             });
@@ -873,6 +894,7 @@ export function Game() {
           onClose={() => setSheet(null)}
           onToast={say}
           onPlayerChanged={() => { void refresh(); }}
+          onWarAttack={(memberId) => { unlockAudio(); void warAttack(memberId); }}
         />
       )}
 
@@ -894,7 +916,7 @@ export function Game() {
           player={player}
           progression={progression}
           onClose={() => setSheet(null)}
-          onTrain={(type, count) => { void runCommand(() => api.train(type, count)); }}
+          onTrain={(type, count) => { void runCommand(() => api.train(type, count)).then((r) => { if (r) sfx.train(); }); }}
           onCancelJob={cancelTraining}
           onUpgradeHero={() => {
             void runCommand(() => api.upgradeHero()).then((r) => {
@@ -1009,6 +1031,7 @@ export function Game() {
               ));
           }}
           onHelp={() => setSheet('help')}
+          onReport={() => { setSheet(null); setReportOpen(true); }}
           onDeleteAccount={() => {
             setConfirm({
               title: 'DELETE THIS HOLD?',
@@ -1060,8 +1083,23 @@ export function Game() {
         />
       )}
 
+      {reportOpen && (
+        <ReportModal
+          busy={busy}
+          onClose={() => setReportOpen(false)}
+          onSend={(text) => {
+            setBusy(true);
+            void api.feedback(text)
+              .then(() => { setReportOpen(false); sfx.done(); say('Sent. Thank you.'); })
+              .catch(() => say('Could not send it — try again in a moment'))
+              .finally(() => setBusy(false));
+          }}
+        />
+      )}
+
       {scout && player && (
         <ScoutModal
+          war={scout.war === true}
           snapshot={scout.snapshot}
           rerollCost={scout.rerollCost}
           canReroll={player.gold >= scout.rerollCost}
@@ -1080,6 +1118,7 @@ export function Game() {
           stars={outcome.stars}
           loot={outcome.loot}
           trophyDelta={outcome.trophyDelta}
+          war={outcome.war === true}
           onStar={(i) => sfx.star(i)}
           onClose={() => setOutcome(null)}
         />

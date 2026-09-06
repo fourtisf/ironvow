@@ -20,13 +20,15 @@ export interface ScoutModalProps {
   canReroll: boolean;
   /** False for a generated garrison. */
   isPlayer: boolean;
+  /** A clan war attack: no loot, no reroll, scored for the clan. */
+  war?: boolean;
   onAttack: () => void;
   onReroll: () => void;
   onCancel: () => void;
 }
 
 export function ScoutModal({
-  snapshot, rerollCost, canReroll, isPlayer, onAttack, onReroll, onCancel,
+  snapshot, rerollCost, canReroll, isPlayer, war = false, onAttack, onReroll, onCancel,
 }: ScoutModalProps) {
   const counts = new Map<string, number>();
   for (const b of snapshot.buildings) counts.set(b.type, (counts.get(b.type) ?? 0) + 1);
@@ -41,7 +43,7 @@ export function ScoutModal({
         <div>
           <h2>{snapshot.defenderName.toUpperCase()}</h2>
           <p>
-            {isPlayer ? 'Player' : 'Garrison'} · Keep {snapshot.keepLevel} ·{' '}
+            {war ? 'War base' : isPlayer ? 'Player' : 'Garrison'} · Keep {snapshot.keepLevel} ·{' '}
             {defences} defence{defences === 1 ? '' : 's'} ·{' '}
             {counts.get('wall') ?? 0} ramparts · drag to look around
           </p>
@@ -49,10 +51,12 @@ export function ScoutModal({
         <button className="xbtn" onClick={onCancel}>✕</button>
       </div>
 
-      <div className="lootRow">
-        <div><GoldIcon />{fmt(snapshot.pool.g)}</div>
-        <div><IronIcon />{fmt(snapshot.pool.i)}</div>
-      </div>
+      {!war && (
+        <div className="lootRow">
+          <div><GoldIcon />{fmt(snapshot.pool.g)}</div>
+          <div><IronIcon />{fmt(snapshot.pool.i)}</div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 10 }}>
         {[...counts.entries()]
@@ -63,7 +67,9 @@ export function ScoutModal({
       </div>
 
       <p className="lead" style={{ marginBottom: 10 }}>
-        {!isPlayer
+        {war
+          ? 'A war attack. Stars count for the clan and only the best result against this base stands. No loot, no trophies — the reward comes when the war ends. This attack is spent when you finish, so bring everything.'
+          : !isPlayer
           ? 'An abandoned garrison. Nobody loses what you take, and nobody is coming to answer it.'
           : vaults > 0
             ? 'Their Vaults hold back the rest. This layout is frozen — whatever they build from here changes nothing about the fight you walk into.'
@@ -71,10 +77,12 @@ export function ScoutModal({
       </p>
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="btn gold" style={{ flex: 1 }} onClick={onReroll} disabled={!canReroll}>
-          NEXT · {rerollCost}
-        </button>
-        <button className="btn red" style={{ flex: 2 }} onClick={onAttack}>ATTACK</button>
+        {!war && (
+          <button className="btn gold" style={{ flex: 1 }} onClick={onReroll} disabled={!canReroll}>
+            NEXT · {rerollCost}
+          </button>
+        )}
+        <button className="btn red" style={{ flex: 2 }} onClick={onAttack}>{war ? 'ATTACK FOR THE CLAN' : 'ATTACK'}</button>
       </div>
     </div>
   );
@@ -84,6 +92,8 @@ export interface ResultModalProps {
   stars: number;
   loot: { g: number; i: number };
   trophyDelta: number;
+  /** A war attack: the stars went to the clan. */
+  war?: boolean;
   onStar: (index: number) => void;
   onClose: () => void;
 }
@@ -95,7 +105,7 @@ export interface ResultModalProps {
  * than appearing. Winning three stars and being shown a static number is the
  * difference between a game that feels good and one that merely works.
  */
-export function ResultModal({ stars, loot, trophyDelta, onStar, onClose }: ResultModalProps) {
+export function ResultModal({ stars, loot, trophyDelta, war = false, onStar, onClose }: ResultModalProps) {
   const won = stars >= 1;
   const [shown, setShown] = useState(0);
   const [counted, setCounted] = useState({ g: 0, i: 0 });
@@ -138,7 +148,7 @@ export function ResultModal({ stars, loot, trophyDelta, onStar, onClose }: Resul
   return (
     <div className="ovl">
       <div className="modal">
-        <h2>{won ? 'HOLD TAKEN' : 'DRIVEN OFF'}</h2>
+        <h2>{war ? (won ? 'STARS FOR THE CLAN' : 'NOTHING FOR THE CLAN') : won ? 'HOLD TAKEN' : 'DRIVEN OFF'}</h2>
 
         <div id="resStars">
           {[0, 1, 2].map((i) => (
@@ -148,16 +158,24 @@ export function ResultModal({ stars, loot, trophyDelta, onStar, onClose }: Resul
           ))}
         </div>
 
-        <div className="lootRow">
-          <div><GoldIcon />+{fmt(counted.g)}</div>
-          <div><IronIcon />+{fmt(counted.i)}</div>
-        </div>
+        {!war && (
+          <div className="lootRow">
+            <div><GoldIcon />+{fmt(counted.g)}</div>
+            <div><IronIcon />+{fmt(counted.i)}</div>
+          </div>
+        )}
 
         <p className="lead">
-          {trophyDelta >= 0 ? '+' : ''}{trophyDelta} trophies.{' '}
-          {won
-            ? 'Their Vaults kept back what you could not reach.'
-            : 'Troops spent are gone either way — muster again before the next one.'}
+          {war
+            ? (won
+              ? 'Only the best result against that base counts, and this one stands until somebody beats it. The reward comes when the war ends.'
+              : 'The attack is spent. If a clanmate does better against that base, their result stands instead.')
+            : <>
+              {trophyDelta >= 0 ? '+' : ''}{trophyDelta} trophies.{' '}
+              {won
+                ? 'Their Vaults kept back what you could not reach.'
+                : 'Troops spent are gone either way — muster again before the next one.'}
+            </>}
         </p>
 
         <button className="btn big" onClick={onClose}>BACK TO THE HOLD</button>
@@ -204,11 +222,14 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error }: SignInMod
     <div className="ovl">
       <div className="modal">
         <Wordmark />
-        <p className="lead">
-          Forge. Muster. Conquer.
-          <br />
-          Your hold lives on the server, so it keeps earning while you are away.
-        </p>
+        <p className="lead">Forge. Muster. Conquer.</p>
+        {!sent && !showEmail && (
+          <ul className="features">
+            <li><b>Build a hold</b> that mines, forges and trains while you are away.</li>
+            <li><b>Raid real players</b> — scout the base, drop your troops, take the stars.</li>
+            <li><b>Found a clan</b>, talk, and go to war one day at a time.</li>
+          </ul>
+        )}
 
         {sent ? (
           <p className="lead">Check your email for a link. It is good for fifteen minutes.</p>
@@ -376,6 +397,38 @@ export function ServerDownModal({ detail, onRetry }: { detail: string; onRetry: 
         <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
           Nothing is lost. Your hold is on the server, and it keeps earning while this is sorted out.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * REPORT A PROBLEM.
+ *
+ * One box, no categories: a player who has just hit a bug is not in the mood
+ * to classify it. What they write goes to the server with their name and
+ * browser attached, and nowhere else.
+ */
+export function ReportModal({ onSend, onClose, busy }: { onSend: (text: string) => void; onClose: () => void; busy: boolean }) {
+  const [text, setText] = useState('');
+  return (
+    <div className="ovl">
+      <div className="modal">
+        <h2>REPORT A PROBLEM</h2>
+        <p className="lead">What happened, and what you expected instead. Where you were in the game helps.</p>
+        <textarea
+          className="report"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={2000}
+          rows={5}
+          placeholder="The mine would not collect after…"
+          aria-label="Your report"
+        />
+        <button className="btn gold big" disabled={busy || text.trim().length < 4} onClick={() => onSend(text.trim())}>
+          {busy ? 'SENDING…' : 'SEND'}
+        </button>
+        <button className="btn grey big" onClick={onClose}>CANCEL</button>
       </div>
     </div>
   );

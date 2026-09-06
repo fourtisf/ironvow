@@ -219,6 +219,11 @@ model Raid {
   /// War Lab levels per troop type at the moment the raid opened.
   troopLevels Json?
 
+  /// Set for a war attack: the war, and the roster seat whose frozen base
+  /// was fought. A war raid takes no loot and moves no trophies.
+  warId       String?
+  warMemberId String?
+
   status       String   @default("open") // open | resolved | expired
   stars        Int      @default(0)
   destroyedPct Float    @default(0)
@@ -237,6 +242,7 @@ model Raid {
   @@index([defenderId, createdAt])
   @@index([attackerId, createdAt])
   @@index([attackerId, status])
+  @@index([warId])
 }
 
 /// One row per client-vs-server disagreement. A spike here means a
@@ -307,6 +313,9 @@ model Clan {
   /// Index into a small set of procedurally drawn badges.
   badge       Int      @default(0)
   createdAt   DateTime @default(now())
+  warWins     Int      @default(0)
+  warLosses   Int      @default(0)
+  warDraws    Int      @default(0)
 
   members  ClanMember[]
   requests ClanRequest[]
@@ -364,4 +373,91 @@ model ClanMessage {
   player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
 
   @@index([clanId, createdAt])
+}
+
+/// One clan war. See packages/config/src/war.ts for the rules.
+///
+/// `clanBId` is null while a clan is searching for an opponent. The rosters
+/// and their frozen bases live in WarMember; every attack in WarAttack. Both
+/// sides' running scores are denormalised here by the submit route so the
+/// sheet is one read.
+model ClanWar {
+  id           String    @id @default(cuid())
+  /// search | challenge | active | done | cancelled
+  state        String
+  clanAId      String
+  clanBId      String?
+  size         Int       @default(0)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  starsA       Int       @default(0)
+  starsB       Int       @default(0)
+  pctA         Float     @default(0)
+  pctB         Float     @default(0)
+  /// a | b | draw, once done.
+  outcome      String?
+  createdAt    DateTime  @default(now())
+
+  members WarMember[]
+  attacks WarAttack[]
+
+  @@index([state])
+  @@index([clanAId, createdAt])
+  @@index([clanBId, createdAt])
+}
+
+/// A seat on a war roster, with the base as it stood when the war began.
+model WarMember {
+  id        String @id @default(cuid())
+  warId     String
+  clanId    String
+  playerId  String
+  name      String
+  keepLevel Int
+  snapshot  Json
+  /// Best result anyone got against this base. Kept current by the submit route.
+  bestStars Int   @default(0)
+  bestPct   Float @default(0)
+
+  war ClanWar @relation(fields: [warId], references: [id], onDelete: Cascade)
+
+  @@unique([warId, playerId])
+  @@index([warId, clanId])
+}
+
+/// One settled war attack.
+model WarAttack {
+  id               String   @id @default(cuid())
+  warId            String
+  attackerMemberId String
+  defenderMemberId String
+  stars            Int
+  destroyedPct     Float
+  raidId           String   @unique
+  createdAt        DateTime @default(now())
+
+  war ClanWar @relation(fields: [warId], references: [id], onDelete: Cascade)
+
+  @@index([warId, attackerMemberId])
+  @@index([warId, defenderMemberId])
+}
+
+/// Something a player wrote in REPORT A PROBLEM.
+model Feedback {
+  id        String   @id @default(cuid())
+  playerId  String?
+  body      String
+  userAgent String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Server-generated secrets that would otherwise have to be pasted into an
+/// environment by hand: the VAPID key pair, so browser push works on a fresh
+/// deployment without anyone generating keys.
+model ServerSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }

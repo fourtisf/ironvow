@@ -151,8 +151,11 @@ export function grant(
   const cap = BigInt(storageCapOf(buildings));
   const g = gold + BigInt(Math.max(0, Math.floor(addGold)));
   const i = iron + BigInt(Math.max(0, Math.floor(addIron)));
-  const clampedG = g > cap ? cap : g;
-  const clampedI = i > cap ? cap : i;
+  // The cap stops a grant, never takes what was already held: a player above
+  // it (a reward landed, then a Vault was demolished) keeps their stock and
+  // simply gains nothing until there is room.
+  const clampedG = g > cap ? (gold > cap ? gold : cap) : g;
+  const clampedI = i > cap ? (iron > cap ? iron : cap) : i;
   return {
     gold: clampedG,
     iron: clampedI,

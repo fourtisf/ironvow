@@ -14,29 +14,56 @@ import { prisma } from './prisma.js';
  */
 
 let configured: boolean | null = null;
+let keys: { publicKey: string; privateKey: string } | null = null;
 
-function ready(): boolean {
+/**
+ * Keys come from the environment when given, and otherwise are generated once
+ * and kept in the database: a fresh deployment gets working push without
+ * anyone running a key generator and pasting the output into a file, which is
+ * the step that was skipped on the first server and left notifications dead.
+ */
+async function ready(): Promise<boolean> {
   if (configured !== null) return configured;
   const config = env();
-  if (!config.VAPID_PUBLIC_KEY || !config.VAPID_PRIVATE_KEY) {
-    configured = false;
-    return false;
+  let pub = config.VAPID_PUBLIC_KEY;
+  let priv = config.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) {
+    try {
+      const row = await prisma.serverSetting.findUnique({ where: { key: 'vapid' } });
+      const stored = row?.value as { publicKey?: string; privateKey?: string } | null;
+      if (stored?.publicKey && stored?.privateKey) {
+        pub = stored.publicKey;
+        priv = stored.privateKey;
+      } else {
+        const made = webpush.generateVAPIDKeys();
+        // Two instances starting together both get here; the unique key lets
+        // exactly one row land, and the other reads back whichever it was.
+        await prisma.$executeRaw`INSERT INTO "ServerSetting" ("key", "value", "updatedAt")
+          VALUES ('vapid', ${JSON.stringify({ publicKey: made.publicKey, privateKey: made.privateKey })}::jsonb, now())
+          ON CONFLICT ("key") DO NOTHING`;
+        const again = await prisma.serverSetting.findUnique({ where: { key: 'vapid' } });
+        const v = again?.value as { publicKey?: string; privateKey?: string } | null;
+        if (!v?.publicKey || !v.privateKey) return false;
+        pub = v.publicKey;
+        priv = v.privateKey;
+      }
+    } catch {
+      // The database was not there to ask. Not cached: it is asked again next time.
+      return false;
+    }
   }
-  webpush.setVapidDetails(
-    config.VAPID_SUBJECT,
-    config.VAPID_PUBLIC_KEY,
-    config.VAPID_PRIVATE_KEY,
-  );
+  webpush.setVapidDetails(config.VAPID_SUBJECT, pub, priv);
+  keys = { publicKey: pub, privateKey: priv };
   configured = true;
   return true;
 }
 
-export function pushAvailable(): boolean {
+export async function pushAvailable(): Promise<boolean> {
   return ready();
 }
 
-export function publicKey(): string | null {
-  return ready() ? env().VAPID_PUBLIC_KEY! : null;
+export async function publicKey(): Promise<string | null> {
+  return (await ready()) ? keys!.publicKey : null;
 }
 
 export interface PushMessage {
@@ -55,7 +82,7 @@ export interface PushMessage {
  * the subscription, and the row is removed rather than retried forever.
  */
 export async function pushTo(playerId: string, message: PushMessage): Promise<number> {
-  if (!ready()) return 0;
+  if (!(await ready())) return 0;
 
   const subs = await prisma.pushSubscription.findMany({ where: { playerId } });
   if (subs.length === 0) return 0;

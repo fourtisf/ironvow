@@ -22,12 +22,12 @@ const subscribeSchema = z.object({
 export async function pushRoutes(app: FastifyInstance): Promise<void> {
   /** Unauthenticated: the public key is public by definition. */
   app.get('/push/key', async (_request, reply) =>
-    reply.send({ available: pushAvailable(), key: publicKey() }));
+    reply.send({ available: await pushAvailable(), key: await publicKey() }));
 
   app.post('/push/subscribe', { preHandler: requireAuth }, async (request, reply) => {
     const parsed = subscribeSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
-    if (!pushAvailable()) return reply.code(503).send({ error: 'pushUnavailable' });
+    if (!(await pushAvailable())) return reply.code(503).send({ error: 'pushUnavailable' });
 
     const { endpoint, keys } = parsed.data;
     // Endpoints are unique, so the same browser re-subscribing moves the row to

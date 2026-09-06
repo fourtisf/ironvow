@@ -53,7 +53,7 @@ export async function resetDatabase(): Promise<void> {
     // Clan is listed explicitly: unlike everything else here it does not hang
     // off a Player, so truncating players leaves the clans behind and the next
     // test fails on a name that is still taken.
-    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "Clan", "Player" RESTART IDENTITY CASCADE',
+    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "ClanWar", "Feedback", "ServerSetting", "Clan", "Player" RESTART IDENTITY CASCADE',
   );
 }
 

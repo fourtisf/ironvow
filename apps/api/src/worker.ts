@@ -5,6 +5,7 @@ import { purgeExpired } from './lib/auth.js';
 import { pushBuildFinished } from './lib/push.js';
 import { env } from './lib/env.js';
 import { prisma } from './lib/prisma.js';
+import { expireChallenges, matchSearching, settleDueWars } from './lib/war.js';
 
 /**
  * Background housekeeping.
@@ -19,7 +20,21 @@ const connection = new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
 export const MAINTENANCE_QUEUE = 'ironvow:maintenance';
 
 interface MaintenanceJob {
-  kind: 'expireRaids' | 'purgeSessions' | 'notifyBuilders';
+  kind: 'expireRaids' | 'purgeSessions' | 'notifyBuilders' | 'wars';
+}
+
+/**
+ * Clan wars: pair up clans that are searching, drop challenges nobody
+ * answered, and close wars whose clock has run out. The one job here that
+ * does decide something — who won — decides it from rows the raid route
+ * already wrote, and is idempotent on the war's state.
+ */
+async function tendWars(): Promise<{ started: number; expired: number; settled: number }> {
+  const now = new Date();
+  const started = await prisma.$transaction((tx) => matchSearching(tx, now));
+  const expired = await prisma.$transaction((tx) => expireChallenges(tx, now));
+  const settled = await settleDueWars(now);
+  return { started, expired, settled };
 }
 
 /** Close raids nobody submitted. The attacker keeps their troops. */
@@ -80,6 +95,7 @@ export function createWorker(): Worker<MaintenanceJob> {
       if (job.data.kind === 'expireRaids') return { expired: await expireRaids() };
       if (job.data.kind === 'purgeSessions') return purgeExpired();
       if (job.data.kind === 'notifyBuilders') return { notified: await notifyBuilders() };
+      if (job.data.kind === 'wars') return tendWars();
       return {};
     },
     { connection },
@@ -101,6 +117,11 @@ export async function scheduleMaintenance(): Promise<void> {
   // Often enough that "your builder is free" is still true when it lands.
   await queue.add('notifyBuilders', { kind: 'notifyBuilders' }, {
     repeat: { every: 30_000 },
+    removeOnComplete: 20,
+    removeOnFail: 50,
+  });
+  await queue.add('wars', { kind: 'wars' }, {
+    repeat: { every: 60_000 },
     removeOnComplete: 20,
     removeOnFail: 50,
   });

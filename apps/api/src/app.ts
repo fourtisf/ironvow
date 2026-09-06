@@ -14,6 +14,8 @@ import { pushRoutes } from './routes/push.js';
 import { questRoutes } from './routes/quests.js';
 import { raidRoutes } from './routes/raid.js';
 import { upgradeRoutes } from './routes/upgrades.js';
+import { warRoutes } from './routes/war.js';
+import { feedbackRoutes } from './routes/feedback.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const config = env();
@@ -99,6 +101,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(layoutRoutes);
   await app.register(pushRoutes);
   await app.register(clanRoutes);
+  await app.register(warRoutes);
+  await app.register(feedbackRoutes);
 
   return app;
 }

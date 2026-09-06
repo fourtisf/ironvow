@@ -77,6 +77,43 @@ export interface ChatMessage {
   kind: 'chat' | 'system'; at: string; mine: boolean;
 }
 
+export interface WarRosterRow {
+  memberId: string; playerId: string; name: string; keepLevel: number;
+  bestStars: number; bestPct: number; attacksUsed: number; attacksLeft: number; isMe: boolean;
+}
+
+export interface WarSide {
+  clanId: string; name: string; tag: string; badge: number; stars: number; pct: number;
+  roster: WarRosterRow[];
+}
+
+export interface WarView {
+  war: null | {
+    id: string;
+    state: 'search' | 'challenge' | 'active' | 'done';
+    challenger: 'us' | 'them' | null;
+    size: number;
+    startsAt: string | null;
+    endsAt: string | null;
+    secondsLeft: number;
+    result: 'won' | 'lost' | 'draw' | null;
+    us: WarSide;
+    them: WarSide | null;
+    onRoster: boolean;
+    myAttacksLeft: number;
+    attacksEach: number;
+  };
+  incoming: { warId: string; clanId: string; name: string; tag: string; badge: number; memberCount: number; trophies: number; at: string }[];
+  record: { wins: number; losses: number; draws: number };
+  canLead: boolean;
+  bigEnough: boolean;
+  minMembers: number;
+}
+
+export interface WarHistoryRow {
+  id: string; enemy: string; ours: number; theirs: number; result: 'won' | 'lost' | 'draw'; endedAt: string | null;
+}
+
 export interface ClanLadderRow {
   id: string; name: string; tag: string; badge: number;
   memberCount: number; trophies: number; rank: number; isMine: boolean;
@@ -145,6 +182,8 @@ export const api = {
     heroDeployed: boolean;
     checksum: string;
     rejected: { index: number; reason: string }[];
+    /** A war attack: scored for the clan, no loot, no trophies. */
+    war?: boolean;
   }> => post(`/raid/${raidId}/submit`, { commands, clientChecksum, clientStars }),
 
   progression: (): Promise<{
@@ -174,6 +213,22 @@ export const api = {
     post('/quests/claim', { questId }),
 
   daily: (): Promise<DailyView> => call('/quests/daily'),
+
+  /* --- clan wars --- */
+
+  war: (): Promise<WarView> => call('/war'),
+  warSearch: (): Promise<{ ok: true }> => post('/war/search'),
+  warChallenge: (clanId: string): Promise<{ ok: true; warId: string }> => post('/war/challenge', { clanId }),
+  warRespond: (warId: string, accept: boolean): Promise<{ ok: true }> => post('/war/respond', { warId, accept }),
+  warCancel: (warId: string): Promise<{ ok: true }> => post('/war/cancel', { warId }),
+  /** Open a war attack. Same shape as a scouted raid, fought by the same code. */
+  warAttack: (memberId: string): Promise<ScoutedRaid & { isPlayer: boolean; war: true; player: PlayerState }> =>
+    post('/war/attack', { memberId }),
+  warHistory: (): Promise<{ wars: WarHistoryRow[] }> => call('/war/history'),
+
+  /* --- feedback --- */
+
+  feedback: (body: string): Promise<{ ok: true }> => post('/feedback', { body }),
 
   /* --- clans --- */
 

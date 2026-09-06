@@ -13,6 +13,7 @@ import {
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
 import { GoldIcon, TrophyIcon } from './icons';
+import { WarTab } from './WarTab';
 
 /**
  * The clan screen.
@@ -50,12 +51,15 @@ export interface ClanSheetProps {
   onToast: (message: string) => void;
   /** The player's purse changed (founding costs gold). */
   onPlayerChanged: () => void;
+  /** Open a war attack on a roster seat. */
+  onWarAttack: (memberId: string) => void;
 }
 
-type Tab = 'chat' | 'members' | 'find' | 'ladder';
+type Tab = 'chat' | 'members' | 'war' | 'find' | 'ladder';
 
-export function ClanSheet({ player, onClose, onToast, onPlayerChanged }: ClanSheetProps) {
+export function ClanSheet({ player, onClose, onToast, onPlayerChanged, onWarAttack }: ClanSheetProps) {
   const [mine, setMine] = useState<MyClanView | null>(null);
+  const [warTick, setWarTick] = useState(0);
   const [tab, setTab] = useState<Tab>('chat');
   const [busy, setBusy] = useState(false);
 
@@ -68,7 +72,7 @@ export function ClanSheet({ player, onClose, onToast, onPlayerChanged }: ClanShe
       // first screen — and the moment they found or join one, FIND stops being
       // rendered at all, so staying on it leaves a blank sheet.
       setTab((t) => {
-        if (!view.clan) return t === 'chat' || t === 'members' ? 'find' : t;
+        if (!view.clan) return t === 'chat' || t === 'members' || t === 'war' ? 'find' : t;
         return t === 'find' ? 'chat' : t;
       });
     } catch {
@@ -85,6 +89,7 @@ export function ClanSheet({ player, onClose, onToast, onPlayerChanged }: ClanShe
       await run();
       if (done) onToast(done);
       await load();
+      setWarTick((t) => t + 1);
       onPlayerChanged();
     } catch (e) {
       onToast(errorText(e));
@@ -121,6 +126,7 @@ export function ClanSheet({ player, onClose, onToast, onPlayerChanged }: ClanShe
             {(mine?.requests?.length ?? 0) > 0 && <span className="dot" />}
           </Tab>
         )}
+        {clan && <Tab id="war" tab={tab} set={setTab}>WAR</Tab>}
         {!clan && <Tab id="find" tab={tab} set={setTab}>FIND</Tab>}
         <Tab id="ladder" tab={tab} set={setTab}>LADDER</Tab>
       </div>
@@ -136,8 +142,11 @@ export function ClanSheet({ player, onClose, onToast, onPlayerChanged }: ClanShe
           act={act}
         />
       )}
+      {tab === 'war' && clan && (
+        <WarTab busy={busy} act={act} onToast={onToast} onAttack={onWarAttack} tick={warTick} />
+      )}
       {tab === 'find' && !clan && <FindTab player={player} busy={busy} act={act} />}
-      {tab === 'ladder' && <LadderTab />}
+      {tab === 'ladder' && <LadderTab canChallenge={Boolean(clan) && (role === 'leader' || role === 'elder')} busy={busy} act={act} />}
     </div>
   );
 }
@@ -493,7 +502,7 @@ function FoundClan({
 
 /* ---------------------------------------------------------------- ladder --- */
 
-function LadderTab() {
+function LadderTab({ canChallenge, busy, act }: { canChallenge: boolean; busy: boolean; act: (run: () => Promise<unknown>, done?: string) => Promise<void> }) {
   const [rows, setRows] = useState<ClanLadderRow[] | null>(null);
   useEffect(() => {
     void api.clanLadder().then((r) => setRows(r.top)).catch(() => setRows([]));
@@ -512,7 +521,14 @@ function LadderTab() {
             <h4>{c.name}</h4>
             <p>{c.memberCount} members</p>
           </div>
-          <span className="qrw"><TrophyIcon /> {fmt(c.trophies)}</span>
+          <span className="qgo">
+            <span className="qrw"><TrophyIcon /> {fmt(c.trophies)}</span>
+            {canChallenge && !c.isMine && (
+              <button className="btn red" disabled={busy} onClick={() => void act(() => api.warChallenge(c.id), `Challenge sent to ${c.name}`)}>
+                WAR
+              </button>
+            )}
+          </span>
         </div>
       ))}
     </>
@@ -543,6 +559,18 @@ const MESSAGES: Record<string, string> = {
   badName: 'That name is too short or too long',
   badTag: 'A tag is 2 to 5 letters or numbers',
   emptyMessage: 'Nothing to send',
+  clanTooSmall: 'A clan needs three members to go to war',
+  theyAreTooSmall: 'That clan is too small to go to war',
+  alreadyAtWar: 'Your clan is already at war, or waiting on one',
+  theyAreAtWar: 'That clan is already at war',
+  noSuchChallenge: 'That challenge is gone',
+  noSuchWar: 'That war is gone',
+  thatIsUs: 'That is your own clan',
+  warOver: 'The war is over',
+  noAttacksLeft: 'You have used both attacks',
+  notOnRoster: 'You are not on the roster this war',
+  raidOpen: 'Finish the raid you have open first',
+  notYourWar: 'That is not your war',
 };
 
 function errorText(e: unknown): string {

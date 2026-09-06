@@ -86,6 +86,8 @@ export interface ScoutedRaid {
   raidId: string;
   /** False for a generated garrison, so the UI can say so plainly. */
   isPlayer?: boolean;
+  /** A clan war attack: scored for the clan, no loot, no reroll. */
+  war?: boolean;
   seed: number;
   snapshot: BaseSnapshot;
   army: BattleArmy;
@@ -101,4 +103,6 @@ export interface BattleOutcome {
   loot: { g: number; i: number };
   trophyDelta: number;
   commands: DeployCommand[];
+  /** A war attack: the stars went to the clan. */
+  war?: boolean;
 }

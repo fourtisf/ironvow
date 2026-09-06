@@ -125,6 +125,28 @@ function thud(v: Voice, at: number, gain: number): void {
   osc.stop(at + 0.3);
 }
 
+/** A snare: a snap of noise. A hat: a shorter, brighter one. */
+function snap(v: Voice, at: number, gain: number, bright: boolean): void {
+  const dur = bright ? 0.05 : 0.14;
+  const frames = Math.floor(v.ctx.sampleRate * dur);
+  const buffer = v.ctx.createBuffer(1, frames, v.ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+  const src = v.ctx.createBufferSource();
+  src.buffer = buffer;
+  const filter = v.ctx.createBiquadFilter();
+  filter.type = bright ? 'highpass' : 'bandpass';
+  filter.frequency.value = bright ? 6000 : 1800;
+  const env = v.ctx.createGain();
+  env.gain.setValueAtTime(gain, at);
+  env.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  src.connect(filter);
+  filter.connect(env);
+  env.connect(v.master);
+  src.start(at);
+  src.stop(at + dur + 0.02);
+}
+
 /** Schedules one bar and queues the next. */
 function playBar(): void {
   const v = ensureVoice();
@@ -157,9 +179,25 @@ function playBar(): void {
   // A raid gets a pulse. The hold does not: silence is what makes the base feel
   // like somewhere you are safe.
   if (battle) {
+    // Kick on one and three, snare on two and four, hats in eighths with the
+    // off-beats quieter, and a fill every fourth bar: a march, not a metronome.
+    const q = barSeconds / 4;
     thud(v, at, 0.5);
-    thud(v, at + barSeconds * 0.5, 0.32);
-    if (bar % 2 === 1) thud(v, at + barSeconds * 0.75, 0.2);
+    thud(v, at + q * 2, 0.36);
+    snap(v, at + q, 0.16, false);
+    snap(v, at + q * 3, 0.14, false);
+    for (let i = 0; i < 8; i++) snap(v, at + (q / 2) * i, i % 2 === 0 ? 0.05 : 0.028, true);
+    if (bar % 4 === 3) {
+      snap(v, at + q * 3.5, 0.1, false);
+      snap(v, at + q * 3.75, 0.12, false);
+      thud(v, at + q * 3.75, 0.3);
+    }
+  } else if (bar % 2 === 0) {
+    // The hold: a slow arpeggio over the chord, so the quiet is not empty.
+    for (let i = 0; i < 3; i++) {
+      const step = SCALE[(degree + 2 * i) % SCALE.length]!;
+      note(v, semitone(root, step + 12), at + barSeconds * (0.1 + 0.28 * i), 0.7, 'sine', 0.05);
+    }
   }
 
   bar++;

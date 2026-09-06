@@ -10,6 +10,7 @@ import {
   type TroopType,
 } from '@ironvow/config';
 import { createBattle, type Battle } from '@ironvow/sim';
+import { sfx } from '../sfx';
 import { type Camera, centerOn, clampCam, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
 import { clearSpriteCache } from '../render/sprites';
@@ -85,6 +86,8 @@ export interface World {
    */
   preview: BaseSnapshot | null;
   battleCommands: DeployCommand[];
+  /** How many timeline events have been heard. */
+  heard: number;
   /** What the tray has selected for the next deploy. */
   selectedTroop: DeployableType | null;
   /** Leftover time not yet consumed by a fixed step. */
@@ -117,6 +120,7 @@ export function createWorld(events: WorldEvents): World {
     raid: null,
     preview: null,
     battleCommands: [],
+    heard: 0,
     selectedTroop: null,
     tickAccumulator: 0,
     fx: { aim: new Map(), recoil: new Map(), flash: new Map() },
@@ -235,6 +239,7 @@ export function bump(w: World, buildingId: string): void {
 export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'raid'): void {
   w.raid = raid;
   w.battleCommands = [];
+  w.heard = 0;
   w.battle = createBattle(
     {
       snapshot: raid.snapshot,
@@ -247,7 +252,9 @@ export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'rai
       hero: raid.hero,
       troopLevels: raid.troopLevels,
     },
-    { timeline: false },
+    // Recorded so the client can hear the fight: the sounds below are
+    // driven by the sim's own events rather than guessed from the renderer.
+    { timeline: true },
   );
   w.tickAccumulator = 0;
   w.fx = { aim: new Map(), recoil: new Map(), flash: new Map() };
@@ -297,6 +304,7 @@ export function stepBattle(w: World, dt: number): void {
     const before = snapshotHp(battle);
     const ended = battle.step();
     markDamage(w, battle, before);
+    hear(w, battle);
     if (ended) {
       w.events.onBattleEnd(w.battleCommands);
       return;
@@ -306,6 +314,45 @@ export function stepBattle(w: World, dt: number): void {
 
 function snapshotHp(battle: Battle): number[] {
   return battle.structs.map((s) => s.hp);
+}
+
+/**
+ * Play the events the last step produced.
+ *
+ * Each sound is throttled inside `sfx`, so a volley of twelve archers is one
+ * whistle and a rank of cannons is not a wall of noise. Rampart hits are
+ * near-silent on purpose: they happen every tick of a siege.
+ */
+function hear(w: World, battle: Battle): void {
+  const events = battle.events;
+  for (; w.heard < events.length; w.heard++) {
+    const e = events[w.heard]!;
+    switch (e.k) {
+      case 'shot':
+        if (e.kind === 'ball') sfx.cannon(); else sfx.arrow();
+        break;
+      case 'structDead': {
+        const s = battle.structs[e.struct];
+        if (s?.t === 'wall') sfx.wallBreak(); else sfx.collapse();
+        break;
+      }
+      case 'hitStruct': {
+        const s = battle.structs[e.struct];
+        if (s && s.t !== 'wall' && e.dmg > 0) sfx.sword();
+        break;
+      }
+      case 'unitDead':
+        sfx.fall();
+        break;
+      case 'spawn':
+        if (e.side === 'atk') {
+          if (e.type === 'hero') sfx.hero(); else sfx.deploy();
+        }
+        break;
+      default:
+        break;
+    }
+  }
 }
 
 /**

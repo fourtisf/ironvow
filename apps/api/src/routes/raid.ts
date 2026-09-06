@@ -25,6 +25,7 @@ import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
 import { pushRaided } from '../lib/push.js';
+import { recordWarAttack } from '../lib/war.js';
 import { serialise } from './auth.js';
 
 /**
@@ -61,7 +62,7 @@ const submitSchema = z.object({
  * `@ironvow/config` and not a silent zero here. It also normalises an old
  * raid's frozen warband, which predates whatever was added since.
  */
-function armyOf(army: Partial<Record<TroopType, number>>): BattleArmy {
+export function armyOf(army: Partial<Record<TroopType, number>>): BattleArmy {
   const out = {} as BattleArmy;
   for (const t of TROOP_ORDER) out[t] = army[t] ?? 0;
   return out;
@@ -408,15 +409,28 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         : null;
       if (raid.defenderId && !defender) return { kind: 'notFound' as const };
 
-      const settlement = settleRaid({
-        stars: sim.stars,
-        simLoot: sim.loot,
-        // Against a generated hold the pool is the cap, so pass it through.
-        defenderGold: defender?.gold ?? BigInt(snapshot.pool.g),
-        defenderIron: defender?.iron ?? BigInt(snapshot.pool.i),
-        defenderTrophies: defender?.trophies ?? stageFromTrophies(attacker.trophies) * 120,
-        now,
-      });
+      // A war attack is scored, not paid: the frozen roster base has an empty
+      // pool, nobody is robbed for being on a roster, and trophies stay put.
+      // The war reads the stars; the reward comes when the war ends.
+      const isWar = raid.warId !== null;
+      if (isWar) {
+        const war = await tx.clanWar.findUnique({ where: { id: raid.warId! }, select: { state: true, endsAt: true } });
+        if (!war || war.state !== 'active' || !war.endsAt || war.endsAt.getTime() <= now.getTime()) {
+          await tx.raid.update({ where: { id: raid.id }, data: { status: 'expired' } });
+          return { kind: 'warOver' as const };
+        }
+      }
+      const settlement = isWar
+        ? { loot: { g: 0, i: 0 }, trophyDelta: 0, shieldUntil: null }
+        : settleRaid({
+          stars: sim.stars,
+          simLoot: sim.loot,
+          // Against a generated hold the pool is the cap, so pass it through.
+          defenderGold: defender?.gold ?? BigInt(snapshot.pool.g),
+          defenderIron: defender?.iron ?? BigInt(snapshot.pool.i),
+          defenderTrophies: defender?.trophies ?? stageFromTrophies(attacker.trophies) * 120,
+          now,
+        });
 
       /* --- the attacker spends the troops they deployed, wins or loses --- */
       const spent: Partial<Record<TroopType, number>> = {};
@@ -473,7 +487,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       });
 
       /* --- the defender pays, and is shielded if they were hurt --- */
-      if (raid.defenderId && defender) {
+      if (raid.defenderId && defender && !isWar) {
         const debited = debitDefender(defender.gold, defender.iron, settlement.loot);
         await tx.player.update({
           where: { id: raid.defenderId },
@@ -500,6 +514,17 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           resolvedAt: now,
         },
       });
+
+      if (isWar && raid.warMemberId) {
+        await recordWarAttack(tx, {
+          warId: raid.warId!,
+          attackerPlayerId: attacker.id,
+          defenderMemberId: raid.warMemberId,
+          raidId: raid.id,
+          stars: sim.stars,
+          destroyedPct: sim.destroyedPct,
+        });
+      }
 
       if (parsed.data.clientChecksum && parsed.data.clientChecksum !== sim.checksum) {
         await tx.divergence.create({
@@ -528,13 +553,14 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
     if (outcome.kind === 'notFound') return reply.code(404).send({ error: 'noSuchRaid' });
     if (outcome.kind === 'notYours') return reply.code(403).send({ error: 'notYours' });
     if (outcome.kind === 'expired') return reply.code(410).send({ error: 'raidExpired' });
+    if (outcome.kind === 'warOver') return reply.code(410).send({ error: 'warOver' });
     if (outcome.kind === 'alreadyResolved') {
       return reply.code(409).send({ error: 'alreadyResolved', stars: outcome.raid.stars });
     }
 
     // Fire-and-forget: a notification that does not arrive must never fail the
     // raid that produced it.
-    if (outcome.raid.defenderId) {
+    if (outcome.raid.defenderId && outcome.raid.warId === null) {
       void pushRaided(
         outcome.raid.defenderId,
         outcome.attackerName,
@@ -560,6 +586,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       heroDeployed: outcome.sim.heroDeployed,
       rejected: outcome.sim.rejected,
       checksum: outcome.sim.checksum,
+      war: outcome.raid.warId !== null,
       player: serialise(outcome.player),
     });
   });

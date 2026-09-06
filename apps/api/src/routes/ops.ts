@@ -102,6 +102,23 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  /** What players wrote in REPORT A PROBLEM, newest first. */
+  app.get('/ops/feedback', async (request, reply) => {
+    if (!authorise(request, reply)) return;
+    const rows = await prisma.feedback.findMany({ orderBy: { createdAt: 'desc' }, take: 200 });
+    const names = new Map<string, string>();
+    for (const id of new Set(rows.map((r) => r.playerId).filter((x): x is string => x !== null))) {
+      const p = await prisma.player.findUnique({ where: { id }, select: { name: true } });
+      if (p) names.set(id, p.name);
+    }
+    return reply.send({
+      feedback: rows.map((r) => ({
+        id: r.id, at: r.createdAt.toISOString(), player: r.playerId ? names.get(r.playerId) ?? r.playerId : null,
+        body: r.body, userAgent: r.userAgent,
+      })),
+    });
+  });
+
   /** Rough shape of the game, for a glance at whether anything is stuck. */
   app.get('/ops/health', async (request, reply) => {
     if (!authorise(request, reply)) return reply;

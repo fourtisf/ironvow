@@ -486,3 +486,38 @@
     .sbtn svg{width:19px;height:19px}
     .ca{font-size:11px;padding:10px 12px}
   }
+
+  /* ---------- the door on a short window ---------- */
+  /*
+   * A laptop at 150% scaling gives the page about 590 CSS pixels of height,
+   * and the card was taller than that: it grew a scrollbar and quietly put
+   * the links and the contract chip below the fold, where nobody found them.
+   * The card is compressed instead, in two steps, so everything on it stays
+   * on screen. Scoped to the door — the attract field is only ever behind
+   * these two cards — so the in-game modals are untouched.
+   */
+  body:has(#attract) .modal{max-height:92vh}
+
+  @media (max-height:800px){
+    body:has(#attract) .modal{padding:16px 20px}
+    body:has(#attract) .modal .wordmark{width:min(196px,66%);margin:2px auto 9px}
+    body:has(#attract) .modal .lead{font-size:10px;margin-bottom:9px}
+    body:has(#attract) .features{gap:5px;margin:0 0 10px}
+    body:has(#attract) .features li{font-size:10px;padding:7px 10px 7px 24px;line-height:1.35}
+    body:has(#attract) .features li::before{top:9px}
+    body:has(#attract) .modal .big{padding:11px;font-size:12.5px;margin-top:7px}
+    body:has(#attract) .gate label{margin-bottom:4px}
+    body:has(#attract) .gate input{font-size:19px;padding:9px}
+    body:has(#attract) .doorFoot{margin-top:10px;padding-top:9px}
+    body:has(#attract) .sbtn{padding:8px}
+    body:has(#attract) .ca{padding:8px 10px;font-size:10px}
+  }
+
+  @media (max-height:660px){
+    body:has(#attract) .modal .wordmark{width:min(168px,58%);margin:0 auto 7px}
+    body:has(#attract) .features li{font-size:9.5px;padding:6px 9px 6px 22px}
+    body:has(#attract) .features li::before{width:6px;height:6px;left:9px;top:9px}
+    /* The tagline and the invitation line are the two the card can spare. */
+    body:has(#attract) .modal > .lead{display:none}
+    body:has(#attract) .gate .lead{display:none}
+  }

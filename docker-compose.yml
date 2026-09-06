@@ -76,7 +76,10 @@ services:
       # `docker compose ps` should say "unhealthy" when the API is not
       # answering, rather than "Started" — which is what it said while the
       # first deployment was crash-looping.
-      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4000/health || exit 1']
+      # Node's own fetch: the slim Debian image ships neither wget nor curl,
+      # and installing one just to ask "are you up" is a bigger surface than
+      # the question deserves.
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 6

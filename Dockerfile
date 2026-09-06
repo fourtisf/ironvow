@@ -6,7 +6,15 @@
 #
 # Built and run by docker-compose.yml. See the Deploy section of README.md.
 
-FROM node:22-alpine AS base
+# Debian, not Alpine. Prisma's query engine needs glibc and OpenSSL 3, and on
+# node:22-alpine it fails to load at all — `prisma migrate deploy` died with
+# "could not parse schema engine response" on every boot, so the API never
+# came up once, and the first deployment spent an hour showing the symptoms
+# of a missing API instead of the cause.
+FROM node:22-bookworm-slim AS base
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
 

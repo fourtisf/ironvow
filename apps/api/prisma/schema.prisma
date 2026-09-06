@@ -5,7 +5,11 @@
 // re-derived the cost or the outcome itself.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // The image the API ships in (Dockerfile: node:22-bookworm-slim). Named
+  // explicitly so a client generated on a developer's machine still carries
+  // the engine the container needs.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

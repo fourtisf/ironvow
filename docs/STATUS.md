@@ -253,6 +253,38 @@ the web app; migrations run when the API container starts. See the Deploy
 section of the README, including the caveat that the stack has not been run end
 to end here, because this environment blocks pulling images from Docker Hub.
 
+### The ground, and the logo on the site
+
+The field was one flat green. What it is now, all of it procedural and all of
+it in `apps/web/lib/render/terrain.ts` and `deco.ts`:
+
+- **An isometric checkerboard** in two greens, painted as a canvas pattern —
+  one fill for 3,136 tiles. The pattern is drawn one device pixel to one and
+  never scaled: a scaled pattern fill measured at 9.2 ms a frame against 1.7 ms
+  unscaled, on the phone-sized canvas the perf harness uses. That is only exact
+  while a tile is a whole number of device pixels wide, so the zoom is snapped
+  to that grid (`snapZoom` in `camera.ts`; the step is under one percent, and
+  `test/terrain.test.ts` holds it there).
+- **A plateau.** The buildable field stands a cliff above the apron, with two
+  cut-earth faces lit like the buildings, a turf lip, wandering strata, buried
+  stones and a shadow at the foot. The apron is a shade darker.
+- **Ground cover** on the field — 500 tufts, flowers, pebbles and soft turf
+  patches — drawn flat under everything, so a building placed on a tuft simply
+  hides it. Off on low quality.
+- **A thicker treeline**: 900 trees, pines, rocks, bushes and stumps, two in
+  three crowded at the cliff foot and the rest out to the horizon. Pines are a
+  new kind; a bush is sometimes a berry bush.
+
+CPU per frame on the base view, same harness as the table above: 2.5 ms at
+full quality (was 5.2 before any of this) and 0.8 ms on low.
+
+The site now wears the logo: `icon.svg` and PNG fallbacks in the tab, an Apple
+touch icon, a web manifest with maskable icons so "add to home screen" gets a
+proper tile, the wordmark on the sign-in card instead of a heading set in
+Arial Black, and a 1200 x 630 card for links shared on X and elsewhere. All of
+it is generated from the same polygon wordmark as the X profile, so it is the
+same mark everywhere.
+
 ## Not done
 
 - **Clan wars.** See above: a second game mode, and none of its decisions have

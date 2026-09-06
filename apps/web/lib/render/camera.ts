@@ -56,8 +56,8 @@ export function s2g(cam: Camera, vp: Viewport, sx: number, sy: number): [number,
  * under the centre of the screen, so the treeline apron is always the furthest
  * anything can reach.
  */
-export function clampCam(cam: Camera): void {
-  cam.z = clamp(cam.z, ZOOM_MIN, ZOOM_MAX);
+export function clampCam(cam: Camera, dpr = 1): void {
+  cam.z = snapZoom(cam.z, dpr);
   const gx = (cam.x / (TW / 2) + cam.y / (TH / 2)) / 2;
   const gy = (cam.y / (TH / 2) - cam.x / (TW / 2)) / 2;
   const lo = IN0 + 1;
@@ -68,14 +68,31 @@ export function clampCam(cam: Camera): void {
   cam.y = isoY(cgx, cgy);
 }
 
-export function centerOn(cam: Camera, gx: number, gy: number, z?: number): void {
+export function centerOn(cam: Camera, gx: number, gy: number, z?: number, dpr = 1): void {
   if (z !== undefined) {
     cam.z = z;
     cam.tz = z;
   }
   cam.x = isoX(gx, gy);
   cam.y = isoY(gx, gy);
-  clampCam(cam);
+  clampCam(cam, dpr);
+}
+
+/**
+ * Zoom, snapped so that a tile is a whole number of device pixels wide.
+ *
+ * The grass is a repeating pattern, and a pattern whose tile is not a whole
+ * number of pixels is either resampled every frame (five times the cost of a
+ * plain fill, measured) or drifts off the grid by half a pixel a tile. Neither
+ * is acceptable, so the zoom itself is quantised instead. The step is under
+ * one percent on any phone, which no one can see; it is why the zoom is not
+ * eased, and why every path that sets it comes through here.
+ */
+export function snapZoom(z: number, dpr: number): number {
+  const grain = TW * Math.max(1, dpr);
+  const lo = Math.ceil(ZOOM_MIN * grain) / grain;
+  const hi = Math.floor(ZOOM_MAX * grain) / grain;
+  return clamp(Math.round(z * grain) / grain, lo, hi);
 }
 
 /**
@@ -125,7 +142,7 @@ export function frameBase(
   margin = 70,
 ): void {
   if (buildings.length === 0) {
-    centerOn(cam, N / 2, N / 2, 0.95);
+    centerOn(cam, N / 2, N / 2, 0.95, vp.dpr);
     return;
   }
 
@@ -148,7 +165,7 @@ export function frameBase(
   const zx = (vp.w - margin * 2) / Math.max(1, spanW);
   const zy = (vp.h - margin * 2 - headroom) / Math.max(1, spanH);
 
-  centerOn(cam, (minX + maxX) / 2, (minY + maxY) / 2, clamp(Math.min(zx, zy), ZOOM_MIN, ZOOM_MAX));
+  centerOn(cam, (minX + maxX) / 2, (minY + maxY) / 2, clamp(Math.min(zx, zy), ZOOM_MIN, ZOOM_MAX), vp.dpr);
 }
 
 /** Grid bounds of what the screen currently covers, for terrain iteration. */

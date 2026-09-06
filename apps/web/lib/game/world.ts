@@ -132,7 +132,7 @@ export function resizeWorld(w: World, canvas: HTMLCanvasElement, ctx: CanvasRend
   canvas.style.width = width + 'px';
   canvas.style.height = height + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  clampCam(w.cam);
+  clampCam(w.cam, dpr);
 }
 
 /**
@@ -162,7 +162,7 @@ export function centerOnKeep(w: World): void {
     frameBase(w.cam, w.vp, own.map((b) => ({ gx: b.gx, gy: b.gy, size: TYPES[b.type].s })));
     return;
   }
-  centerOn(w.cam, N / 2, N / 2, 0.95);
+  centerOn(w.cam, N / 2, N / 2, 0.95, w.vp.dpr);
 }
 
 /** Show a defender's base, framed, without starting the fight. */

@@ -1,6 +1,16 @@
 /** The prototype's colour set, unchanged. All art is drawn from these. */
 export const C = {
   grass: '#6ea844',
+  /** The other square of the checkerboard. */
+  grassB: '#77b34b',
+  /** The turf overhanging the cliff. */
+  grassLip: '#5c9438',
+  /** The lower ground around the plateau. */
+  apron: '#5f9540',
+  apronB: '#659d44',
+  /** The cut face of the plateau, lit and shaded. */
+  earth: '#8a6a45',
+  earthD: '#6b5236',
   grass2: '#7cb84e',
   grass3: '#63993d',
   dirt: '#b4854a',

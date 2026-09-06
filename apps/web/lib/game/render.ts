@@ -45,7 +45,7 @@ type BattleEntity =
 
 function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
-  drawTerrain(d, w.terrain);
+  drawTerrain(d, w.terrain, w.quality === 'high');
 
   // Scouting: draw the defender's frozen base in enemy livery instead of the
   // player's own, so the layout can actually be studied before committing.
@@ -153,7 +153,7 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
 function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   const battle = w.battle!;
-  drawTerrain(d, w.terrain);
+  drawTerrain(d, w.terrain, w.quality === 'high');
 
   const ents: BattleEntity[] = [];
   if (w.quality === 'high') {

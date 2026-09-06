@@ -120,7 +120,7 @@ export function attachInput(
       const scale = pinchDistance(e) / ptr.pinch;
       w.cam.z = clamp(ptr.pinchZoom * scale, ZOOM_MIN, ZOOM_MAX);
       w.cam.tz = w.cam.z;
-      clampCam(w.cam);
+      clampCam(w.cam, w.vp.dpr);
       ptr.moved = true;
       return;
     }
@@ -137,7 +137,7 @@ export function attachInput(
     } else {
       w.cam.x -= (x - ptr.lx) / w.cam.z;
       w.cam.y -= (y - ptr.ly) / w.cam.z;
-      clampCam(w.cam);
+      clampCam(w.cam, w.vp.dpr);
     }
     ptr.lx = x;
     ptr.ly = y;
@@ -171,7 +171,7 @@ export function attachInput(
     e.preventDefault();
     w.cam.z = clamp(w.cam.z * (e.deltaY > 0 ? 0.92 : 1.08), ZOOM_MIN, ZOOM_MAX);
     w.cam.tz = w.cam.z;
-    clampCam(w.cam);
+    clampCam(w.cam, w.vp.dpr);
   };
 
   canvas.addEventListener('touchstart', onDown, { passive: false });

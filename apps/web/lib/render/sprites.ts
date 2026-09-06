@@ -2,7 +2,7 @@ import { TYPES, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, w2s, type Camera, type Viewport } from './camera';
 import { drawBuildingBody } from './buildings';
 import type { Draw } from './primitives';
-import { paintDecoBase, paintDecoCanopy, type Deco } from './terrain';
+import { hasCanopy, paintDecoBase, paintDecoCanopy, type Deco } from './deco';
 
 /**
  * Sprite cache for the static art: buildings and the treeline.
@@ -218,10 +218,11 @@ export function blitDeco(d: Draw, deco: Deco): void {
   const s = deco.s * cam.z;
 
   const kind = deco.k;
-  const base = spriteFor(`d|${kind}`, (c, k) => paintDecoBase(c, kind, k), s, vp.dpr);
+  const v = deco.v;
+  const base = spriteFor(`d|${kind}|${v}`, (c, k) => paintDecoBase(c, kind, k, v), s, vp.dpr);
   blit(ctx, base, vp.dpr, sx, sy);
-  if (kind !== 'tree') return;
+  if (!hasCanopy(kind)) return;
 
   const sway = Math.sin(t * 1.1 + deco.p) * 1.8 * s;
-  blit(ctx, spriteFor('d|canopy', paintDecoCanopy, s, vp.dpr), vp.dpr, sx + sway, sy);
+  blit(ctx, spriteFor(`d|canopy|${kind}`, (c, k) => paintDecoCanopy(c, kind, k), s, vp.dpr), vp.dpr, sx + sway, sy);
 }

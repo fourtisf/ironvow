@@ -147,6 +147,7 @@
     border:3px solid #e8b23c;border-radius:22px;padding:20px 18px;text-align:center;
     box-shadow:0 16px 44px rgba(0,0,0,.6);max-height:86vh;overflow-y:auto}
   .modal h2{font-size:19px;letter-spacing:2.4px;margin-bottom:7px}
+  .modal .wordmark{display:block;width:min(228px,80%);height:auto;margin:6px auto 14px;filter:drop-shadow(0 3px 0 rgba(0,0,0,.35))}
   .modal .lead{font-size:10.5px;font-family:Arial;font-weight:700;color:#8fa6c4;line-height:1.55;margin-bottom:15px}
   .modal .big{display:block;width:100%;padding:13px;font-size:13px;letter-spacing:1.8px;border-radius:14px;margin-top:9px}
   .lootRow{display:flex;justify-content:center;gap:16px;margin:13px 0}

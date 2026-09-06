@@ -172,6 +172,15 @@ const inputStyle = {
   fontSize: 13, marginBottom: 4,
 } as const;
 
+/**
+ * The logo, drawn as shapes rather than set in a font, so the first screen
+ * shows the same mark as the icon on the home screen and the card a shared link
+ * unfurls into.
+ */
+function Wordmark() {
+  return <img className="wordmark" src="/wordmark.svg" alt="IRONVOW" width={646} height={162} />;
+}
+
 export interface SignInModalProps {
   onGuest: () => void;
   onRequest: (email: string) => void;
@@ -194,7 +203,7 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error }: SignInMod
   return (
     <div className="ovl">
       <div className="modal">
-        <h2>IRONVOW</h2>
+        <Wordmark />
         <p className="lead">
           Forge. Muster. Conquer.
           <br />
@@ -357,7 +366,7 @@ export function ServerDownModal({ detail, onRetry }: { detail: string; onRetry: 
   return (
     <div className="ovl">
       <div className="modal">
-        <h2>IRONVOW</h2>
+        <Wordmark />
         <p className="lead">
           The hold cannot be reached right now.
           <br />

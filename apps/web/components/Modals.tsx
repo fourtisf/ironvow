@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import type { BaseSnapshot } from '@ironvow/types';
 import { fmt } from '../lib/format';
 import { GoldIcon, IronIcon, StarIcon, TelegramIcon, XIcon } from './icons';
-import { CONTRACT, TELEGRAM_URL, X_URL, shortAddress } from '../lib/links';
+import { CONTRACT, TELEGRAM_URL, X_URL, builtAtLabel, shortAddress } from '../lib/links';
 
 /**
  * Scout and result modals.
@@ -250,6 +250,8 @@ function DoorFooter() {
           <span>{copied ? 'COPIED' : shortAddress(CONTRACT)}</span>
         </button>
       )}
+
+      {builtAtLabel() !== '' && <p className="built">BUILD {builtAtLabel()}</p>}
     </div>
   );
 }

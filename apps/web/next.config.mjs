@@ -1,6 +1,19 @@
+/*
+ * When this build was made.
+ *
+ * Stamped on the first screen. Twice now a deploy has landed and looked
+ * exactly like one that had not, and the only way to tell was to read the
+ * markup: a date under the card answers it in a glance. Computed here rather
+ * than passed in, so nobody has to remember a build argument. (Turbo caches
+ * builds, so a local rebuild with no source change keeps the old stamp; a
+ * Docker image build always starts fresh, which is the case that matters.)
+ */
+const builtAt = new Date().toISOString();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_BUILT_AT: builtAt },
   // The client bundles the very same build of @ironvow/sim that the API
   // imports. That is not a convenience — it is what makes the server's replay
   // of a battle trustworthy enough to overrule the client silently.

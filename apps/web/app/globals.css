@@ -430,3 +430,5 @@
     padding:8px 11px;margin:-4px 0 10px;font-size:10px;font-family:Arial;font-weight:700;color:#ffd97a;line-height:1.4}
   .sheetHint::before{content:'';width:8px;height:8px;border-radius:50%;background:#e8b23c;flex:none;animation:coachPulse 1.4s ease-in-out infinite}
   .card.hi,.tcard.hi{border-color:#e8b23c;animation:coachPulse 1.4s ease-in-out infinite}
+
+  #insp .tick{color:#ffd97a;font-variant-numeric:tabular-nums}

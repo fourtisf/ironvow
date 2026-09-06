@@ -910,6 +910,7 @@ export function Game() {
             setModeState('place');
           }}
           onCollect={() => { void collect(selected.id); }}
+          onElapsed={() => { void refresh(); }}
           onDemolish={() => demolish(selected.id)}
           onCancel={() => cancelBuild(selected.id)}
         />

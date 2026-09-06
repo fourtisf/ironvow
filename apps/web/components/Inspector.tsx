@@ -1,6 +1,7 @@
 'use client';
 
 import { KEEP_MAX, TYPES, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD } from '@ironvow/config';
+import { useEffect, useState } from 'react';
 import { fmt, until } from '../lib/format';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
@@ -23,11 +24,26 @@ export interface InspectorProps {
   onFinish: () => void;
   onDemolish: () => void;
   onCancel: () => void;
+  /** The clock on a job reached zero while the panel was open. */
+  onElapsed: () => void;
 }
 
 export function Inspector({
-  player, building, onClose, onUpgrade, onMove, onCollect, onFinish, onDemolish, onCancel,
+  player, building, onClose, onUpgrade, onMove, onCollect, onFinish, onDemolish, onCancel, onElapsed,
 }: InspectorProps) {
+  // A clock that ticks: the countdown below used to move only when the
+  // server was polled, every thirty seconds, and read as stuck.
+  const [now, setNow] = useState(() => Date.now());
+  const busyJob = building.completesAt !== null;
+  useEffect(() => {
+    if (!busyJob) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [busyJob]);
+  const endsAt = building.completesAt ? new Date(building.completesAt).getTime() : 0;
+  useEffect(() => {
+    if (busyJob && endsAt <= now) onElapsed();
+  }, [busyJob, endsAt, now, onElapsed]);
   const def = TYPES[building.type];
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   const isKeep = building.type === 'keep';
@@ -40,31 +56,41 @@ export function Inspector({
 
   /* --- a builder is on it --- */
   const busy = building.completesAt !== null;
-  const remaining = busy ? Math.max(0, (new Date(building.completesAt!).getTime() - Date.now()) / 1000) : 0;
+  const remaining = busy ? Math.max(0, (endsAt - now) / 1000) : 0;
   const rushCost = finishNowCost(remaining);
   const scaffold = busy && building.upgradingTo === null;
   const noBuilder = !busy && seconds > 0 && player.buildersFree === 0;
 
   if (busy) {
+    // The bar's length comes from the job's own timer, re-derived here rather
+    // than sent by the server: the same function the server used to set it.
+    const total = scaffold
+      ? buildSeconds(building.type, 1, Math.max(0, ownedCount - 1))
+      : buildSeconds(building.type, building.level, ownedCount);
+    const done = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 1;
     return (
       <div id="insp">
         <div className="info">
           <h3>{def.n} · {scaffold ? 'GOING UP' : `TO LEVEL ${building.upgradingTo}`}</h3>
           <p>
-            Ready in {until(building.completesAt!)}
+            {remaining > 0 ? <>Ready in <b className="tick">{until(building.completesAt!, now)}</b></> : 'Done — the builder is packing up.'}
             <br />
             {scaffold
               ? 'It earns nothing and fires nothing until it is finished.'
               : 'Still working at its current level while the builder is on it.'}
           </p>
+          <div className="qbarBg" style={{ marginTop: 7 }}>
+            <div className="qbar" style={{ width: `${(done * 100).toFixed(1)}%`, transition: 'width .5s linear' }} />
+          </div>
         </div>
         <div className="acts">
           <button
             className={`btn gold${player.gold >= rushCost ? '' : ' grey'}`}
             onClick={onFinish}
             disabled={player.gold < rushCost}
+            title="Pay gold to finish now"
           >
-            FINISH · {fmt(rushCost)}
+            FINISH NOW <GoldIcon />{fmt(rushCost)}
           </button>
           {/* Nothing has been consumed yet, so stopping costs nothing. */}
           <button className="btn red" onClick={onCancel}>CANCEL</button>

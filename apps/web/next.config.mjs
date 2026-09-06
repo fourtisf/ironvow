@@ -20,6 +20,19 @@ const nextConfig = {
    */
   async rewrites() {
     const target = process.env.API_PROXY_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+    // A relative target means the rewrite points at this same server: /api/me
+    // becomes /api/me, Next answers 404, and every player sees "the server
+    // answered 404" over an empty field. That is exactly what shipped once,
+    // because Turbo's strict env mode dropped API_PROXY_URL on the way to this
+    // file (it has to be declared in turbo.json to survive). A build that
+    // cannot reach its API must not succeed quietly.
+    if (!/^https?:\/\//.test(target)) {
+      throw new Error(
+        `API rewrite target is "${target}", which is not an absolute URL. ` +
+        'Set API_PROXY_URL (the address the Next server can reach the API on), ' +
+        'and make sure turbo.json lists it under build.env.',
+      );
+    }
     return [
       { source: '/api/:path*', destination: `${target}/:path*` },
     ];

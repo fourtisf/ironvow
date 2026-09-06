@@ -12,6 +12,7 @@
       ],
       "env": [
         "NEXT_PUBLIC_API_URL",
+        "API_PROXY_URL",
         "DATABASE_URL"
       ]
     },

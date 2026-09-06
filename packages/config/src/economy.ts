@@ -50,9 +50,12 @@ export function stockCapOf(type: BuildingType, level: number): number {
  * Storage added by one Vault.
  *
  * Sized against what the producers now make: a Vault has to be worth the
- * plot it stands on, and at 2,900 it was not.
+ * plot it stands on, and at 2,900 it was not. It moved again with
+ * BASE_STORAGE, for the same reason — a Vault adding 6,000 to a 40,000 purse
+ * is a rounding error, and the first one a player builds should feel like it
+ * changed something. At 24,000 it adds sixty per cent.
  */
-export const CAPACITY = (level: number): number => 3000 + level * 3000;
+export const CAPACITY = (level: number): number => 12000 + level * 12000;
 
 /**
  * Storage every player has before building a single Vault.
@@ -60,8 +63,19 @@ export const CAPACITY = (level: number): number => 3000 + level * 3000;
  * Raised with the starting purse below: a cap of 2,500 turned a full mine
  * into waste before the first Vault was up, and made the opening hour feel
  * like it was throwing money away.
+ *
+ * Raised again, and this time sized against the producers rather than against
+ * the purse. A Gold Mine makes 66 gold a minute at level 1 and holds four
+ * hours of it, so a player coming back in the morning is offered 15,840 from
+ * one mine and 31,680 from the two they have after the second War Order. At a
+ * cap of 9,000 with 6,000 already in the purse, all but 3,000 of that was
+ * discarded on collection — the same bug as #1, one layer up: the game was
+ * showing a full pouch and taking most of it away. 40,000 banks a full night
+ * from two mines with the starting purse still sitting there.
+ *
+ * The invariant below is what stops this happening a third time.
  */
-export const BASE_STORAGE = 9000;
+export const BASE_STORAGE = 40000;
 
 /**
  * Starting purse.
@@ -82,6 +96,33 @@ if (START_GOLD >= BASE_STORAGE || START_IRON >= BASE_STORAGE) {
   throw new Error(
     'Starting resources must be strictly below base storage capacity, or the first collection is silently discarded (bug #1).',
   );
+}
+
+/*
+ * A full producer must fit in the purse a new player has room for.
+ *
+ * Bug #1 was "the first collection is discarded because the purse starts
+ * full". This is its larger sibling and it is easier to introduce: raise a
+ * production rate or the buffer, leave storage alone, and a player who was
+ * away for the night is shown a full pouch and silently loses most of it on
+ * collection. Nothing about either number looks wrong on its own, which is why
+ * it is asserted here rather than left to be noticed.
+ *
+ * Stated against a level-1 producer and the starting purse, because that is
+ * the worst case: it is the only moment when a player has no Vault and no way
+ * to make room.
+ */
+const OPENING_HEADROOM = BASE_STORAGE - Math.max(START_GOLD, START_IRON);
+for (const [type, rate] of [['Gold Mine', mineRate], ['Iron Forge', forgeRate]] as const) {
+  const full = rate(1) * STOCK_BUFFER_MINUTES;
+  if (full > OPENING_HEADROOM) {
+    throw new Error(
+      `A full level-1 ${type} holds ${full}, but a new player has room for only `
+      + `${OPENING_HEADROOM} (BASE_STORAGE ${BASE_STORAGE} less the starting purse). `
+      + 'Collecting it would discard the difference with nothing to warn the player. '
+      + 'Raise BASE_STORAGE, or lower the rate or STOCK_BUFFER_MINUTES.',
+    );
+  }
 }
 
 /** Offline accrual window. Anything past this is not paid out. */

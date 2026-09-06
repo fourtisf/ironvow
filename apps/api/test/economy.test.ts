@@ -11,6 +11,7 @@ import {
   mineRate,
   stockCapOf,
   storageCapOf,
+  TROOP,
 } from '@ironvow/config';
 import { snapshotBase } from '../src/domain/raid.js';
 import { accrueProduction, collectStock, grant } from '../src/domain/production.js';
@@ -48,6 +49,32 @@ describe('starting position', () => {
   it('leaves room for the first collection (bug #1)', () => {
     expect(START_GOLD).toBeLessThan(BASE_STORAGE);
     expect(START_IRON).toBeLessThan(BASE_STORAGE);
+  });
+
+  /*
+   * The larger sibling of bug #1, and the easier one to reintroduce: raise a
+   * production rate or the stock buffer, leave storage alone, and a player who
+   * was away overnight is shown a full pouch and silently loses most of it.
+   * Asserted at the worst moment — level 1, no Vault, the starting purse still
+   * untouched, which is the only point where a player cannot make room.
+   */
+  it('lets a new player bank a full producer, not just part of one', () => {
+    const room = BASE_STORAGE - Math.max(START_GOLD, START_IRON);
+    expect(stockCapOf('mine', 1)).toBeLessThanOrEqual(room);
+    expect(stockCapOf('forge', 1)).toBeLessThanOrEqual(room);
+  });
+
+  it('covers the tutorial and the War Orders that follow it', () => {
+    // The four coach steps cost nothing. These are the purchases the first
+    // nine War Orders ask for, before a single collection or any raid loot.
+    const asked = costOf('mine', 0, 1).g          // q2, a second Gold Mine
+      + costOf('cannon', 0, 0).g                  // q3
+      + TROOP.raider.cost.g * 5                   // q4
+      + costOf('keep', 1, 0).g                    // q6
+      + costOf('forge', 0, 0).g                   // q7
+      + Array.from({ length: 8 }, (_, n) => costOf('wall', 0, n).g)
+        .reduce((a, b) => a + b, 0);              // q8
+    expect(asked).toBeLessThan(START_GOLD);
   });
 });
 

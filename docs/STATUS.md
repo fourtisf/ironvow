@@ -503,10 +503,10 @@ a hold left overnight was earning nothing for most of the night. Now:
 | | before | now |
 |---|---|---|
 | `START_GOLD` / `START_IRON` | 900 / 320 | 6,000 / 2,400 |
-| `BASE_STORAGE` | 2,500 | 9,000 |
+| `BASE_STORAGE` | 2,500 | 40,000 |
 | `mineRate(level)` | `18 + level × 12` | `40 + level × 26` |
 | `forgeRate(level)` | `9 + level × 7` | `22 + level × 16` |
-| `CAPACITY(level)` | `1200 + level × 1200` | `3000 + level × 3000` |
+| `CAPACITY(level)` | `1200 + level × 1200` | `12000 + level × 12000` |
 | `STOCK_BUFFER_MINUTES` | 12 | 240 |
 
 The starting purse now covers the first four War Orders and leaves 4,247 gold
@@ -518,6 +518,29 @@ reading the balance table.
 
 Existing holds keep the resources they already have — the constants only apply
 where they are read, and a hold's stock lives in its own row.
+
+**What the opening purse actually buys.** Asked to check it covered the
+tutorial, `apps/api/test/economy.test.ts` now walks the whole thing. The four
+coach steps — tap the Keep, look around, collect, move a Gold Mine — cost
+nothing. The first nine War Orders ask for a second Gold Mine, a Cannon, five
+Raiders, a Keep upgrade, an Iron Forge, eight Ramparts and a warband: 2,660
+gold and 425 iron in total, against 6,000 and 2,400 in hand. The purse never
+falls below **5,462 gold**, and because the rewards outrun the costs the nine
+orders together leave a player **262 gold and 374 iron better off** than they
+started. Nothing in the opening is a wait.
+
+**And the bug that check found.** A Gold Mine makes 66 gold a *minute* at level
+1 and holds four hours of it, so a player coming back in the morning was
+offered 15,840 gold from one mine — against a storage cap of 9,000 with 6,000
+already in the purse. All but 3,000 of it was discarded on collection. That is
+bug #1 one layer up: the game showed a full pouch and took most of it away, and
+neither number looked wrong on its own. `BASE_STORAGE` is now sized against the
+producers rather than against the purse (40,000 banks a full night from two
+mines with the starting purse untouched), `CAPACITY` moved with it so a first
+Vault still adds sixty per cent rather than a rounding error, and
+`packages/config/src/economy.ts` throws at module load if a full level-1
+producer no longer fits in the room a new player has. Asserted again in the
+economy tests, at the one moment a player has no Vault and no way to make room.
 
 **What a building looks like.** The Gold Mine was a hut with a cart beside it,
 which is a hut, and level 9 was level 1 with a bigger number floating over it.

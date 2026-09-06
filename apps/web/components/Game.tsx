@@ -114,24 +114,32 @@ export function Game() {
   const [accessCode, setAccessCode] = useState<string | null>(null);
 
   useEffect(() => {
-    let remembered: string | null = null;
-    try {
-      remembered = localStorage.getItem('ironvow_access');
-    } catch {
-      // No storage: the code is typed once per visit.
-    }
     void api.gate()
-      .then((g) => {
-        setGate(g.required);
-        if (!g.required) return;
-        // A code that was right last time is tried again quietly; if the
-        // server has changed it, the door simply stays shut and asks.
-        if (remembered) {
-          void api.tryGate(remembered).then(() => setAccessCode(remembered)).catch(() => undefined);
-        }
-      })
+      .then((g) => setGate(g.required))
       // An old server without the route: no door.
       .catch(() => setGate(false));
+  }, []);
+
+  /**
+   * Try the code. Deliberately not remembered anywhere: the door is asked
+   * every time the page opens, refresh included, whoever is signed in. That
+   * is what an invitation code is for.
+   */
+  const tryCode = useCallback((code: string) => {
+    unlockAudio();
+    setSignInBusy(true);
+    setSignInError(null);
+    api.tryGate(code)
+      .then(() => { setAccessCode(code); sfx.done(); })
+      .catch((e: unknown) => {
+        sfx.bad();
+        setSignInError(e instanceof ApiError && e.code === 'badAccessCode'
+          ? 'That is not the code.'
+          : e instanceof ApiError && e.status === 429
+            ? 'Too many tries. Wait a few minutes.'
+            : 'Could not check the code. Try again in a moment.');
+      })
+      .finally(() => setSignInBusy(false));
   }, []);
 
   const markTutorial = useCallback((stepId: string) => {
@@ -764,6 +772,22 @@ export function Game() {
     );
   }
 
+  // The door, for everyone: a returning player with a session is asked too.
+  if (gate !== false && accessCode === null) {
+    return (
+      <SignInModal
+        sent={false}
+        busy={signInBusy}
+        error={signInError}
+        gate={gate}
+        unlocked={false}
+        onCode={tryCode}
+        onGuest={() => undefined}
+        onRequest={() => undefined}
+      />
+    );
+  }
+
   if (signedIn === false) {
     return (
       <SignInModal
@@ -772,30 +796,7 @@ export function Game() {
         error={signInError}
         gate={gate}
         unlocked={accessCode !== null}
-        onCode={(code) => {
-          unlockAudio();
-          setSignInBusy(true);
-          setSignInError(null);
-          api.tryGate(code)
-            .then(() => {
-              setAccessCode(code);
-              sfx.done();
-              try {
-                localStorage.setItem('ironvow_access', code);
-              } catch {
-                // It will ask again next visit.
-              }
-            })
-            .catch((e: unknown) => {
-              sfx.bad();
-              setSignInError(e instanceof ApiError && e.code === 'badAccessCode'
-                ? 'That is not the code.'
-                : e instanceof ApiError && e.status === 429
-                  ? 'Too many tries. Wait a few minutes.'
-                  : 'Could not check the code. Try again in a moment.');
-            })
-            .finally(() => setSignInBusy(false));
-        }}
+        onCode={tryCode}
         onGuest={() => {
           unlockAudio();
           setSignInBusy(true);

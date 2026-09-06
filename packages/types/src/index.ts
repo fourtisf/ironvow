@@ -85,12 +85,13 @@ export type TroopLevels = Partial<Record<TroopType, number>>;
 
 export type BattleKind = 'raid' | 'defend';
 
-export interface BattleArmy {
-  raider: number;
-  archer: number;
-  lancer: number;
-  ram: number;
-}
+/**
+ * A warband as the simulation sees it.
+ *
+ * Keyed off TroopType rather than spelled out, so adding a troop is one edit
+ * in `@ironvow/config` and not a hunt for every place the four were listed.
+ */
+export type BattleArmy = Record<TroopType, number>;
 
 export interface SimInput {
   snapshot: BaseSnapshot;

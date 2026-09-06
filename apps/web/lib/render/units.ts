@@ -106,7 +106,13 @@ export function drawUnit(d: Draw, u: DrawableUnit): void {
     // head and helm
     ctx.fillStyle = P('#e6bd93');
     ctx.beginPath(); ctx.arc(sx, Y(28.5), 5.4 * S, 0, 6.29); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = P(hero ? '#e8b23c' : u.type === 'archer' ? '#3f7a44' : '#9aa7b4');
+    ctx.fillStyle = P(
+      hero ? '#e8b23c'
+        : u.type === 'archer' ? '#3f7a44'
+        // A hood rather than a helm: nothing that climbs a wall wears steel.
+        : u.type === 'scaler' ? '#6d4a8f'
+        : '#9aa7b4',
+    );
     ctx.beginPath(); ctx.arc(sx, Y(29.5), 5.8 * S, Math.PI * 1.03, Math.PI * 2.02); ctx.fill(); ctx.stroke();
     if (hero) {
       // A crown rather than a plume, so the hero reads as the hero even at the
@@ -155,6 +161,33 @@ export function drawUnit(d: Draw, u: DrawableUnit): void {
       ctx.stroke();
       ctx.strokeStyle = C.line;
       ctx.lineWidth = LW;
+    } else if (u.type === 'scaler') {
+      // A grapnel on a line, swung overhead. It is the silhouette that has to
+      // say "this one does not care about your wall" from across the field.
+      ctx.save();
+      ctx.translate(sx + 5 * S * f, Y(26));
+      ctx.rotate((-0.4 + sw * 2.4) * f);
+      ctx.strokeStyle = P('#d8c9a8');
+      ctx.lineWidth = Math.max(1.2, 1.7 * S);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(7 * S, -9 * S, 14 * S, -4 * S);
+      ctx.stroke();
+      ctx.strokeStyle = P('#cfdae6');
+      ctx.lineWidth = Math.max(1.6, 2.4 * S);
+      ctx.beginPath();
+      ctx.moveTo(14 * S, -8 * S);
+      ctx.lineTo(14 * S, -2 * S);
+      ctx.moveTo(10.5 * S, -5 * S);
+      ctx.lineTo(17.5 * S, -5 * S);
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = LW;
+      // A coil of rope at the hip, so it reads as a climber standing still too.
+      ctx.fillStyle = P('#d8c9a8');
+      ctx.beginPath(); ctx.ellipse(sx - 8 * S * f, Y(17), 4.4 * S, 3 * S, 0, 0, 6.29);
+      ctx.fill(); ctx.stroke();
     } else {
       // Lancer and hero both swing a polearm.
       ctx.save();

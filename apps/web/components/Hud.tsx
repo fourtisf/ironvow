@@ -2,7 +2,7 @@
 
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
-import { ArmyIcon, BuilderIcon, BuildIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
+import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
 
 /**
  * The resource bar, the Keep badge and the bottom rail.
@@ -23,6 +23,7 @@ export interface HudProps {
   onArmy: () => void;
   onOrders: () => void;
   onLog: () => void;
+  onClan: () => void;
   onLadder: () => void;
   onRaid: () => void;
   onCollectAll: () => void;
@@ -36,7 +37,7 @@ export interface HudProps {
 
 export function Hud({
   player, incomingCount, ordersReady, pending, showGuestNote,
-  onHome, onBuild, onArmy, onOrders, onLog, onLadder, onRaid, onCollectAll, onClaimAccount,
+  onHome, onBuild, onArmy, onOrders, onLog, onClan, onLadder, onRaid, onCollectAll, onClaimAccount,
   onDismissGuestNote, soundOn, onToggleSound,
 }: HudProps) {
   return (
@@ -124,6 +125,7 @@ export function Hud({
           <span>LOG</span>
           {incomingCount > 0 && <span className="dot" />}
         </button>
+        <button className="rbtn" onClick={onClan}><ClanIcon /><span>CLAN</span></button>
         <button className="rbtn red" onClick={onRaid}><RaidIcon /><span>RAID</span></button>
       </div>
     </div>

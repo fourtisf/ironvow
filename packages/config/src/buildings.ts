@@ -3,10 +3,15 @@ import { ipow } from './math.js';
 
 export const BUILDING_TYPES = [
   'keep', 'mine', 'forge', 'store', 'barr', 'lab', 'cannon', 'tower', 'wall',
+  'statue', 'brazier', 'standard',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
 
-export type BuildingCategory = 'core' | 'eco' | 'mil' | 'def';
+/**
+ * `vanity` is the odd one out and deliberately so: it costs, it occupies a
+ * cell, and it does nothing. See VANITY_NOTE below.
+ */
+export type BuildingCategory = 'core' | 'eco' | 'mil' | 'def' | 'vanity';
 
 export interface Cost {
   g: number;
@@ -81,7 +86,32 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   cannon: { n: 'Cannon',      s: 2, cat: 'def',  hp: 560,  hpG: 1.30, base: { g: 220, i: 80  }, up: { g: 340, i: 180 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Slow, heavy shots. Wrecks anything that walks into range.' },
   tower:  { n: 'Arrow Tower', s: 2, cat: 'def',  hp: 400,  hpG: 1.27, base: { g: 180, i: 120 }, up: { g: 280, i: 220 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Fast arrows with long reach. Melts light troops.' },
   wall:   { n: 'Rampart',     s: 1, cat: 'def',  hp: 340,  hpG: 1.35, base: { g: 60,  i: 20  }, up: { g: 90,  i: 60  }, upG: 1.70, countG: RAMPART_COUNT_GROWTH, blurb: 'Blocks the path. Enemies must stop and break it.' },
+
+  /*
+   * VANITY_NOTE — TUNABLE, and not in the build document.
+   *
+   * Added because a maxed hold has nowhere to put its gold. Every other sink
+   * in the game closes: mines cap, vaults cap, ramparts cap, and the only
+   * thing left is "finish now" on timers a rich player was never waiting for
+   * anyway. Resources that accumulate with nothing to buy make collecting —
+   * the interaction a player performs more than any other — feel pointless.
+   *
+   * These cost gold only, and a lot of it, rising steeply with how many you
+   * own and again with each level. They carry no loot, mount no defence, and
+   * are left out of raid snapshots entirely, so nobody is ever rewarded for
+   * attacking one and nobody is ever punished for owning one. They are there
+   * to be looked at, which for a game with no purchases is the honest version
+   * of something to spend on.
+   */
+  statue:   { n: 'Vow Statue', s: 2, cat: 'vanity', hp: 900, hpG: 1.2, base: { g: 24000, i: 0 }, up: { g: 18000, i: 0 }, upG: 1.90, countG: 1.90, blurb: 'Stone kept for its own sake. Costs a fortune, does nothing.' },
+  brazier:  { n: 'Brazier',    s: 1, cat: 'vanity', hp: 260, hpG: 1.2, base: { g: 4200,  i: 0 }, up: { g: 3200,  i: 0 }, upG: 1.75, countG: 1.55, blurb: 'A fire that burns all night. Purely so the hold looks lived in.' },
+  standard: { n: 'Standard',   s: 1, cat: 'vanity', hp: 220, hpG: 1.2, base: { g: 7500,  i: 0 }, up: { g: 5600,  i: 0 }, upG: 1.80, countG: 1.62, blurb: 'Your colours on a pole. Raiders will not care. You might.' },
 };
+
+/** True for something bought to be looked at. */
+export function isVanity(type: BuildingType): boolean {
+  return TYPES[type].cat === 'vanity';
+}
 
 /**
  * How many of each type a player may own, indexed by Keep level 1..9.
@@ -97,6 +127,12 @@ export const CAP: Record<Exclude<BuildingType, 'keep'>, readonly number[]> = {
   cannon: [0,  2,  3,  4,  5,   6,   8,   9,  10,  12],
   tower:  [0,  0,  2,  3,  4,   5,   6,   8,   9,  11],
   wall:   [0, 20, 40, 65, 95, 130, 170, 215, 265, 320],
+  // Vanity opens at Keep 3, by which point a player has somewhere to put it
+  // and something to spare. The counts rise slowly: the sink is meant to be
+  // the price and the levels, not a field full of statues.
+  statue:   [0, 0, 0, 1, 1, 2, 2, 3, 3, 4],
+  brazier:  [0, 0, 0, 2, 3, 4, 5, 6, 8, 10],
+  standard: [0, 0, 0, 2, 2, 3, 4, 5, 6, 8],
 };
 
 /** How many of `type` a Keep of `keepLevel` permits. The Keep itself is always 1. */

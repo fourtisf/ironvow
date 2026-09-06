@@ -5,6 +5,9 @@ dist/
 *.tsbuildinfo
 .env
 .env.*
+# ...but the templates are the documentation, so they stay.
+!.env.example
+!.env.docker.example
 !.env.example
 coverage/
 .DS_Store

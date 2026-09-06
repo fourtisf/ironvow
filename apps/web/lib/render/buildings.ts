@@ -36,7 +36,7 @@ export interface Renderable {
 
 /** Types with a moving part. Everything else needs no per-frame work at all. */
 export const ANIMATED: ReadonlySet<BuildingType> = new Set<BuildingType>([
-  'keep', 'forge', 'barr', 'lab', 'cannon',
+  'keep', 'forge', 'barr', 'lab', 'cannon', 'brazier', 'standard',
 ]);
 
 /**
@@ -227,6 +227,101 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     roundRect(ctx, px - 2.8 * z, top + 22 * z, 5.6 * z, 13 * z, 2.4 * z);
     ctx.fill();
 
+  } else if (b.type === 'statue') {
+    // A memorial figure with both hands on a sword point-down, which is the
+    // one pose that reads at a glance from across the base. The first draft
+    // held the sword aloft on a thin diagonal arm and came out as a featureless
+    // white pillar at every zoom anyone actually plays at.
+    const plinth = 14 + lv * 3;
+    isoBox(d, gx + 0.06, gy + 0.06, s - 0.12, s - 0.12, plinth, '#b9c3cd', '#6e7a86', '#8e9aa6');
+    isoBox(d, gx + 0.42, gy + 0.42, s - 0.84, s - 0.84, plinth + 9, '#cfd8e2', '#7e8a97', '#9fabb8');
+
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const foot = py - (plinth + 9) * z;
+    const gild = lv >= 5;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+
+    // Cloak: wider at the hem than at the shoulders, so the silhouette is not
+    // a rectangle.
+    ctx.fillStyle = '#dfe6ee';
+    ctx.beginPath();
+    ctx.moveTo(px - 11 * z, foot);
+    ctx.lineTo(px - 7 * z, foot - 34 * z);
+    ctx.lineTo(px + 7 * z, foot - 34 * z);
+    ctx.lineTo(px + 11 * z, foot);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // Shoulders.
+    ctx.fillStyle = '#eef3f8';
+    roundRect(ctx, px - 9 * z, foot - 40 * z, 18 * z, 8 * z, 3.5 * z);
+    ctx.fill(); ctx.stroke();
+
+    // Head, clear of the shoulders so it is a head and not a rounded corner.
+    ctx.beginPath();
+    ctx.arc(px, foot - 46 * z, 5.6 * z, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+
+    // The sword, point down the middle of the cloak.
+    ctx.fillStyle = gild ? '#ffd25c' : '#c2ccd8';
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.2, 1.9 * z);
+    ctx.beginPath();
+    ctx.moveTo(px - 3 * z, foot - 33 * z);
+    ctx.lineTo(px + 3 * z, foot - 33 * z);
+    ctx.lineTo(px + 1.6 * z, foot - 3 * z);
+    ctx.lineTo(px, foot);
+    ctx.lineTo(px - 1.6 * z, foot - 3 * z);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // Crossguard and pommel.
+    roundRect(ctx, px - 9 * z, foot - 36 * z, 18 * z, 4.5 * z, 2 * z);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(px, foot - 39 * z, 2.8 * z, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+
+  } else if (b.type === 'brazier') {
+    isoBox(d, gx + 0.14, gy + 0.14, 0.72, 0.72, 7, '#8e9aa6', '#5c6672', '#76818d');
+    const [px, py] = P(gx + 0.5, gy + 0.5);
+    const top = py - 7 * z;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+    ctx.fillStyle = '#4a5460';
+    // Three legs.
+    for (const dx of [-7, 0, 7]) {
+      ctx.beginPath();
+      ctx.moveTo(px + dx * z * 0.7, top);
+      ctx.lineTo(px + dx * z, top - 16 * z);
+      ctx.stroke();
+    }
+    // Bowl.
+    ctx.fillStyle = '#5b6875';
+    ctx.beginPath();
+    ctx.ellipse(px, top - 18 * z, 10 * z, 5.5 * z, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#2b3440';
+    ctx.beginPath();
+    ctx.ellipse(px, top - 19 * z, 7.5 * z, 3.6 * z, 0, 0, 6.29);
+    ctx.fill();
+
+  } else if (b.type === 'standard') {
+    isoBox(d, gx + 0.2, gy + 0.2, 0.6, 0.6, 8, '#9aa7b4', '#616c79', '#7d8894');
+    const [px, py] = P(gx + 0.5, gy + 0.5);
+    const foot = py - 8 * z;
+    ctx.strokeStyle = C.woodD;
+    ctx.lineWidth = Math.max(1.6, 2.6 * z);
+    ctx.beginPath();
+    ctx.moveTo(px, foot);
+    ctx.lineTo(px, foot - (46 + lv * 3) * z);
+    ctx.stroke();
+    // Finial.
+    ctx.fillStyle = '#ffd25c';
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.1, 1.7 * z);
+    ctx.beginPath();
+    ctx.ellipse(px, foot - (50 + lv * 3) * z, 3.4 * z, 3.4 * z, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+
   } else if (b.type === 'wall') {
     const wh = 24 + lv * 2.2;
     isoBox(d, gx + 0.02, gy + 0.02, 0.96, 0.96, wh, '#96a3b0', '#54626e', '#74828e');
@@ -331,6 +426,42 @@ export function drawBuildingFx(d: Draw, b: Renderable, enemy: boolean): void {
       ctx.arc(px + Math.sin(p * 4 + i * 2) * 6 * z, top - 12 * z - p * 34 * z, (2.6 + p * 6) * z, 0, 6.29);
       ctx.fill();
     }
+
+  } else if (b.type === 'brazier') {
+    const [px, py] = P(gx + 0.5, gy + 0.5);
+    const bowl = py - 26 * z;
+    // Three tongues on slightly different clocks, so it flickers rather than
+    // pulsing. It is the one thing on a maxed base that moves at night.
+    for (let i = 0; i < 3; i++) {
+      const p = (t * 1.6 + i * 0.37) % 1;
+      const h = (9 + p * 13 + Math.sin(t * 7 + i * 2) * 2) * z;
+      ctx.fillStyle = i === 0
+        ? `rgba(255,214,110,${(0.85 - p * 0.5).toFixed(2)})`
+        : `rgba(255,${(120 + i * 30).toFixed(0)},40,${(0.7 - p * 0.5).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.moveTo(px - (5 - i) * z, bowl);
+      ctx.quadraticCurveTo(px + (i - 1) * 4 * z, bowl - h * 0.6, px, bowl - h);
+      ctx.quadraticCurveTo(px + (1 - i) * 4 * z, bowl - h * 0.6, px + (5 - i) * z, bowl);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,170,60,.18)';
+    ctx.beginPath(); ctx.ellipse(px, bowl + 2 * z, 16 * z, 8 * z, 0, 0, 6.29); ctx.fill();
+
+  } else if (b.type === 'standard') {
+    const [px, py] = P(gx + 0.5, gy + 0.5);
+    const top = py - (54 + lv * 3) * z;
+    const wave = Math.sin(t * 2.2) * 3 * z;
+    ctx.fillStyle = bannerColor(enemy);
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.2, 1.9 * z);
+    ctx.beginPath();
+    ctx.moveTo(px, top);
+    ctx.lineTo(px + 20 * z + wave, top + 5 * z);
+    ctx.lineTo(px + 14 * z + wave, top + 13 * z);
+    ctx.lineTo(px + 20 * z + wave, top + 21 * z);
+    ctx.lineTo(px, top + 26 * z);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
 
   } else if (b.type === 'cannon') {
     const [px, py] = P(gx + s / 2, gy + s / 2);

@@ -13,7 +13,7 @@ import { createBattle, generateOpponent, mulberry, simulate } from '../src/index
  * cannot.
  */
 
-const ARMY: BattleArmy = { raider: 10, archer: 6, lancer: 3, ram: 2 };
+const ARMY: BattleArmy = { raider: 10, archer: 6, lancer: 3, ram: 2, scaler: 0 };
 
 /** A scripted player: deploys on a timer at a rotating set of spots. */
 function playLive(stage: number, seed: number, script: number): {
@@ -77,7 +77,7 @@ describe('a live-played battle replays identically', () => {
     const battle = createBattle({
       snapshot: generateOpponent(2),
       commands: [],
-      army: { raider: 1, archer: 0, lancer: 0, ram: 0 },
+      army: { raider: 1, archer: 0, lancer: 0, ram: 0, scaler: 0 },
       seed: 1,
     });
     expect(battle.deploy('raider', 18, 27).ok).toBe(true);

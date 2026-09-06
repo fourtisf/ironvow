@@ -120,6 +120,10 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
           ...(plan.value.type === 'keep' && plan.value.seconds === 0
             ? { keepLevel: plan.value.toLevel }
             : {}),
+          // The other completion path. A timed upgrade is counted by
+          // settleAndLoad when its builder finishes; an instant one never
+          // passes through there, so it is counted here instead.
+          ...(plan.value.seconds === 0 ? { dayUpgrades: { increment: 1 } } : {}),
         },
       });
       if (plan.value.seconds > 0) {
@@ -202,6 +206,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
           iron: collected.iron,
           // One per producer emptied, matching how the prototype counted taps.
           collected: { increment: collected.cleared.length },
+          dayCollected: { increment: collected.cleared.length },
         },
       });
       await tx.building.updateMany({

@@ -54,8 +54,10 @@
   /* ---------- bottom rail ---------- */
   #rail{position:absolute;left:0;right:0;bottom:calc(9px + env(safe-area-inset-bottom));
     display:flex;justify-content:center;gap:9px;padding:0 9px}
-  @media (max-width:400px){#rail{gap:6px}.rbtn span{font-size:7.5px;letter-spacing:.8px}}
-  .rbtn{width:66px;max-width:19vw;height:60px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  @media (max-width:430px){#rail{gap:5px}.rbtn span{font-size:7px;letter-spacing:.4px}}
+  /* Six buttons now that CLAN is here, so they flex rather than sitting at a
+     fixed 66px: at 412px CSS the old width overflowed the rail. */
+  .rbtn{flex:1 1 0;min-width:0;max-width:68px;height:60px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
     background:linear-gradient(#2c3d57,#1b2635);border:2px solid #46608a;box-shadow:0 4px 0 #0d1420;transition:transform .08s}
   .rbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d1420}
   .rbtn svg{width:26px;height:26px}
@@ -165,6 +167,15 @@
   .qrw{font-size:10px;color:#ffd97a;display:flex;align-items:center;gap:4px;flex:none}
   .qrw svg{width:14px;height:14px}
 
+  /* daily orders */
+  .dayHead{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+  .dayHead h3{font-size:11px;letter-spacing:1.8px;color:#f2e4c4}
+  .dayHead p{font-size:9px;font-family:Arial;font-weight:700;color:#8fa6c4;margin-top:3px}
+  .streak{font-size:9.5px;letter-spacing:.8px;color:#ffd97a;background:#3a2a16;
+    border:2px solid #7a5a24;border-radius:9px;padding:4px 8px;flex:none}
+  .qrow.day{border-color:#5a6f96;background:#26364f}
+  .qrow.day.done{border-color:#3f7a45}
+
   #homeBtn{position:absolute;left:9px;bottom:calc(80px + env(safe-area-inset-bottom));
     width:46px;height:46px;border-radius:14px;background:linear-gradient(#2c3d57,#1b2635);
     border:2px solid #46608a;box-shadow:0 4px 0 #0d1420;display:flex;align-items:center;justify-content:center}
@@ -247,3 +258,41 @@
 
   /* Your own row on the ladder, so it is findable in a list of fifty. */
   .qrow.me{border-color:#e8b23c;background:#2a3a24}
+
+  /* ---------- clans ---------- */
+  .clanBadge{display:flex;align-items:center;justify-content:center;flex:none;
+    border-radius:9px;border:2px solid #0d1420;color:#f2e4c4;letter-spacing:.5px;
+    font-weight:900;box-shadow:inset 0 -2px 0 rgba(0,0,0,.25)}
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tab{flex:1;padding:8px 4px;border-radius:11px;background:#22304a;border:2px solid #3d5170;
+    color:#8fa6c4;font-size:9.5px;letter-spacing:1.2px;position:relative}
+  .tab.on{background:#31435f;border-color:#7d9ac4;color:#f2e4c4}
+  .tab .dot{position:absolute;top:4px;right:6px}
+
+  .chatLog{height:44vh;min-height:180px;overflow-y:auto;background:#141d2e;border:2px solid #2d3d58;
+    border-radius:13px;padding:9px;display:flex;flex-direction:column;gap:6px}
+  .chatSys{font-size:9px;font-family:Arial;font-weight:700;color:#7f93ad;text-align:center;margin:2px 0}
+  .chatMsg{max-width:82%;background:#2a3a55;border:2px solid #3d5170;border-radius:11px;
+    padding:6px 9px;align-self:flex-start}
+  .chatMsg.mine{align-self:flex-end;background:#2f4a37;border-color:#4a7a52}
+  .chatMsg .who{display:block;font-size:8.5px;letter-spacing:.8px;color:#ffd97a;margin-bottom:2px}
+  .chatMsg .body{font-size:11px;font-family:Arial;font-weight:600;color:#e6eefa;
+    word-break:break-word;line-height:1.35}
+
+  .chatBar{display:flex;gap:7px;margin-top:9px}
+  .chatBar input{flex:1;min-width:0}
+  .formRow{display:flex;gap:7px;margin-bottom:8px}
+  .formRow input,.formRow select,.chatBar input{background:#141d2e;border:2px solid #3d5170;
+    border-radius:11px;padding:9px 10px;color:#e6eefa;font-family:Arial;font-weight:700;font-size:11.5px;
+    min-width:0;flex:1}
+  .formRow input:focus,.chatBar input:focus{outline:none;border-color:#7d9ac4}
+  .badgeRow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:6px 0 10px}
+  .badgePick{padding:3px;border-radius:11px;border:2px solid transparent;background:none}
+  .badgePick.on{border-color:#e8b23c;background:#2a3a24}
+  .btn.wide{width:100%}
+  .roleTag{font-size:8px;letter-spacing:.8px;padding:1px 5px;border-radius:6px;
+    background:#31435f;color:#c3d4ea;margin-right:4px}
+  .roleTag.leader{background:#7a5a24;color:#ffd97a}
+  .roleTag.elder{background:#2f4a5a;color:#9fd6ea}
+  .tagYou{font-size:8px;letter-spacing:.8px;color:#8fe07a;margin-left:4px}
+  .rank{font-size:11px;color:#8fa6c4;width:22px;flex:none;text-align:center}

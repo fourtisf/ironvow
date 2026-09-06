@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { HERO_UNLOCK_KEEP_LEVEL, heroRespawnMinutes, heroUpgradeCost, troopUpgradeCost } from '@ironvow/config';
+import {
+  HERO_UNLOCK_KEEP_LEVEL, TROOP_ORDER, heroRespawnMinutes, heroUpgradeCost, troopUpgradeCost,
+} from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './helpers.js';
 
@@ -133,7 +135,7 @@ describe.skipIf(!hasDatabase)('progression', () => {
     expect(res.hero.unlocked).toBe(true);
     expect(res.hero.stats.hp).toBeGreaterThan(0);
     expect(res.lab.level).toBe(3);
-    expect(res.lab.troops).toHaveLength(4);
+    expect(res.lab.troops).toHaveLength(TROOP_ORDER.length);
     expect(res.lab.troops.every((t: { level: number }) => t.level === 1)).toBe(true);
   });
 });

@@ -12,7 +12,7 @@ import { createBattle, generateOpponent, simulate } from '../src/index.js';
  * has paid for.
  */
 
-const NONE: BattleArmy = { raider: 0, archer: 0, lancer: 0, ram: 0 };
+const NONE: BattleArmy = { raider: 0, archer: 0, lancer: 0, ram: 0, scaler: 0 };
 
 function snap(buildings: SnapshotBuilding[], pool = { g: 0, i: 0 }): BaseSnapshot {
   return { version: 1, defenderId: 'd', defenderName: 'Test', keepLevel: 1, buildings, pool };
@@ -179,7 +179,7 @@ describe('troop lab levels', () => {
 describe('live play with a hero replays identically', () => {
   it('matches the server replay of the same commands', () => {
     const snapshot = generateOpponent(6);
-    const army: BattleArmy = { raider: 8, archer: 4, lancer: 2, ram: 1 };
+    const army: BattleArmy = { raider: 8, archer: 4, lancer: 2, ram: 1, scaler: 0 };
     const hero = { level: 7, available: true };
     const troopLevels = { raider: 4, archer: 3, lancer: 2, ram: 5 };
 

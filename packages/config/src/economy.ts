@@ -1,4 +1,4 @@
-import { TYPES, type BuildingType } from './buildings.js';
+import { TYPES, isVanity, type BuildingType } from './buildings.js';
 import { barracksSlots, TROOP, TROOP_ORDER, type TroopType } from './troops.js';
 
 /** Gold per minute from one Gold Mine. */
@@ -128,10 +128,17 @@ export function availableLoot(stored: number, buildings: readonly OwnedBuilding[
   return Math.min(LOOT_CEILING, Math.floor(exposed * LOOT_SHARE));
 }
 
-/** Every building except a Rampart carries an equal share of the loot pool. */
+/**
+ * Every building except a Rampart carries an equal share of the loot pool.
+ *
+ * Vanity never reaches here — it is filtered out of the snapshot before a
+ * battle is built — but the guard is written anyway, because the day someone
+ * puts a statue in a snapshot it should carry nothing rather than dilute the
+ * pool across the whole base.
+ */
 export function lootCarriers(buildings: readonly { type: BuildingType }[]): number {
   let n = 0;
-  for (const b of buildings) if (b.type !== 'wall') n++;
+  for (const b of buildings) if (b.type !== 'wall' && !isVanity(b.type)) n++;
   return n;
 }
 

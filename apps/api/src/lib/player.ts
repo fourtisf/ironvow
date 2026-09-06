@@ -1,6 +1,9 @@
 import {
   BUILDERS,
+  DAILY_COUNTERS,
   QUEST_COUNTERS,
+  dayIndexOf,
+  type DailyCounter,
   buildersFree,
   isUnderConstruction,
   START_GOLD,
@@ -52,6 +55,11 @@ export interface LoadedPlayer extends PlayerView {
   /** War Order counters, server-incremented. */
   counters: Record<QuestCounter, number>;
   claimedQuests: string[];
+  /** Today's counters, zeroed by the first settle after midnight UTC. */
+  daily: Record<DailyCounter, number>;
+  dailyClaimed: string[];
+  /** Consecutive days the player has been here, today included. */
+  streakDays: number;
 }
 
 /**
@@ -84,13 +92,35 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   });
   if (!player) throw new PlayerNotFound(playerId);
 
+  /* --- the day, before anything reads a daily counter ---
+   *
+   * A settle only ever runs for the player making the request, so reaching
+   * here is itself the evidence that they turned up today. That is what makes
+   * it the right place to advance the streak: no cron, no job, and no way for
+   * a background task to run a streak up on a player's behalf.
+   */
+  const today = dayIndexOf(now);
+  if (player.dayKey !== today) {
+    const streakDays = player.dayKey === today - 1 ? player.streakDays + 1 : 1;
+    const reset = {
+      dayKey: today,
+      streakDays,
+      dailyClaimed: [],
+      ...Object.fromEntries(DAILY_COUNTERS.map((c) => [c, 0])),
+    };
+    await tx.player.update({ where: { id: playerId }, data: reset });
+    Object.assign(player, reset);
+  }
+
   /* --- finished builders, before anything else reads a level --- */
   const finished = player.buildings.filter(
     (b) => b.completesAt !== null && b.completesAt.getTime() <= now.getTime(),
   );
+  let upgradesFinished = 0;
   for (const b of finished) {
     // A fresh build has no upgradingTo: it simply starts working.
     const level = b.upgradingTo ?? b.level;
+    if (b.upgradingTo !== null) upgradesFinished++;
     await tx.building.update({
       where: { id: b.id },
       data: { level, completesAt: null, upgradingTo: null },
@@ -98,6 +128,17 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     b.level = level;
     b.completesAt = null;
     b.upgradingTo = null;
+  }
+  if (upgradesFinished > 0) {
+    // Counted where the level actually changes, not where the upgrade is
+    // ordered, so a job that is cancelled halfway scores nothing. "Finish now"
+    // backdates the timer rather than clearing it, precisely so it arrives
+    // here too and there is one place that knows an upgrade completed.
+    await tx.player.update({
+      where: { id: playerId },
+      data: { dayUpgrades: { increment: upgradesFinished } },
+    });
+    player.dayUpgrades += upgradesFinished;
   }
 
   /* --- production --- */
@@ -138,7 +179,7 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   const resolved = resolveQueue(jobs, now);
 
   const army: Partial<Record<TroopType, number>> = {};
-  const troopLevels = { raider: 1, archer: 1, lancer: 1, ram: 1 } as Record<TroopType, number>;
+  const troopLevels = Object.fromEntries(TROOP_ORDER.map((t) => [t, 1])) as Record<TroopType, number>;
   for (const t of player.troops) {
     army[t.type as TroopType] = t.count;
     troopLevels[t.type as TroopType] = t.level;
@@ -150,7 +191,10 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     // ordered, so a cancelled or still-cooking job never scores a War Order.
     await tx.player.update({
       where: { id: playerId },
-      data: { trainedTotal: { increment: resolved.finished.length } },
+      data: {
+        trainedTotal: { increment: resolved.finished.length },
+        dayTrained: { increment: resolved.finished.length },
+      },
     });
     player.trainedTotal += resolved.finished.length;
     for (const type of TROOP_ORDER) {
@@ -190,6 +234,9 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   const counters = Object.fromEntries(
     QUEST_COUNTERS.map((k) => [k, player[k]]),
   ) as Record<QuestCounter, number>;
+  const daily = Object.fromEntries(
+    DAILY_COUNTERS.map((k) => [k, player[k]]),
+  ) as Record<DailyCounter, number>;
 
   return {
     id: player.id,
@@ -220,6 +267,9 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     armyUsed: armyUsedOf(army, queueTypes),
     counters,
     claimedQuests: player.claimedQuests,
+    daily,
+    dailyClaimed: player.dailyClaimed,
+    streakDays: player.streakDays,
   };
 }
 

@@ -11,6 +11,8 @@ export * from './troops.js';
 export * from './economy.js';
 export * from './rewards.js';
 export * from './quests.js';
+export * from './daily.js';
+export * from './clans.js';
 export * from './hero.js';
 export * from './lab.js';
 export * from './building-time.js';

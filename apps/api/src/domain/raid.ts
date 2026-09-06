@@ -4,6 +4,7 @@ import {
   TROPHY_BAND_START,
   TROPHY_BAND_STEP,
   availableLoot,
+  isVanity,
   shieldHoursFor,
   stageFromTrophies,
   trophyLoss,
@@ -44,6 +45,10 @@ export function snapshotBase(source: SnapshotSource): BaseSnapshot {
     defenderName: source.name,
     keepLevel: source.keepLevel,
     buildings: source.buildings
+      // A statue is not a target. Leaving vanity out here is what makes it
+      // free of consequence: it cannot be destroyed, cannot carry loot, and
+      // cannot pad the hit points that decide a star.
+      .filter((b) => !isVanity(b.type))
       .map((b) => ({ id: b.id, type: b.type, gx: b.gx, gy: b.gy, level: b.level }))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     pool: {

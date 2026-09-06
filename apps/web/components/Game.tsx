@@ -10,7 +10,7 @@ import {
 } from '@ironvow/config';
 import type { DeployCommand } from '@ironvow/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, api } from '../lib/api';
+import { ApiError, api, type DailyView } from '../lib/api';
 import {
   beginBattle,
   bump,
@@ -33,6 +33,7 @@ import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
 import { ClaimModal, ConfirmModal, ResultModal, ScoutModal, SignInModal } from './Modals';
+import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot, type Quality } from './Settings';
@@ -48,7 +49,7 @@ import { Toast } from './Toast';
  * server state down and the world calling back when the player does something.
  */
 
-type Sheet = 'build' | 'army' | 'orders' | 'log' | 'ladder' | 'settings' | null;
+type Sheet = 'build' | 'army' | 'orders' | 'log' | 'clan' | 'ladder' | 'settings' | null;
 
 /** The player's own row, pinned when they are not in the top fifty. */
 type LadderSheetMe = { name: string; trophies: number; rank: number } | null;
@@ -68,6 +69,7 @@ export function Game() {
   const [signInSent, setSignInSent] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [quests, setQuests] = useState<QuestRow[]>([]);
+  const [daily, setDaily] = useState<DailyView | null>(null);
   const [claimingQuest, setClaimingQuest] = useState<string | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
   const [claimSent, setClaimSent] = useState(false);
@@ -186,7 +188,9 @@ export function Game() {
 
   const loadQuests = useCallback(async () => {
     try {
-      setQuests((await api.quests()).quests);
+      const [list, today] = await Promise.all([api.quests(), api.daily()]);
+      setQuests(list.quests);
+      setDaily(today);
     } catch {
       // The orders sheet is not worth a toast; the rail dot just stays quiet.
     }
@@ -321,6 +325,17 @@ export function Game() {
     if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
     void loadQuests();
   }, [runCommand, say, loadQuests]);
+
+  const claimDaily = useCallback(async (orderId: string) => {
+    setClaimingQuest(orderId);
+    const result = await runCommand(() => api.claimDaily(orderId));
+    setClaimingQuest(null);
+    if (!result) return;
+    sfx.coin();
+    say(`Order done — ${rewardText(result.reward)}`);
+    if (result.wasted.gold + result.wasted.iron > 0) say('Storage was full — some of it was lost');
+    setDaily(result.daily);
+  }, [runCommand, say]);
 
   const claimQuest = useCallback(async (questId: string) => {
     setClaimingQuest(questId);
@@ -635,6 +650,7 @@ export function Game() {
           onBuild={() => { sfx.tap(); setSheet('build'); }}
           onArmy={() => { sfx.tap(); setSheet('army'); void loadProgression(); }}
           onOrders={() => { sfx.tap(); setSheet('orders'); void loadQuests(); }}
+          onClan={() => { sfx.tap(); setSheet('clan'); }}
           onLog={() => { sfx.tap(); setSheet('log'); }}
           onLadder={() => { sfx.tap(); setSheet('ladder'); void loadLadder(); }}
           onRaid={() => { unlockAudio(); sfx.tap(); void findRaid(false); }}
@@ -708,6 +724,15 @@ export function Game() {
         />
       )}
 
+      {sheet === 'clan' && player && (
+        <ClanSheet
+          player={player}
+          onClose={() => setSheet(null)}
+          onToast={say}
+          onPlayerChanged={() => { void refresh(); }}
+        />
+      )}
+
       {sheet === 'build' && player && (
         <BuildSheet
           player={player}
@@ -744,6 +769,8 @@ export function Game() {
       {sheet === 'orders' && (
         <QuestSheet
           quests={quests}
+          daily={daily}
+          onClaimDaily={(id) => { void claimDaily(id); }}
           busyId={claimingQuest}
           onClose={() => setSheet(null)}
           onClaim={(id) => { void claimQuest(id); }}

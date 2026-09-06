@@ -36,7 +36,19 @@ function CostLine({ cost, affordable }: { cost: Cost; affordable: boolean }) {
   );
 }
 
-const BUILDABLE: BuildingType[] = ['mine', 'forge', 'store', 'barr', 'cannon', 'tower', 'wall'];
+/**
+ * What the sheet offers.
+ *
+ * The War Lab was missing from this list. The server has always allowed one
+ * from Keep 3, the cap table has always had a row for it, and the ARMY sheet
+ * has always told the player to go and build one — but there was no card, so
+ * there was no way to. A player could reach Keep 9 being told to build
+ * something the game would not sell them.
+ */
+const BUILDABLE: BuildingType[] = ['mine', 'forge', 'store', 'barr', 'lab', 'cannon', 'tower', 'wall'];
+
+/** Bought to be looked at. Shown separately, and only once one is unlocked. */
+const VANITY: BuildingType[] = ['statue', 'brazier', 'standard'];
 
 export interface BuildSheetProps {
   player: PlayerState;
@@ -46,6 +58,9 @@ export interface BuildSheetProps {
 
 export function BuildSheet({ player, onClose, onPick }: BuildSheetProps) {
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
+  // Hidden entirely until the Keep unlocks one, rather than shown greyed out:
+  // a new player has enough to read without a locked row of ornaments.
+  const showVanity = VANITY.some((t) => capOf(t, player.keepLevel) > 0);
 
   return (
     <div className="sheet">
@@ -57,31 +72,43 @@ export function BuildSheet({ player, onClose, onPick }: BuildSheetProps) {
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
 
-      <div className="grid">
-        {BUILDABLE.map((type) => {
-          const have = countOf(owned, type);
-          const limit = capOf(type, player.keepLevel);
-          const cost = costOf(type, 0, have);
-          const affordable = player.gold >= cost.g && player.iron >= cost.i;
-          const locked = have >= limit;
+      <div className="grid">{BUILDABLE.map(card)}</div>
 
-          return (
-            <button
-              key={type}
-              className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}`}
-              onClick={() => !locked && onPick(type)}
-              disabled={locked}
-            >
-              <span className="cnt">{have}/{limit}</span>
-              <div className="nm">{TYPES[type].n}</div>
-              <CostLine cost={cost} affordable={affordable} />
-              <div className="sub">{locked ? 'RAISE KEEP' : `${TYPES[type].s}×${TYPES[type].s}`}</div>
-            </button>
-          );
-        })}
-      </div>
+      {showVanity && (
+        <>
+          <div className="dayHead" style={{ marginTop: 14 }}>
+            <div>
+              <h3>FOR THE LOOK</h3>
+              <p>No defence, no production, no loot for a raider. Somewhere for the gold to go.</p>
+            </div>
+          </div>
+          <div className="grid">{VANITY.map(card)}</div>
+        </>
+      )}
     </div>
   );
+
+  function card(type: BuildingType) {
+    const have = countOf(owned, type);
+    const limit = capOf(type, player.keepLevel);
+    const cost = costOf(type, 0, have);
+    const affordable = player.gold >= cost.g && player.iron >= cost.i;
+    const locked = have >= limit;
+
+    return (
+      <button
+        key={type}
+        className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}`}
+        onClick={() => !locked && onPick(type)}
+        disabled={locked}
+      >
+        <span className="cnt">{have}/{limit}</span>
+        <div className="nm">{TYPES[type].n}</div>
+        <CostLine cost={cost} affordable={affordable} />
+        <div className="sub">{locked ? 'RAISE KEEP' : `${TYPES[type].s}×${TYPES[type].s}`}</div>
+      </button>
+    );
+  }
 }
 
 export interface ProgressionView {

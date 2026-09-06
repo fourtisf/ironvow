@@ -8,7 +8,7 @@
 import { generateOpponent, simulate } from '../../src/index.js';
 import type { BattleArmy, DeployCommand } from '@ironvow/types';
 
-export const ARMY: BattleArmy = { raider: 12, archer: 9, lancer: 5, ram: 3 };
+export const ARMY: BattleArmy = { raider: 12, archer: 9, lancer: 5, ram: 3, scaler: 0 };
 
 export function fixtureCommands(): DeployCommand[] {
   const ring: [number, number][] = [

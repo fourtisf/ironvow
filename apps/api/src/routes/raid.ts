@@ -54,13 +54,17 @@ const submitSchema = z.object({
   clientStars: z.number().int().min(0).max(3).optional(),
 });
 
+/**
+ * Fill in every troop type, including ones the player has never trained.
+ *
+ * Built from TROOP_ORDER rather than spelled out, so a new troop is one edit in
+ * `@ironvow/config` and not a silent zero here. It also normalises an old
+ * raid's frozen warband, which predates whatever was added since.
+ */
 function armyOf(army: Partial<Record<TroopType, number>>): BattleArmy {
-  return {
-    raider: army.raider ?? 0,
-    archer: army.archer ?? 0,
-    lancer: army.lancer ?? 0,
-    ram: army.ram ?? 0,
-  };
+  const out = {} as BattleArmy;
+  for (const t of TROOP_ORDER) out[t] = army[t] ?? 0;
+  return out;
 }
 
 export async function raidRoutes(app: FastifyInstance): Promise<void> {
@@ -450,6 +454,16 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           raids: { increment: 1 },
           ...(sim.stars >= 1 ? { wins: { increment: 1 } } : {}),
           ...(sim.stars === 3 ? { threeStars: { increment: 1 } } : {}),
+          // The same figures again for today only. Daily orders are measured
+          // off these; the settle at the top of the request has already zeroed
+          // them if this is the first raid after midnight.
+          dayRaids: { increment: 1 },
+          dayStars: { increment: sim.stars },
+          ...(sim.stars >= 1 ? { dayWins: { increment: 1 } } : {}),
+          ...(sim.stars === 3 ? { dayThreeStars: { increment: 1 } } : {}),
+          // What was actually carried off, not what was on the table: a raid
+          // that wins nothing counts nothing toward a plunder order.
+          dayLootGold: { increment: Number(settlement.loot.g) },
           // A fallen hero is away for a while. That cost is what makes
           // committing it a decision rather than a reflex.
           ...(sim.heroDied

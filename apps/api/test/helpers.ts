@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
+import { TROOP_ORDER } from '@ironvow/config';
 
 /**
  * Integration tests run against a real Postgres.
@@ -49,7 +50,10 @@ export const db = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL
 
 export async function resetDatabase(): Promise<void> {
   await db.$executeRawUnsafe(
-    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "Player" RESTART IDENTITY CASCADE',
+    // Clan is listed explicitly: unlike everything else here it does not hang
+    // off a Player, so truncating players leaves the clans behind and the next
+    // test fails on a name that is still taken.
+    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "Clan", "Player" RESTART IDENTITY CASCADE',
   );
 }
 
@@ -73,9 +77,7 @@ export async function makePlayer(
           { type: 'barr', gx: mid + 3, gy: mid, level: 1 },
         ],
       },
-      troops: {
-        create: (['raider', 'archer', 'lancer', 'ram'] as const).map((type) => ({ type, count: 0 })),
-      },
+      troops: { create: TROOP_ORDER.map((type) => ({ type, count: 0 })) },
     },
     select: { id: true },
   });

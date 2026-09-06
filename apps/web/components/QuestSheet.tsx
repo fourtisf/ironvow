@@ -1,6 +1,7 @@
 'use client';
 
 import { fmt } from '../lib/format';
+import type { DailyView } from '../lib/api';
 
 /**
  * War Orders.
@@ -21,13 +22,25 @@ export interface QuestRow {
 
 export interface QuestSheetProps {
   quests: QuestRow[];
+  daily: DailyView | null;
   busyId: string | null;
   onClose: () => void;
   onClaim: (questId: string) => void;
+  onClaimDaily: (orderId: string) => void;
 }
 
-export function QuestSheet({ quests, busyId, onClose, onClaim }: QuestSheetProps) {
+/** "4h 20m", for the countdown to the next set. */
+function untilText(ms: number): string {
+  const mins = Math.max(0, Math.floor(ms / 60_000));
+  const h = Math.floor(mins / 60);
+  return h > 0 ? `${h}h ${mins % 60}m` : `${mins}m`;
+}
+
+export function QuestSheet({
+  quests, daily, busyId, onClose, onClaim, onClaimDaily,
+}: QuestSheetProps) {
   const done = quests.filter((q) => q.claimed).length;
+  const allDone = done === quests.length && quests.length > 0;
 
   return (
     <div className="sheet">
@@ -38,6 +51,53 @@ export function QuestSheet({ quests, busyId, onClose, onClaim }: QuestSheetProps
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
+
+      {daily && (
+        <>
+          <div className="dayHead">
+            <div>
+              <h3>TODAY</h3>
+              <p>New orders in {untilText(daily.resetsInMs)}</p>
+            </div>
+            {daily.streak > 1 && (
+              <span className="streak" title="Consecutive days. Raises every reward below.">
+                🔥 {daily.streak} DAYS
+              </span>
+            )}
+          </div>
+
+          {daily.orders.map((o) => {
+            const ready = o.progress >= o.goal && !o.claimed;
+            return (
+              <div className={`qrow day${o.claimed ? ' done' : ''}`} key={o.id}>
+                <div className="qi">
+                  <h4>{o.name}</h4>
+                  <p>{o.detail} · {rewardText(o.reward)}</p>
+                  <div className="qbarBg">
+                    <div className="qbar" style={{ width: `${Math.min(100, (o.progress / o.goal) * 100)}%` }} />
+                  </div>
+                </div>
+                {o.claimed ? (
+                  <span className="qrw">DONE</span>
+                ) : ready ? (
+                  <button className="btn gold" disabled={busyId === o.id} onClick={() => onClaimDaily(o.id)}>
+                    {busyId === o.id ? '…' : 'CLAIM'}
+                  </button>
+                ) : (
+                  <span className="qrw">{fmt(o.progress)}/{fmt(o.goal)}</span>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="dayHead">
+            <div>
+              <h3>{allDone ? 'THE LONG LIST' : 'YOUR CAMPAIGN'}</h3>
+              <p>{allDone ? 'Every one of these is behind you.' : 'One-time orders, in order.'}</p>
+            </div>
+          </div>
+        </>
+      )}
 
       {quests.map((q) => {
         const ready = q.progress >= q.goal && !q.claimed;

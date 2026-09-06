@@ -41,6 +41,47 @@ export interface CommandResponse {
   player: PlayerState;
 }
 
+/** Today's three orders, the streak, and how long is left on the day. */
+export interface DailyView {
+  count: number;
+  streak: number;
+  resetsInMs: number;
+  orders: {
+    id: string; name: string; detail: string; goal: number;
+    reward: { g: number; i: number }; progress: number; claimed: boolean;
+  }[];
+}
+
+export type ClanRole = 'leader' | 'elder' | 'member';
+export type JoinPolicy = 'open' | 'request' | 'closed';
+
+export interface ClanSummary {
+  id: string; name: string; tag: string; description: string;
+  joinPolicy: JoinPolicy; minTrophies: number; badge: number;
+  memberCount: number; maxMembers: number; trophies: number;
+}
+
+export interface ClanMemberRow {
+  id: string; name: string; trophies: number; keepLevel: number;
+  role: ClanRole; joinedAt: string;
+}
+
+export interface MyClanView {
+  role: ClanRole | null;
+  clan: (ClanSummary & { members: ClanMemberRow[] }) | null;
+  requests?: { id: string; name: string; trophies: number; keepLevel: number; at: string }[];
+}
+
+export interface ChatMessage {
+  id: string; authorId: string | null; author: string; body: string;
+  kind: 'chat' | 'system'; at: string; mine: boolean;
+}
+
+export interface ClanLadderRow {
+  id: string; name: string; tag: string; badge: number;
+  memberCount: number; trophies: number; rank: number; isMine: boolean;
+}
+
 export const api = {
   me: (): Promise<PlayerState> => call('/me'),
 
@@ -131,6 +172,43 @@ export const api = {
 
   claimQuest: (questId: string): Promise<CommandResponse & { reward: { g: number; i: number } }> =>
     post('/quests/claim', { questId }),
+
+  daily: (): Promise<DailyView> => call('/quests/daily'),
+
+  /* --- clans --- */
+
+  myClan: (): Promise<MyClanView> => call('/clan'),
+  findClans: (q: string): Promise<{ clans: ClanSummary[] }> =>
+    call(`/clans?q=${encodeURIComponent(q)}`),
+  createClan: (
+    body: { name: string; tag: string; description?: string; joinPolicy?: string; minTrophies?: number; badge?: number },
+  ): Promise<{ clanId: string; player: PlayerState }> => post('/clans', body),
+  joinClan: (clanId: string): Promise<{ state: 'joined' | 'requested' }> =>
+    post('/clan/join', { clanId }),
+  leaveClan: (): Promise<{ ok: true }> => post('/clan/leave'),
+  kickFromClan: (playerId: string): Promise<{ ok: true }> => post('/clan/kick', { playerId }),
+  setClanRole: (playerId: string, role: ClanRole): Promise<{ ok: true }> =>
+    post('/clan/role', { playerId, role }),
+  decideClanRequest: (playerId: string, accept: boolean): Promise<{ accepted: boolean }> =>
+    post('/clan/requests/decide', { playerId, accept }),
+  clanSettings: (
+    body: { description?: string; joinPolicy?: string; minTrophies?: number; badge?: number },
+  ): Promise<{ ok: true }> => post('/clan/settings', body),
+  clanMessages: (after?: string): Promise<{ messages: ChatMessage[] }> =>
+    call(`/clan/messages${after ? `?after=${encodeURIComponent(after)}` : ''}`),
+  sendClanMessage: (body: string): Promise<{ message: ChatMessage }> =>
+    post('/clan/messages', { body }),
+  deleteClanMessage: (messageId: string): Promise<{ ok: true }> =>
+    post('/clan/messages/delete', { messageId }),
+  clanLadder: (): Promise<{ top: ClanLadderRow[] }> => call('/leaderboard/clans'),
+
+  claimDaily: (orderId: string): Promise<
+    CommandResponse & {
+      reward: { g: number; i: number };
+      wasted: { gold: number; iron: number };
+      daily: DailyView;
+    }
+  > => post('/quests/daily/claim', { orderId }),
 
   /** Open a raid straight back at whoever hit you. */
   revenge: (raidId: string): Promise<ScoutedRaid & { isPlayer: boolean; player: PlayerState }> =>

@@ -8,6 +8,7 @@ import {
   TROOP_ORDER,
   TYPES,
   clamp,
+  climbs,
   dist,
   facingOf,
   heroStats,
@@ -57,6 +58,8 @@ export interface UnitStats {
   rng: number;
   pref: 'any' | 'def' | 'wall';
   ranged: boolean;
+  /** Ramparts do not stop this unit. */
+  climb: boolean;
 }
 
 export function statsFor(
@@ -66,7 +69,7 @@ export function statsFor(
 ): UnitStats {
   if (type === 'hero') {
     const h = heroStats(heroLevel);
-    return { ...h, pref: 'any', ranged: false };
+    return { ...h, pref: 'any', ranged: false, climb: false };
   }
   const def = TROOP[type];
   const power = troopPower(troopLevels[type] ?? 1);
@@ -78,6 +81,7 @@ export function statsFor(
     rng: def.rng,
     pref: def.pref,
     ranged: isRanged(type),
+    climb: climbs(type),
   };
 }
 
@@ -261,7 +265,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   let lootI = 0;
 
   /* ---- the attacker's warband, drawn down by each deploy ---- */
-  const avail: BattleArmy = { raider: army.raider | 0, archer: army.archer | 0, lancer: army.lancer | 0, ram: army.ram | 0 };
+  const avail = {} as BattleArmy;
+  for (const t of TROOP_ORDER) avail[t] = army[t] | 0;
   const rejected: RejectedCommand[] = [];
   /** Index of the hero once committed, or -1. There is only ever one. */
   let heroUnit = -1;
@@ -359,13 +364,22 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
    * A ram weights ramparts at 0.55x distance so it prefers them, and the
    * `best` guard lets it fall through to any structure once the walls are gone
    * rather than stalling in front of nothing.
+   *
+   * The fallback pass at the bottom is also what keeps a climber honest
+   * against a base that is nothing but ramparts: it skips them all, finds no
+   * target, and then takes the nearest thing anyway rather than standing still.
    */
   const pickTarget = (u: SimUnit): void => {
-    const pref = statsFor(u.t, troopLevels, heroLevel).pref;
+    const stats = statsFor(u.t, troopLevels, heroLevel);
+    const pref = stats.pref;
     let best = -1;
     let bd = 1e9;
     for (const s of structs) {
       if (s.dead) continue;
+      // To a climber a rampart is scenery, not a target. Both halves are
+      // needed: without this it would walk past the wall and then turn round
+      // and attack it, because a wall is the nearest thing there is.
+      if (stats.climb && s.t === 'wall') continue;
       if (pref === 'def' && !isDefensive(s.t)) continue;
       if (pref === 'wall' && s.t !== 'wall' && best >= 0) continue;
       const d = dist(u.x, u.y, s.cx, s.cy);
@@ -510,9 +524,10 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
         }
       } else {
         const p = stepToward(u.x, u.y, tgt.cx, tgt.cy, d.spd * DT);
-        // A rampart physically stops you: walk into its cell and it becomes your problem.
+        // A rampart physically stops you: walk into its cell and it becomes
+        // your problem. Unless you climb, in which case it is scenery.
         const key = Math.floor(p.x) + ',' + Math.floor(p.y);
-        if (wallSet.has(key) && tgt.t !== 'wall') {
+        if (!d.climb && wallSet.has(key) && tgt.t !== 'wall') {
           const wall = structs.find(
             (s) => !s.dead && s.t === 'wall' && s.gx === Math.floor(p.x) && s.gy === Math.floor(p.y),
           );

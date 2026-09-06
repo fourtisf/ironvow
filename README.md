@@ -162,6 +162,37 @@ hundredth of players are cheating.
 
 ## Deployment
 
+### The short way
+
+```sh
+cp .env.docker.example .env      # then put something in SESSION_SECRET
+docker compose up --build
+open http://localhost:3000
+```
+
+Postgres, Redis, the API, the worker and the web app. Migrations run when the
+API container starts, so the schema is never behind the code that expects it.
+Login links go to `docker compose logs api` until SMTP is configured, which is
+what you want on a machine you are playing on yourself.
+
+Two things worth knowing about the build:
+
+- **`NEXT_PUBLIC_API_URL` and `API_PROXY_URL` are different addresses for the
+  same API, and Next bakes both in at build time.** The public one is inlined
+  into the browser bundle and has to be reachable from a phone (`/api`); the
+  other is compiled into the rewrite table and has to be reachable from inside
+  the container network (`http://api:4000`). They were one variable until it
+  turned out that meant one of the two was always wrong.
+- **The compose stack has not been run end to end.** The environment this was
+  built in blocks pulling images from Docker Hub, so `docker compose build`
+  cannot complete here. What has been checked: `docker compose config`
+  validates, the build stages match the scripts and output paths in each
+  package, and the two API addresses were verified against a real
+  `next build` — the rewrite gets `http://api:4000` and the client bundle
+  keeps `/api`. Expect to fix something the first time you run it.
+
+### The long way
+
 `deploy/ecosystem.config.cjs` runs the API clustered, the worker as a single
 instance (repeatable BullMQ jobs must not be registered twice) and the Next
 server behind `deploy/nginx.conf`. The API and client share one origin so the

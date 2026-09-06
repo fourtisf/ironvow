@@ -49,7 +49,29 @@ model Player {
   /// Ids of War Orders whose reward has been paid out.
   claimedQuests String[] @default([])
 
+  /// Daily War Orders.
+  ///
+  /// Which three a player has on a given day is derived from their id and the
+  /// day number, not stored — see `dailyOrdersFor`. What has to be stored is
+  /// how far they have got today, and that is what these are. `dayKey` is the
+  /// UTC day they belong to; the first settle on a new day zeroes them.
+  dayKey        Int      @default(0)
+  dayCollected  Int      @default(0)
+  dayTrained    Int      @default(0)
+  dayWins       Int      @default(0)
+  dayRaids      Int      @default(0)
+  dayStars      Int      @default(0)
+  dayThreeStars Int      @default(0)
+  dayLootGold   Int      @default(0)
+  dayUpgrades   Int      @default(0)
+  dailyClaimed  String[] @default([])
+  /// Consecutive days the player has opened the game. Raises the daily reward.
+  streakDays    Int      @default(0)
+
   buildings  Building[]
+  clanSeat   ClanMember?
+  clanAsks   ClanRequest[]
+  clanPosts  ClanMessage[]
   layouts    Layout[]
   pushSubs   PushSubscription[]
   troops     Troop[]
@@ -257,4 +279,85 @@ model LoginLink {
 
   @@index([email])
   @@index([expiresAt])
+}
+
+/// A clan.
+///
+/// Not in the build document. Added because a base builder with no one to talk
+/// to is a single-player game with other people's layouts in it — the thing
+/// that keeps players in this genre is the twenty other names in the list.
+///
+/// Deliberately NOT here: clan wars. A war is a second game mode with its own
+/// matchmaking, its own clock, its own attack allocation and its own rewards,
+/// and inventing all of that unasked would be a worse answer than saying so.
+model Clan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  /// Short badge text, 2-5 characters. Shown next to a member's name.
+  tag         String   @unique
+  description String   @default("")
+  /// open | request | closed
+  joinPolicy  String   @default("open")
+  /// Applicants below this are refused. Checked on the server, always.
+  minTrophies Int      @default(0)
+  /// Index into a small set of procedurally drawn badges.
+  badge       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  members  ClanMember[]
+  requests ClanRequest[]
+  messages ClanMessage[]
+}
+
+/// One seat in one clan.
+///
+/// `playerId` is unique, which is the whole membership rule: a player is in at
+/// most one clan, enforced by the database rather than by remembering to check.
+model ClanMember {
+  id       String   @id @default(cuid())
+  clanId   String
+  playerId String   @unique
+  /// leader | elder | member
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([clanId])
+}
+
+/// A pending application to a clan whose policy is `request`.
+model ClanRequest {
+  id        String   @id @default(cuid())
+  clanId    String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([clanId, playerId])
+  @@index([clanId])
+}
+
+/// One line of clan chat, or one system line.
+///
+/// The author's name is copied onto the row rather than joined: a message must
+/// still render after the player who wrote it deletes their account, and the
+/// name they had at the time is the honest thing to show.
+model ClanMessage {
+  id         String   @id @default(cuid())
+  clanId     String
+  playerId   String?
+  authorName String
+  body       String
+  /// chat | system
+  kind       String   @default("chat")
+  createdAt  DateTime @default(now())
+
+  clan   Clan    @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@index([clanId, createdAt])
 }

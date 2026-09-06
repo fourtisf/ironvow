@@ -3,7 +3,7 @@ import { RAID_TICKS, TICKS_PER_SECOND } from '@ironvow/config';
 import type { BattleArmy, DeployCommand } from '@ironvow/types';
 import { generateOpponent, simulate } from '../src/index.js';
 
-const ARMY: BattleArmy = { raider: 14, archer: 8, lancer: 4, ram: 2 };
+const ARMY: BattleArmy = { raider: 14, archer: 8, lancer: 4, ram: 2, scaler: 0 };
 
 function commands(): DeployCommand[] {
   const out: DeployCommand[] = [];
@@ -117,7 +117,7 @@ describe('simulate() rejects what a client should not be able to do', () => {
   });
 
   it('never runs past the raid clock', () => {
-    const out = simulate({ ...INPUT, commands: [], army: { raider: 0, archer: 0, lancer: 0, ram: 0 } });
+    const out = simulate({ ...INPUT, commands: [], army: { raider: 0, archer: 0, lancer: 0, ram: 0, scaler: 0 } });
     expect(out.ticks).toBeLessThanOrEqual(RAID_TICKS);
     expect(RAID_TICKS).toBe(180 * TICKS_PER_SECOND);
   });

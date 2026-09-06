@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TYPES, hpOf, starsFor } from '@ironvow/config';
 import type { BaseSnapshot, BattleArmy, DeployCommand, SnapshotBuilding } from '@ironvow/types';
-import { simulate } from '../src/index.js';
+import { createBattle, simulate } from '../src/index.js';
 
-const NONE: BattleArmy = { raider: 0, archer: 0, lancer: 0, ram: 0 };
+const NONE: BattleArmy = { raider: 0, archer: 0, lancer: 0, ram: 0, scaler: 0 };
 
 function snap(buildings: SnapshotBuilding[], pool = { g: 1000, i: 500 }): BaseSnapshot {
   return { version: 1, defenderId: 'd', defenderName: 'Test', keepLevel: 1, buildings, pool };
@@ -129,5 +129,51 @@ describe('ported building maths', () => {
     expect(hpOf('keep', 1)).toBe(1500);
     expect(hpOf('wall', 1)).toBe(340);
     expect(hpOf('keep', 9)).toBe(Math.round(1500 * TYPES.keep.hpG ** 8));
+  });
+});
+
+describe('the Scaler goes over ramparts', () => {
+  /**
+   * Two columns of stout ramparts across the approach, with the Keep behind
+   * them. Anything that does not climb has to stop and chew through the wall;
+   * a Scaler walks over it and is on the Keep in seconds. This is the whole
+   * reason the unit exists, and without a test the climb flag could be deleted
+   * and nothing else in the suite would notice.
+   */
+  const walled = (): BaseSnapshot => snap([
+    b('k', 'keep', 27, 27),
+    ...Array.from({ length: 9 }, (_, i) => b(`wa${i}`, 'wall', 22, 23 + i, 6)),
+    ...Array.from({ length: 9 }, (_, i) => b(`wb${i}`, 'wall', 23, 23 + i, 6)),
+  ]);
+
+  /** Seven seconds in — long enough to cross the field, nowhere near long
+   *  enough to break a level 6 rampart with ten raiders. */
+  const TICKS = 210;
+
+  function play(troopType: 'raider' | 'scaler', count: number) {
+    const battle = createBattle({
+      snapshot: walled(),
+      commands: Array.from({ length: count }, (_, i): DeployCommand => ({
+        tickIndex: i, troopType, gx: 18, gy: 27,
+      })),
+      army: { ...NONE, [troopType]: count },
+      seed: 5,
+    });
+    for (let i = 0; i < TICKS && !battle.step(); i++) { /* run the clock */ }
+    const keep = battle.structs.find((s) => s.id === 'k')!;
+    return {
+      keepDamaged: keep.hp < keep.maxHp,
+      wallsAlive: battle.structs.filter((s) => s.t === 'wall' && !s.dead).length,
+    };
+  }
+
+  it('is on the Keep while a raider is still working on the wall', () => {
+    // Same count, same spot, same seed. The only difference is the rampart.
+    expect(play('scaler', 10).keepDamaged).toBe(true);
+    expect(play('raider', 10).keepDamaged).toBe(false);
+  });
+
+  it('leaves every rampart standing, because it never targets one', () => {
+    expect(play('scaler', 10).wallsAlive).toBe(18);
   });
 });

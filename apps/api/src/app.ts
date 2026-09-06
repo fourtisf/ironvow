@@ -7,6 +7,7 @@ import { env } from './lib/env.js';
 import { PlayerNotFound } from './lib/player.js';
 import { authRoutes } from './routes/auth.js';
 import { baseRoutes } from './routes/base.js';
+import { clanRoutes } from './routes/clans.js';
 import { layoutRoutes } from './routes/layouts.js';
 import { opsRoutes } from './routes/ops.js';
 import { pushRoutes } from './routes/push.js';
@@ -97,6 +98,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(opsRoutes);
   await app.register(layoutRoutes);
   await app.register(pushRoutes);
+  await app.register(clanRoutes);
 
   return app;
 }

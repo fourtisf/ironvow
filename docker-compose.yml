@@ -1,0 +1,111 @@
+# IRONVOW, running.
+#
+#   cp .env.docker.example .env
+#   docker compose up --build
+#   open http://localhost:3000
+#
+# That is the whole thing: Postgres, Redis, the API, the worker and the web app.
+# Nobody has played this game yet, including the person who commissioned it,
+# and every balance number in it is a guess until somebody does.
+
+name: ironvow
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ironvow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ironvow}
+      POSTGRES_DB: ${POSTGRES_DB:-ironvow}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The API runs migrations the moment it starts, so it must not start
+      # before the database can answer.
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-ironvow} -d ${POSTGRES_DB:-ironvow}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ironvow}:${POSTGRES_PASSWORD:-ironvow}@postgres:5432/${POSTGRES_DB:-ironvow}
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env — 32+ random bytes}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      # console writes login links to the log instead of sending mail, which is
+      # what you want until SMTP is configured. The server refuses to start on
+      # this setting in production, so NODE_ENV stays as it is here.
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-console}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      OPS_TOKEN: ${OPS_TOKEN:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+    ports:
+      - '${API_PORT:-4000}:4000'
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      # After the API, which is what applies the migrations.
+      api: { condition: service_started }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ironvow}:${POSTGRES_PASSWORD:-ironvow}@postgres:5432/${POSTGRES_DB:-ironvow}
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-console}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        # Same-origin: the browser calls /api/... and Next rewrites it to the
+        # API container. One origin means no CORS to configure and no second
+        # hostname to buy. Both are build arguments because Next bakes both in.
+        NEXT_PUBLIC_API_URL: /api
+        API_PROXY_URL: http://api:4000
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_started }
+    environment:
+      NODE_ENV: production
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+
+volumes:
+  pgdata:

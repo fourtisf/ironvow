@@ -160,17 +160,117 @@ third Gold Mine still costs exactly 360.
 **This is a balance change and it needs sign-off.** It is one constant,
 `RAMPART_COUNT_GROWTH` in `packages/config/src/buildings.ts`.
 
+## Beyond the build document
+
+Five things were added on ALFA's explicit instruction after they were each
+described and signed off. None of them is in `docs/BUILD_SPEC.md`, so each is
+written up here with what it costs and what it deliberately leaves out.
+
+### Daily War Orders
+
+The twelve War Orders are one-time, and the last one — win fifteen raids — is
+cleared on a player's second day. After that, opening the game offers nothing
+that was not there yesterday.
+
+Three orders per player per day, drawn from a pool of fourteen. Which three is
+a **pure function** of the player's id and the UTC day number, so a day turning
+over costs nothing: no cron, no job, no row that can be missing when a player
+logs in. The first settle after midnight zeroes the counters, and that settle
+happens because the player turned up.
+
+The reward scales with the Keep, because a flat number is generous at Keep 1
+and an insult at Keep 9, and again with a streak that caps at eleven days.
+Capping it matters: a streak that pays forever turns a habit into an
+obligation, and missing one day after two months would cost something real.
+
+Progress is measured from eight server-incremented counters, never from
+anything a client says. A player cannot claim an order they were not given —
+that is checked separately from whether the order exists, or the whole pool
+would be claimable daily by anyone who read the ids out of the bundle.
+
+### A fifth troop: the Scaler
+
+With four troops a raid had no composition decision. Bring a ram, bring
+whatever else fits.
+
+The Scaler is the ram's opposite: the fastest and most fragile unit in the
+game, and the only one a rampart does not stop. It walks over walls and never
+targets one, which are two halves of the same idea — without the second it
+would cross the wall and then turn round and attack it, because a wall is the
+nearest thing there is.
+
+That gives the wall something to be wrong about. Go over it with something
+fragile, or through it with something slow, and the defender's layout is what
+decides which was right. `packages/sim/test/battle-rules.test.ts` holds the
+behaviour: at seven seconds a Scaler is on the Keep while a raider is still
+working on the rampart, and every rampart is still standing.
+
+### Vanity buildings
+
+Every sink in the game closes. Mines cap, Vaults cap, ramparts cap, and a maxed
+player is left with "finish now" on timers they were never waiting for.
+Resources that pile up with nothing to buy make collecting — the interaction a
+player performs more than any other — feel pointless.
+
+A Vow Statue, a Brazier and a Standard. Gold only, expensive, steeply scaling
+with count and again with level. They carry no loot, mount no defence, and are
+**filtered out of raid snapshots entirely**, so nobody is ever rewarded for
+attacking one and nobody is ever punished for owning one. Upgrading is visible
+from across the base — a statue's sword is gilded from level 5 — which for a
+game with no purchases is the honest version of something to spend on.
+
+### Clans and chat
+
+Everything else in IRONVOW is done alone: you raid a frozen snapshot of
+somebody who is not there, and the only trace another human leaves is a line in
+your attack log.
+
+Founding, finding, joining, applications, roles, kicks, a member list, chat and
+a clan ladder. Two rules run through all of it: a player is in at most one clan,
+enforced by a unique index rather than by a check anyone can forget; and every
+permission is decided from the row in the database, never from what the client
+says its own role is. Founding costs 20,000 gold — partly a sink, mostly
+because a free create button produces a server full of one-member clans called
+"test", and then the find list is useless to the players it exists for.
+
+Chat is polled, not socketed: a handful of lines a few times a minute does not
+justify a second piece of infrastructure. It is rate limited per player in the
+database, length capped, and control characters are stripped. There is **no
+word filter** — a banned-word list is a moderation policy, it is
+culture-specific, it is trivially evaded, and it would be a decision made on
+ALFA's behalf about what their players may say. Elders delete and leaders kick,
+which is moderation by people who know the room.
+
+**Clan wars are deliberately not built.** A war is a second game mode with its
+own matchmaking, its own clock, its own attack allocation and its own rewards,
+and every one of those is a design decision nobody has made. Half a war would
+be worse than none. It needs its own sign-off.
+
+### One command to run it
+
+`docker compose up --build` brings up Postgres, Redis, the API, the worker and
+the web app; migrations run when the API container starts. See the Deploy
+section of the README, including the caveat that the stack has not been run end
+to end here, because this environment blocks pulling images from Docker Hub.
+
 ## Not done
 
-- **Clans and chat.** Not in the build document, and a different order of
-  magnitude from everything else here: membership, invites, roles, moderated
-  chat, and clan wars are each their own design. It needs its own decision
-  rather than being folded into a list of fixes.
+- **Clan wars.** See above: a second game mode, and none of its decisions have
+  been made.
 - **A live defend.** You cannot watch a raid on your own hold as it happens,
   and you should not be able to: the attacker plays it on their phone, and the
   result is settled server-side from their commands. What exists instead is a
   drill against your own walls, started from the LOG sheet, and the attack log
   that replaces the prototype's random defend event (§8.5).
+
+## A bug found while adding the above
+
+**The BUILD sheet had no War Lab card.** The server has allowed one from
+Keep 3 since the Lab was built, the cap table has always had a row for it, and
+the ARMY sheet has always told the player to go and build one — but the sheet's
+list of buildable types simply omitted it. A player could reach Keep 9 being
+told to build something the game would not sell them. It was found by opening
+the sheet to add the vanity section to it.
 
 ## Deviations from the spec, and why
 
@@ -204,7 +304,15 @@ tap that the first War Order asks for. Producers now fill their buffer and wait.
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the
-mechanic but not the value, and each one changes the feel of raiding:
+mechanic but not the value, and each one changes the feel of raiding.
+
+Everything under **Beyond the build document** is TUNABLE in full — the spec
+describes none of it. The numbers most worth a second look are the Scaler's
+stats (`packages/config/src/troops.ts`), the vanity prices
+(`packages/config/src/buildings.ts`), the daily reward curve and streak cap
+(`packages/config/src/daily.ts`) and the clan founding cost
+(`packages/config/src/clans.ts`). All of them are guesses until somebody plays
+the game.
 
 | Constant | Current | What it controls |
 |---|---|---|

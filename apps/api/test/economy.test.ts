@@ -5,11 +5,14 @@ import {
   OFFLINE_CAP_SECONDS,
   START_GOLD,
   START_IRON,
+  capOf,
   costOf,
+  lootCarriers,
   mineRate,
   stockCapOf,
   storageCapOf,
 } from '@ironvow/config';
+import { snapshotBase } from '../src/domain/raid.js';
 import { accrueProduction, collectStock, grant } from '../src/domain/production.js';
 import { planBuild, planTrain, planUpgrade } from '../src/domain/commands.js';
 import type { PlayerView } from '../src/domain/commands.js';
@@ -228,5 +231,50 @@ describe('training', () => {
   it('counts queued troops against the warband, not just trained ones', () => {
     const p = player({ gold: 10_000n, iron: 10_000n, army: { raider: 10 }, queue: ['raider', 'raider', 'raider', 'raider'] });
     expect(planTrain(p, 'raider')).toEqual({ ok: false, error: 'warbandFull' });
+  });
+});
+
+describe('vanity is a sink and nothing else', () => {
+  it('is left out of a raid snapshot entirely', () => {
+    const snapshot = snapshotBase({
+      id: 'd', name: 'Defender', keepLevel: 6, gold: 50_000n, iron: 20_000n,
+      buildings: [
+        { id: 'k', type: 'keep', gx: 27, gy: 27, level: 6 },
+        { id: 'm', type: 'mine', gx: 22, gy: 27, level: 6 },
+        { id: 's', type: 'statue', gx: 32, gy: 27, level: 3 },
+        { id: 'b', type: 'brazier', gx: 30, gy: 30, level: 1 },
+      ],
+    });
+    const types = snapshot.buildings.map((b) => b.type);
+    expect(types).toContain('keep');
+    expect(types).toContain('mine');
+    // Not a target, not a carrier, not part of the hit points a star is
+    // measured against. A statue must cost a raider nothing and earn them
+    // nothing, or owning one becomes a decision about defence.
+    expect(types).not.toContain('statue');
+    expect(types).not.toContain('brazier');
+  });
+
+  it('does not dilute the loot pool', () => {
+    const carriers = [
+      { type: 'keep' as const }, { type: 'mine' as const },
+      { type: 'wall' as const }, { type: 'statue' as const },
+    ];
+    expect(lootCarriers(carriers)).toBe(2);
+  });
+
+  it('costs gold only, so it can never be an iron bottleneck', () => {
+    for (const type of ['statue', 'brazier', 'standard'] as const) {
+      expect(costOf(type, 0, 0).i).toBe(0);
+      expect(costOf(type, 3, 0).i).toBe(0);
+      expect(costOf(type, 0, 0).g).toBeGreaterThan(1000);
+    }
+  });
+
+  it('opens at Keep 3 and not before', () => {
+    for (const type of ['statue', 'brazier', 'standard'] as const) {
+      expect(capOf(type, 2)).toBe(0);
+      expect(capOf(type, 3)).toBeGreaterThan(0);
+    }
   });
 });

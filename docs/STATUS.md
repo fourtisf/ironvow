@@ -80,8 +80,8 @@ upgrading defences a mistake.
   onto the raid for the same reason.
 - **Vaults actually protect (§8.6)** — done. Each Vault shields a fixed amount
   from looting rather than a flat percentage of everything.
-- **Attack log and revenge (§8.5)** — the log and replay are done; the revenge
-  button is not wired yet.
+- **Attack log and revenge (§8.5)** — done. The log, the replay, and a revenge
+  button that reopens a raid on whoever hit you, listed in the same log.
 
 ### The six fixed bugs from §9
 

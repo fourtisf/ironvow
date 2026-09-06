@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { capOf, costOf, demolishRefund, investedIn, storageCapOf } from '@ironvow/config';
+import { BASE_STORAGE, capOf, costOf, demolishRefund, investedIn, storageCapOf } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './helpers.js';
 
@@ -238,7 +238,12 @@ describe.skipIf(!hasDatabase)('undoing a mistake', () => {
   it('tells the player when a full Vault ate their refund', async () => {
     // Sitting at the cap with no room: the refund cannot land, and saying so is
     // the difference between a clamp and prototype bug #1.
-    const playerId = await makePlayer('Brimming', { keepLevel: 5, gold: 2500, iron: 2500 });
+    // At the ceiling exactly, whatever the ceiling currently is: written as
+    // a literal, this test passed until the day the cap was raised and then
+    // failed for a reason that had nothing to do with refunds.
+    const playerId = await makePlayer('Brimming', {
+      keepLevel: 5, gold: BASE_STORAGE, iron: BASE_STORAGE,
+    });
     const cookie = await loginAs(app, playerId);
     const mine = await db.building.findFirstOrThrow({ where: { playerId, type: 'mine' } });
 

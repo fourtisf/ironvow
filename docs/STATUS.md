@@ -471,6 +471,24 @@ there is no "load" — every read accrues — so keeping it would mean collectin
 on every request and removing the collect interaction entirely, including the
 tap that the first War Order asks for. Producers now fill their buffer and wait.
 
+### The opening was a wait
+
+The first player to reach the second War Order had 120 gold left and nothing
+to do but watch a mine. Three numbers moved, all TUNABLE and all in
+`packages/config/src/economy.ts`:
+
+| | was | now | why |
+| --- | --- | --- | --- |
+| `START_GOLD` / `START_IRON` | 900 / 320 | 3,000 / 1,200 | The first four War Orders ask for 1,753 gold and 340 iron between them; 900 did not cover two of them. |
+| `BASE_STORAGE` | 2,500 | 4,000 | A full mine was waste before the first Vault. |
+| `STOCK_BUFFER_MINUTES` | 12 | 120 | A Gold Mine stopped at 444 gold, so the hold earned while it was watched and barely at all while it was not — the opposite of the promise on the first screen. |
+
+The opening now runs: second mine, Cannon, Forge and a Keep to 2, with 1,247
+gold and 860 iron still in hand.
+
+Two tests failed on this and both were right to: they asserted the literals
+`900` and `2500` rather than the constants. They read the constants now.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

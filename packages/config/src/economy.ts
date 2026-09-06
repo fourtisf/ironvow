@@ -17,8 +17,18 @@ export const PRODUCES: Partial<Record<BuildingType, 'gold' | 'iron'>> = {
   forge: 'iron',
 };
 
-/** A producer holds this many minutes of output before it stops. */
-export const STOCK_BUFFER_MINUTES = 12;
+/**
+ * A producer holds this many minutes of output before it stops.
+ *
+ * Twelve was the number the prototype shipped with, and it meant a Gold Mine
+ * stopped at 444 gold: the game earned while you watched it and barely at
+ * all while you did not, which is the opposite of the promise on the first
+ * screen. Two hours is long enough that coming back after a meal is worth
+ * something and short enough that a player who checks in often still gets
+ * more than one who does not. TUNABLE, and the number to move first if the
+ * economy feels slow.
+ */
+export const STOCK_BUFFER_MINUTES = 120;
 
 /** Uncollected output a single producer can hold. */
 export function stockCapOf(type: BuildingType, level: number): number {
@@ -29,18 +39,29 @@ export function stockCapOf(type: BuildingType, level: number): number {
 /** Storage added by one Vault. */
 export const CAPACITY = (level: number): number => 1400 + level * 1500;
 
-/** Storage every player has before building a single Vault. */
-export const BASE_STORAGE = 2500;
+/**
+ * Storage every player has before building a single Vault.
+ *
+ * Raised with the starting purse below: a cap of 2,500 turned a full mine
+ * into waste before the first Vault was up, and made the opening hour feel
+ * like it was throwing money away.
+ */
+export const BASE_STORAGE = 4000;
 
 /**
  * Starting purse.
+ *
+ * 900 gold bought a second Gold Mine and left 120, with the next four War
+ * Orders asking for a Cannon, a Forge and a Keep upgrade — 1,753 gold and
+ * 340 iron between them. The opening was a wait, not a game. This covers all
+ * four with something left for ramparts and a first warband.
  *
  * Prototype bug #1: these were once equal to BASE_STORAGE, so the very first
  * mine collection was clamped away and vanished with no feedback. The invariant
  * below is asserted at module load and again in the economy tests.
  */
-export const START_GOLD = 900;
-export const START_IRON = 320;
+export const START_GOLD = 3000;
+export const START_IRON = 1200;
 
 if (START_GOLD >= BASE_STORAGE || START_IRON >= BASE_STORAGE) {
   throw new Error(

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { QUESTS, questById } from '@ironvow/config';
+import { QUESTS, START_GOLD, questById } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './helpers.js';
 
@@ -169,7 +169,7 @@ describe.skipIf(!hasDatabase)('guest holds', () => {
     expect(player.isGuest).toBe(true);
     // The prototype's opening layout: Keep, mine, barracks.
     expect(player.buildings).toHaveLength(3);
-    expect(player.gold).toBe(900);
+    expect(player.gold).toBe(START_GOLD);
   });
 
   it('upgrades the same hold when an email is attached, rather than making a second one', async () => {

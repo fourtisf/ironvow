@@ -5,6 +5,7 @@ import type { Deco, GroundKind, TreelineKind } from './deco';
 import { C } from './palette';
 import type { Corner, Draw } from './primitives';
 import { blitDeco } from './sprites';
+import { drawLakes, generateLakes, inLake, type Lake } from './water';
 
 export type { Deco, DecoKind } from './deco';
 
@@ -24,6 +25,8 @@ export interface Terrain {
   deco: Deco[];
   /** Tufts, flowers and pebbles on the field. Flat, drawn under everything. */
   ground: Deco[];
+  /** Pools on the apron. */
+  lakes: Lake[];
 }
 
 /** Height of the cliff face, in screen px at zoom 1. */
@@ -43,6 +46,8 @@ export function generateTerrain(): Terrain {
   // The treeline: over the apron only, never over buildable ground, and
   // thickest right at the foot of the cliff so the plateau reads as cleared
   // out of a forest rather than dropped onto a lawn.
+  const lakes = generateLakes(r);
+
   const deco: Deco[] = [];
   for (let i = 0; i < 900; i++) {
     const edge = Math.floor(r() * 4);
@@ -60,11 +65,26 @@ export function generateTerrain(): Terrain {
     else if (edge === 1) { gx = along - APRON / 2; gy = N + depth; }
     else if (edge === 2) { gx = -depth; gy = along - APRON / 2; }
     else { gx = N + depth; gy = along - APRON / 2; }
+    // Nothing grows in the water, and the wet sand round it stays clear too.
+    if (inLake(lakes, gx, gy, 1.3)) continue;
 
     const roll = r();
     const k: TreelineKind =
       roll < 0.46 ? 'tree' : roll < 0.74 ? 'pine' : roll < 0.86 ? 'rock' : roll < 0.96 ? 'bush' : 'stump';
     deco.push({ gx, gy, k, s: 0.7 + r() * 0.55, p: r() * 6.28, v: r() < 0.3 ? 1 : 0 });
+  }
+  // The ring between the buildable square and the cliff edge is the hold's
+  // own ground, and it gets bushes and boulders of its own: the plateau's rim
+  // reads as a rim, and the ring stops looking like a margin nobody drew on.
+  for (let i = 0; i < 90; i++) {
+    const along = 0.4 + r() * (N - 0.8);
+    const inset = 0.35 + r() * (IN0 - 0.7);
+    const side = Math.floor(r() * 4);
+    const gx = side === 0 ? inset : side === 1 ? N - inset : along;
+    const gy = side === 2 ? inset : side === 3 ? N - inset : along;
+    const roll = r();
+    const k: TreelineKind = roll < 0.55 ? 'bush' : roll < 0.85 ? 'rock' : 'stump';
+    deco.push({ gx, gy, k, s: 0.55 + r() * 0.5, p: 0, v: r() < 0.35 ? 1 : 0 });
   }
   deco.sort((a, b) => a.gx + a.gy - (b.gx + b.gy));
 
@@ -83,7 +103,7 @@ export function generateTerrain(): Terrain {
   scatter(110, 'flower', 0.7, 1.05, 4);
   scatter(44, 'pebble', 0.7, 1.05, 1);
 
-  return { tile, deco, ground };
+  return { tile, deco, ground, lakes };
 }
 
 /* ------------------------------------------------------------- pattern --- */
@@ -298,6 +318,7 @@ export function drawTerrain(d: Draw, ter: Terrain, detail = true): void {
   } else {
     // The apron, lower and a shade darker, out to the edge of the world.
     fillGrass(d, C.apron, C.apronB, false);
+    drawLakes(d, ter.lakes);
     drawCliff(d, field);
     diamondPath(ctx, field);
     fillGrass(d, C.grass, C.grassB, true);

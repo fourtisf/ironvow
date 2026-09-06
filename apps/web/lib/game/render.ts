@@ -5,6 +5,7 @@ import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../rend
 import { blitBuilding, blitDeco } from '../render/sprites';
 import { C } from '../render/palette';
 import { drawHpBar, isoDiamond, roundRect } from '../render/primitives';
+import { drawAtmosphere } from '../render/atmosphere';
 import { drawTerrain } from '../render/terrain';
 import { drawProjectile, drawUnit } from '../render/units';
 import type { ClientBuilding } from './types';
@@ -124,6 +125,7 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
     drawCollectBubble(w, d, b);
   }
+  if (w.quality === 'high') drawAtmosphere(d);
   drawPopups(w, d);
 }
 
@@ -148,6 +150,7 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
       drawStruct(w, d, b.type, b.level, true, b.gx, b.gy);
     }
   }
+  if (w.quality === 'high') drawAtmosphere(d);
 }
 
 function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
@@ -206,6 +209,7 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   for (const p of battle.projs) {
     drawProjectile(d, { x: p.x, y: p.y, kind: p.kind });
   }
+  if (w.quality === 'high') drawAtmosphere(d);
 }
 
 /**

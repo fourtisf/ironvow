@@ -103,5 +103,12 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <canvas ref={canvasRef} id="field" aria-label="IRONVOW battlefield" />;
+  return (
+    <>
+      <canvas ref={canvasRef} id="field" aria-label="IRONVOW battlefield" />
+      {/* A soft darkening at the edges of the screen, on the compositor rather
+          than the canvas, so it costs no frame time at all. */}
+      <div className="vignette" aria-hidden />
+    </>
+  );
 }

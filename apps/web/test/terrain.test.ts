@@ -1,7 +1,8 @@
-import { IN0, IN1, N, TH, TW, ZOOM_MAX, ZOOM_MIN } from '@ironvow/config';
+import { APRON, IN0, IN1, N, TH, TW, ZOOM_MAX, ZOOM_MIN } from '@ironvow/config';
 import { describe, expect, it } from 'vitest';
 import { snapZoom } from '../lib/render/camera';
 import { generateTerrain } from '../lib/render/terrain';
+import { inLake } from '../lib/render/water';
 
 /**
  * The grass is a canvas pattern drawn one device pixel to one. That is only
@@ -50,11 +51,27 @@ describe('generateTerrain', () => {
     expect(u.ground).toEqual(t.ground);
   });
 
-  it('keeps the treeline off the plateau', () => {
+  it('keeps the treeline off the buildable square', () => {
     for (const d of t.deco) {
-      const onField = d.gx >= 0 && d.gx < N && d.gy >= 0 && d.gy < N;
-      expect(onField).toBe(false);
+      const buildable = d.gx >= IN0 && d.gx < IN1 && d.gy >= IN0 && d.gy < IN1;
+      expect(buildable).toBe(false);
     }
+  });
+
+  it('keeps the water on the apron, and the trees out of it', () => {
+    expect(t.lakes.length).toBeGreaterThan(0);
+    for (const l of t.lakes) {
+      for (const [gx, gy] of l.pts) {
+        const onField = gx >= 0 && gx < N && gy >= 0 && gy < N;
+        expect(onField).toBe(false);
+        expect(gx).toBeGreaterThan(-APRON);
+        expect(gx).toBeLessThan(N + APRON);
+        expect(gy).toBeGreaterThan(-APRON);
+        expect(gy).toBeLessThan(N + APRON);
+      }
+    }
+    for (const d of t.deco) expect(inLake(t.lakes, d.gx, d.gy)).toBe(false);
+    expect(inLake(t.lakes, t.lakes[0]!.cx, t.lakes[0]!.cy)).toBe(true);
   });
 
   it('keeps the ground cover on the plateau', () => {

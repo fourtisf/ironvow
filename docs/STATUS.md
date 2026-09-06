@@ -275,8 +275,26 @@ it in `apps/web/lib/render/terrain.ts` and `deco.ts`:
   three crowded at the cliff foot and the rest out to the horizon. Pines are a
   new kind; a bush is sometimes a berry bush.
 
-CPU per frame on the base view, same harness as the table above: 2.5 ms at
-full quality (was 5.2 before any of this) and 0.8 ms on low.
+Beyond the ground itself, the world around it:
+
+- **Water.** A lake off the south-east edge and a pond behind the hold, cut
+  into the apron with a band of wet sand, a small drop at the bank, lighter
+  shallows and sun on the water that brightens and fades out of step. The
+  treeline is generated around them.
+- **Cloud shadows** cross the field, three of them at different speeds, each
+  rasterised once per size and blitted one device pixel to one. **A flight of
+  birds** goes over every couple of minutes.
+- **The rim** of the plateau, the ring between the buildable square and the
+  cliff, has bushes, boulders and stumps of its own.
+- **A vignette** at the edges of the screen, done in CSS on the compositor so
+  it costs the canvas nothing.
+
+Cost, measured in one sitting against the commit before it on the same
+machine: 5.0 ms a frame before, 5.1 ms after, at full quality; low quality
+unchanged, since everything above is off there. (Absolute numbers from this
+container drift with whatever else it is doing — the same build measured
+2.5 ms and 5.0 ms an hour apart — so only same-sitting comparisons are quoted.
+The scaled-pattern figure above, 9.2 ms against 1.7 ms, is one.)
 
 The site now wears the logo: `icon.svg` and PNG fallbacks in the tab, an Apple
 touch icon, a web manifest with maskable icons so "add to home screen" gets a

@@ -162,7 +162,10 @@ export function Game() {
       if (e instanceof ApiError && e.status === 401) setSignedIn(false);
       else if (signedIn === null) {
         // Nothing on screen yet, so say so on screen rather than in a toast.
-        setServerDown(e instanceof ApiError ? `The server answered ${e.status}.` : 'The server did not answer.');
+        // The code tells apart the two things a 500 can mean: `internal` is
+        // the API saying so itself, `unknown` is a non-JSON answer from the
+        // proxy in front of it — usually because the API is not there at all.
+        setServerDown(e instanceof ApiError ? `The server answered ${e.status} (${e.code}).` : 'The server did not answer.');
       } else say('Could not reach the server');
     }
   }, [applyPlayer, say, signedIn]);

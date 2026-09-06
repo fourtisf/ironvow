@@ -21,6 +21,22 @@ describe('MAIL_TRANSPORT=off', () => {
     resetEnv();
   });
 
+  it('treats an empty variable as unset, the way .env and compose hand them over', async () => {
+    const { env, resetEnv } = await import('../src/lib/env.js');
+    Object.assign(process.env, {
+      NODE_ENV: 'production', DATABASE_URL: 'postgresql://x', SESSION_SECRET: 'a-real-secret-of-decent-length',
+      MAIL_TRANSPORT: 'off',
+      // What `OPS_TOKEN: ${OPS_TOKEN:-}` in docker-compose.yml produces when
+      // nobody set it. It used to fail the 16-character minimum and stop the
+      // API from starting at all.
+      OPS_TOKEN: '', VAPID_PUBLIC_KEY: '', SMTP_HOST: '',
+    });
+    resetEnv();
+    const e = env();
+    expect(e.OPS_TOKEN).toBeUndefined();
+    expect(e.VAPID_PUBLIC_KEY).toBeUndefined();
+  });
+
   it('is accepted in production, where console is not', async () => {
     const { env, resetEnv } = await import('../src/lib/env.js');
     Object.assign(process.env, {

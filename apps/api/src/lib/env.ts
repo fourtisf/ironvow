@@ -52,9 +52,26 @@ export type Env = z.infer<typeof schema>;
 
 let cached: Env | null = null;
 
+/**
+ * Empty means unset.
+ *
+ * A `.env` file and docker compose both hand an unset variable over as "",
+ * not as absent — `OPS_TOKEN: ${OPS_TOKEN:-}` is the empty string — and zod's
+ * `.optional()` only accepts absence. So an optional-but-validated field like
+ * OPS_TOKEN failed with "must contain at least 16 characters" on a server
+ * where nobody had set it, and the API refused to start. Dropping empty
+ * strings before parsing makes "" and unset the same thing, which is what
+ * every operator already assumes they are.
+ */
+function withoutEmpty(source: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) if (v !== undefined && v !== '') out[k] = v;
+  return out;
+}
+
 export function env(): Env {
   if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
+  const parsed = schema.safeParse(withoutEmpty(process.env));
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n  ');
     throw new Error(`Invalid environment:\n  ${detail}`);

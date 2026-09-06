@@ -12,10 +12,17 @@ const schema = z.object({
   SESSION_SECRET: z.string().min(16).default('dev-only-session-secret-change-me'),
   COOKIE_DOMAIN: z.string().optional(),
   /**
-   * With no mail provider wired up, magic links are written to the log instead
-   * of sent. Allowed in development only; production refuses to start.
+   * How login links leave the server.
+   *
+   * `console` writes them to the log — development only; production refuses
+   * to start with it. `smtp` sends them. `off` sends nothing and tells the
+   * player so: guest play needs no email at all, and a server with no mail
+   * provider yet should still be able to run the game. It was refusing to,
+   * and the first deployment of IRONVOW spent its first hour crash-looping
+   * on that rule while the field rendered behind a client that could not
+   * reach it.
    */
-  MAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
+  MAIL_TRANSPORT: z.enum(['console', 'smtp', 'off']).default('console'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_USER: z.string().optional(),

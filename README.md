@@ -172,8 +172,9 @@ open http://localhost:3000
 
 Postgres, Redis, the API, the worker and the web app. Migrations run when the
 API container starts, so the schema is never behind the code that expects it.
-Login links go to `docker compose logs api` until SMTP is configured, which is
-what you want on a machine you are playing on yourself.
+Email is off until SMTP is configured: guest play works, and the email buttons
+tell the player the server cannot send mail yet. Set `MAIL_TRANSPORT=smtp` and
+the `SMTP_` lines in `.env` to turn it on.
 
 Two things worth knowing about the build:
 

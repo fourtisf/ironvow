@@ -32,7 +32,7 @@ import { BattleHud } from './BattleHud';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
-import { ClaimModal, ConfirmModal, ResultModal, ScoutModal, SignInModal } from './Modals';
+import { ClaimModal, ServerDownModal, ConfirmModal, ResultModal, ScoutModal, SignInModal } from './Modals';
 import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
@@ -58,6 +58,15 @@ export function Game() {
   const worldRef = useRef<World | null>(null);
   const [player, setPlayer] = useState<PlayerState | null>(null);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  /**
+   * /me failed for a reason other than "not signed in".
+   *
+   * Before this existed that case left the field rendering with nothing on
+   * it, forever: a toast that faded in three seconds was the only sign that
+   * anything was wrong. The first person to open the deployed game saw
+   * trees and grass and nothing else, because the API container was down.
+   */
+  const [serverDown, setServerDown] = useState<string | null>(null);
   const [mode, setModeState] = useState<Mode>('base');
   const [sheet, setSheet] = useState<Sheet>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -148,11 +157,15 @@ export function Game() {
     try {
       applyPlayer(await api.me());
       setSignedIn(true);
+      setServerDown(null);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setSignedIn(false);
-      else say('Could not reach the server');
+      else if (signedIn === null) {
+        // Nothing on screen yet, so say so on screen rather than in a toast.
+        setServerDown(e instanceof ApiError ? `The server answered ${e.status}.` : 'The server did not answer.');
+      } else say('Could not reach the server');
     }
-  }, [applyPlayer, say]);
+  }, [applyPlayer, say, signedIn]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -600,6 +613,15 @@ export function Game() {
 
   /* ----------------------------------------------------------------- ui --- */
 
+  if (signedIn === null && serverDown) {
+    return (
+      <ServerDownModal
+        detail={serverDown}
+        onRetry={() => { setServerDown(null); void refresh(); }}
+      />
+    );
+  }
+
   if (signedIn === false) {
     return (
       <SignInModal
@@ -620,7 +642,11 @@ export function Game() {
           setSignInError(null);
           api.requestLogin(email)
             .then(() => setSignInSent(true))
-            .catch(() => setSignInError('Could not send that. Try again in a minute.'))
+            .catch((e: unknown) => setSignInError(
+              e instanceof ApiError && e.code === 'mailOff'
+                ? 'This server cannot send email yet. Play as a guest for now.'
+                : 'Could not send that. Try again in a minute.',
+            ))
             .finally(() => setSignInBusy(false));
         }}
       />
@@ -953,7 +979,9 @@ export function Game() {
               .catch((e: unknown) => setClaimError(
                 e instanceof ApiError && e.code === 'emailTaken'
                   ? 'That address already holds a base.'
-                  : 'Could not send that. Try again in a minute.',
+                  : e instanceof ApiError && e.code === 'mailOff'
+                    ? 'This server cannot send email yet, so the hold cannot be attached to an address. Your guest hold is safe on this device.'
+                    : 'Could not send that. Try again in a minute.',
               ))
               .finally(() => setSignInBusy(false));
           }}

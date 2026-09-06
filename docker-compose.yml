@@ -54,10 +54,10 @@ services:
       REDIS_URL: redis://redis:6379
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env — 32+ random bytes}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
-      # console writes login links to the log instead of sending mail, which is
-      # what you want until SMTP is configured. The server refuses to start on
-      # this setting in production, so NODE_ENV stays as it is here.
-      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-console}
+      # off: no login email at all, guest play only, until SMTP is configured.
+      # NOT console — the API refuses to start in production with console mail,
+      # and the first deployment crash-looped on exactly that for an hour.
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-off}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -87,7 +87,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ironvow}:${POSTGRES_PASSWORD:-ironvow}@postgres:5432/${POSTGRES_DB:-ironvow}
       REDIS_URL: redis://redis:6379
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
-      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-console}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-off}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}

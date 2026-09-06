@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../lib/env.js';
 import { consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
-import { sendLoginLink } from '../lib/mail.js';
+import { MailOff, mailIsOff, sendLoginLink } from '../lib/mail.js';
 import { createPlayer, loadPlayer } from '../lib/player.js';
 
 const emailSchema = z.object({ email: z.string().email().max(254) });
@@ -48,12 +48,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'badEmail' });
 
     const email = parsed.data.email.toLowerCase().trim();
+    // Checked before a link is minted, so a server with no mail does not fill
+    // its table with tokens nobody can ever receive.
+    if (mailIsOff()) return reply.code(503).send({ error: 'mailOff' });
     const { token } = await createLoginLink(email);
     const link = `${env().WEB_ORIGIN}/auth/callback?token=${token}`;
 
     try {
       await sendLoginLink({ to: email, link, claiming: false });
     } catch (error) {
+      if (error instanceof MailOff) return reply.code(503).send({ error: 'mailOff' });
       // Answering ok would send the player to an inbox that stays empty.
       request.log.error({ err: error, email }, 'login link delivery failed');
       return reply.code(502).send({ error: 'mailFailed' });
@@ -145,12 +149,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(409).send({ error: 'emailTaken' });
     }
 
+    if (mailIsOff()) return reply.code(503).send({ error: 'mailOff' });
     const { token } = await createLoginLink(email, request.playerId!);
     const link = `${env().WEB_ORIGIN}/auth/callback?token=${token}`;
 
     try {
       await sendLoginLink({ to: email, link, claiming: true });
     } catch (error) {
+      if (error instanceof MailOff) return reply.code(503).send({ error: 'mailOff' });
       request.log.error({ err: error, email }, 'claim link delivery failed');
       return reply.code(502).send({ error: 'mailFailed' });
     }

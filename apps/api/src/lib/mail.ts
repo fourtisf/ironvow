@@ -63,8 +63,21 @@ function body({ link, claiming }: LinkMail): { subject: string; text: string; ht
  * answer honestly instead of telling the player to check an inbox that will
  * stay empty.
  */
+/** Thrown when this server has no way to send mail at all. */
+export class MailOff extends Error {
+  constructor() {
+    super('MAIL_TRANSPORT=off: this server does not send email');
+    this.name = 'MailOff';
+  }
+}
+
+export function mailIsOff(): boolean {
+  return env().MAIL_TRANSPORT === 'off';
+}
+
 export async function sendLoginLink(mail: LinkMail): Promise<void> {
   const config = env();
+  if (config.MAIL_TRANSPORT === 'off') throw new MailOff();
   const { subject, text, html } = body(mail);
 
   if (config.MAIL_TRANSPORT === 'console') {
@@ -79,6 +92,6 @@ export async function sendLoginLink(mail: LinkMail): Promise<void> {
 
 /** Startup check, so a broken SMTP configuration fails loudly at boot. */
 export async function verifyMail(): Promise<void> {
-  if (env().MAIL_TRANSPORT === 'console') return;
+  if (env().MAIL_TRANSPORT !== 'smtp') return;
   await smtp().verify();
 }

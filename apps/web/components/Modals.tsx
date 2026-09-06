@@ -344,3 +344,30 @@ export function ConfirmModal({
     </div>
   );
 }
+
+/**
+ * The server did not answer.
+ *
+ * Shown instead of the field, because the field with nothing on it looks like
+ * a game that loaded and has nothing in it — which is a worse message than the
+ * truth. The detail line is what the player can read out to whoever runs the
+ * server.
+ */
+export function ServerDownModal({ detail, onRetry }: { detail: string; onRetry: () => void }) {
+  return (
+    <div className="ovl">
+      <div className="modal">
+        <h2>IRONVOW</h2>
+        <p className="lead">
+          The hold cannot be reached right now.
+          <br />
+          {detail}
+        </p>
+        <button className="btn gold big" onClick={onRetry}>TRY AGAIN</button>
+        <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
+          Nothing is lost. Your hold is on the server, and it keeps earning while this is sorted out.
+        </p>
+      </div>
+    </div>
+  );
+}

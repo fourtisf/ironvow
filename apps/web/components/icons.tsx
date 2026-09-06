@@ -116,3 +116,23 @@ export function ClanIcon() {
     </svg>
   );
 }
+
+/* --- the world outside the game ---------------------------------------- */
+
+export const XIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden>
+    <path
+      d="M17.6 3h3.2l-7 8 8.2 10h-6.4l-5-6.1L4.8 21H1.6l7.5-8.6L1.2 3h6.6l4.5 5.6zm-1.1 16h1.8L7.6 4.9H5.7z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+export const TelegramIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden>
+    <path
+      d="M21.6 4.2 2.9 11.3c-1 .4-1 1.8.1 2.1l4.5 1.4 1.7 5.2c.3.9 1.4 1.1 2 .4l2.5-2.6 4.6 3.4c.8.6 1.9.2 2.1-.8l3-14.2c.2-1-.8-1.8-1.8-1.4zM8.9 14.5l9-5.6-7.5 6.9-.3 3.4z"
+      fill="currentColor"
+    />
+  </svg>
+);

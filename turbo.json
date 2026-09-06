@@ -13,7 +13,10 @@
       "env": [
         "NEXT_PUBLIC_API_URL",
         "API_PROXY_URL",
-        "DATABASE_URL"
+        "DATABASE_URL",
+        "NEXT_PUBLIC_X_URL",
+        "NEXT_PUBLIC_TG_URL",
+        "NEXT_PUBLIC_CONTRACT"
       ]
     },
     "typecheck": {
@@ -49,7 +52,10 @@
         "NEXT_PUBLIC_API_URL",
         "PORT",
         "HOST",
-        "COOKIE_DOMAIN"
+        "COOKIE_DOMAIN",
+        "NEXT_PUBLIC_X_URL",
+        "NEXT_PUBLIC_TG_URL",
+        "NEXT_PUBLIC_CONTRACT"
       ]
     }
   },

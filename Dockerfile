@@ -43,8 +43,17 @@ RUN pnpm --filter @ironvow/api exec prisma generate
 # address the Next server can reach. See apps/web/next.config.mjs.
 ARG NEXT_PUBLIC_API_URL=/api
 ARG API_PROXY_URL=http://api:4000
+# The links on the first screen and the contract chip. Baked in by Next, so
+# changing one means rebuilding the web image — which `docker compose up
+# --build` does anyway.
+ARG NEXT_PUBLIC_X_URL=
+ARG NEXT_PUBLIC_TG_URL=
+ARG NEXT_PUBLIC_CONTRACT=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV API_PROXY_URL=$API_PROXY_URL
+ENV NEXT_PUBLIC_X_URL=$NEXT_PUBLIC_X_URL
+ENV NEXT_PUBLIC_TG_URL=$NEXT_PUBLIC_TG_URL
+ENV NEXT_PUBLIC_CONTRACT=$NEXT_PUBLIC_CONTRACT
 RUN pnpm build
 
 # ------------------------------------------------------------------- runs ---

@@ -456,3 +456,33 @@
   .card.hi,.tcard.hi{border-color:#e8b23c;animation:coachPulse 1.4s ease-in-out infinite}
 
   #insp .tick{color:#ffd97a;font-variant-numeric:tabular-nums}
+
+  /* ---------- the door's footer ---------- */
+  .doorFoot{margin-top:14px;padding-top:12px;border-top:1px solid rgba(232,178,60,.22)}
+  .doorFoot .social{display:flex;gap:8px;margin-bottom:9px}
+  .sbtn{flex:1;display:flex;align-items:center;justify-content:center;padding:10px;border-radius:12px;
+    background:linear-gradient(#31435f,#22304a);border:2px solid #46608a;color:#dbe6f5;
+    text-decoration:none;box-shadow:0 3px 0 #1b2635;transition:transform .08s,border-color .12s,color .12s}
+  .sbtn:hover{border-color:#e8b23c;color:#ffd97a}
+  .sbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #1b2635}
+  .sbtn svg{width:17px;height:17px;display:block;flex:none}
+  .ca{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:9px 10px;border-radius:12px;
+    background:rgba(13,20,32,.85);border:2px dashed rgba(232,178,60,.5);color:#ffd97a;
+    font-size:10px;letter-spacing:1.2px}
+  .ca b{font-size:8.5px;letter-spacing:2px;color:#8fa6c4;font-family:Arial;font-weight:900}
+  .ca span{font-family:'Liberation Mono','DejaVu Sans Mono',monospace;letter-spacing:.6px}
+  .ca.soon span{font-family:inherit;letter-spacing:1.6px;color:#e8b23c}
+  button.ca{cursor:pointer;border-style:solid}
+  button.ca:active{transform:translateY(2px)}
+
+  @media (min-width:760px){
+    /* The card had a phone's width in the middle of a desktop screen. */
+    .modal{max-width:392px;padding:24px 22px}
+    .modal .wordmark{width:min(252px,78%)}
+    .modal .lead{font-size:11.5px}
+    .features li{font-size:11px;padding:9px 12px 9px 28px}
+    .modal .big{padding:15px;font-size:14px}
+    .sbtn{padding:11px}
+    .sbtn svg{width:19px;height:19px}
+    .ca{font-size:11px;padding:10px 12px}
+  }

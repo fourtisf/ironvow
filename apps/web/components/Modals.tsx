@@ -4,7 +4,8 @@ import { TYPES } from '@ironvow/config';
 import { useEffect, useState } from 'react';
 import type { BaseSnapshot } from '@ironvow/types';
 import { fmt } from '../lib/format';
-import { GoldIcon, IronIcon, StarIcon } from './icons';
+import { GoldIcon, IronIcon, StarIcon, TelegramIcon, XIcon } from './icons';
+import { CONTRACT, TELEGRAM_URL, X_URL, shortAddress } from '../lib/links';
 
 /**
  * Scout and result modals.
@@ -199,6 +200,58 @@ function Wordmark() {
   return <img className="wordmark" src="/wordmark.svg" alt="IRONVOW" width={646} height={162} />;
 }
 
+/**
+ * The line under the door.
+ *
+ * Where to find the project, and the contract address once there is one.
+ * A link with no address configured is not drawn at all rather than pointing
+ * somewhere wrong, and the chip says COMING SOON until `NEXT_PUBLIC_CONTRACT`
+ * is set — at which point it shortens the address and copies it on a tap,
+ * because nobody types one of those by hand.
+ */
+function DoorFooter() {
+  const [copied, setCopied] = useState(false);
+  const social = X_URL !== '' || TELEGRAM_URL !== '';
+
+  return (
+    <div className="doorFoot">
+      {social && (
+        <div className="social">
+          {X_URL !== '' && (
+            <a className="sbtn" href={X_URL} target="_blank" rel="noreferrer noopener" aria-label="The project on X">
+              <XIcon />
+            </a>
+          )}
+          {TELEGRAM_URL !== '' && (
+            <a className="sbtn" href={TELEGRAM_URL} target="_blank" rel="noreferrer noopener" aria-label="The project on Telegram">
+              <TelegramIcon />
+            </a>
+          )}
+        </div>
+      )}
+
+      {CONTRACT === '' ? (
+        <div className="ca soon"><b>CA</b><span>COMING SOON</span></div>
+      ) : (
+        <button
+          className="ca"
+          onClick={() => {
+            // The clipboard is refused outside a secure context and in some
+            // embedded browsers; the address stays on screen either way.
+            void navigator.clipboard?.writeText(CONTRACT)
+              .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); })
+              .catch(() => undefined);
+          }}
+          title={CONTRACT}
+        >
+          <b>CA</b>
+          <span>{copied ? 'COPIED' : shortAddress(CONTRACT)}</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 export interface SignInModalProps {
   onGuest: () => void;
   onRequest: (email: string) => void;
@@ -296,6 +349,8 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error, gate, unloc
         )}
 
         {error && <p className="lead" style={{ color: '#ff7a63', marginTop: 10 }}>{error}</p>}
+
+        <DoorFooter />
       </div>
     </div>
   );

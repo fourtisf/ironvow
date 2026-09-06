@@ -402,6 +402,20 @@ included, signed in or not; nothing remembers it — and the server checks it in
 constant time on every call that creates or reaches a hold. Twenty tries in
 ten minutes per address. It is a door, not a lock: four digits typed on a phone.
 
+### The first screen's links
+
+Under the door's card: X, Telegram, and the contract address. All three come
+from the environment rather than the source, because the accounts belong to
+whoever runs the server and not to the code — `X_URL`, `TELEGRAM_URL` and
+`CONTRACT` in `.env`, carried through `docker-compose.yml`, the `Dockerfile`
+and `turbo.json` as `NEXT_PUBLIC_*` because Next bakes them at build time and
+Turbo's strict env mode drops anything undeclared (which is exactly how the
+first deployment lost `API_PROXY_URL`).
+
+A link with no address is not drawn at all, rather than pointing somewhere
+wrong. `CONTRACT` empty means the chip reads COMING SOON; set, it shortens
+the address the way an explorer does and copies it on a tap.
+
 ## Not done
 
 - **Clan wars.** See above: a second game mode, and none of its decisions have

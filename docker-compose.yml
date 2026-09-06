@@ -117,6 +117,12 @@ services:
         # hostname to buy. Both are build arguments because Next bakes both in.
         NEXT_PUBLIC_API_URL: /api
         API_PROXY_URL: http://api:4000
+        # The first screen's links, and the contract address once there is
+        # one. Blank is fine: a link with no address is not drawn, and the
+        # contract chip says COMING SOON until it is filled in.
+        NEXT_PUBLIC_X_URL: ${X_URL:-}
+        NEXT_PUBLIC_TG_URL: ${TELEGRAM_URL:-}
+        NEXT_PUBLIC_CONTRACT: ${CONTRACT:-}
     restart: unless-stopped
     depends_on:
       api: { condition: service_healthy }

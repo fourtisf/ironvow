@@ -53,6 +53,7 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
       onToast: (m) => eventsRef.current.onToast(m),
       onPlayerChanged: () => eventsRef.current.onPlayerChanged(),
       onBattleEnd: (c: DeployCommand[]) => eventsRef.current.onBattleEnd(c),
+      onPlacementChanged: () => eventsRef.current.onPlacementChanged(),
     };
 
     const world = createWorld(forward);

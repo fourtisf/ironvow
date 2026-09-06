@@ -9,7 +9,7 @@ import {
   type BuildingType,
 } from '@ironvow/config';
 import type { DeployCommand } from '@ironvow/types';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type DailyView } from '../lib/api';
 import {
   beginBattle,
@@ -25,6 +25,8 @@ import {
   type World,
 } from '../lib/game/world';
 import type { BattleOutcome, Mode, PlayerState, ScoutedRaid } from '../lib/game/types';
+import { TUTORIAL, goFor, loadTutorial, nextObjective, saveTutorial, type CoachGo } from '../lib/game/coach';
+import { centerOn } from '../lib/render/camera';
 import { fmt } from '../lib/format';
 import { loadSoundPreference, setSfxVolume, sfx, unlockAudio } from '../lib/sfx';
 import { loadMusicPreference, setMusicVolume, startMusic, stopMusic, unlockMusic } from '../lib/music';
@@ -35,6 +37,8 @@ import { Inspector, PlaceBar } from './Inspector';
 import { ClaimModal, ServerDownModal, ConfirmModal, ResultModal, ScoutModal, SignInModal } from './Modals';
 import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
+import { Coach } from './Coach';
+import { HelpSheet } from './HelpSheet';
 import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot, type Quality } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
@@ -49,7 +53,7 @@ import { Toast } from './Toast';
  * server state down and the world calling back when the player does something.
  */
 
-type Sheet = 'build' | 'army' | 'orders' | 'log' | 'clan' | 'ladder' | 'settings' | null;
+type Sheet = 'build' | 'army' | 'orders' | 'log' | 'clan' | 'ladder' | 'settings' | 'help' | null;
 
 /** The player's own row, pinned when they are not in the top fifty. */
 type LadderSheetMe = { name: string; trophies: number; rank: number } | null;
@@ -99,6 +103,11 @@ export function Game() {
   } | null>(null);
   /** Bumped once a frame while a battle runs, so the battle HUD tracks it. */
   const [battleTick, setBattleTick] = useState(0);
+  /** Bumped when the ghost moves, so the placement bar re-reads it. */
+  const [placeTick, setPlaceTick] = useState(0);
+
+  /** Tutorial steps finished, remembered per hold in this browser. */
+  const [tutorialDone, setTutorialDone] = useState<string[]>([]);
 
   /* --- toasts are the game's only error channel, as in the prototype --- */
   const say = useCallback((message: string) => setToast(message + '​'.repeat(Math.random() * 3 | 0)), []);
@@ -287,7 +296,10 @@ export function Game() {
 
     if (!done) return;
     sfx.place();
-    if (place.movingId) bump(world, place.movingId);
+    if (place.movingId) {
+      bump(world, place.movingId);
+      markTutorial('move');
+    }
     else if ('buildingId' in done && 'seconds' in done) {
       rememberJob(done.buildingId as string, done.seconds as number);
     }
@@ -564,6 +576,7 @@ export function Game() {
     onToast: say,
     onPlayerChanged: () => setBattleTick((n) => n + 1),
     onBattleEnd: (commands: DeployCommand[]) => { void finishBattle(commands); },
+    onPlacementChanged: () => setPlaceTick((t) => t + 1),
   };
 
   const onTapBuilding = useCallback((id: string | null) => {
@@ -573,12 +586,11 @@ export function Game() {
     if (!world) return;
     const building = id ? world.player?.buildings.find((b) => b.id === id) : null;
 
-    // Tapping a producer with a full pouch collects it rather than selecting it.
+    // Tapping a producer with a full pouch collects it — and selects it too,
+    // so the next thing the finger does, a drag, moves it.
     if (building && building.stock >= 1 && (building.type === 'mine' || building.type === 'forge')) {
       void collect(building.id);
-      return;
-    }
-    if (id) sfx.tap();
+    } else if (id) sfx.tap();
     world.selectedId = id;
     setSelectedId(id);
   }, [collect]);
@@ -605,6 +617,79 @@ export function Game() {
       || player.keepLevel > 1
     : false;
   const showGuestNote = Boolean(player?.isGuest) && investedEnough && !guestNoteDismissed;
+
+  /* --------------------------------------------------------------- guide --- */
+
+  useEffect(() => {
+    if (player?.id) setTutorialDone(loadTutorial(player.id));
+  }, [player?.id]);
+
+  const markTutorial = useCallback((stepId: string) => {
+    setTutorialDone((prev) => {
+      if (prev.includes(stepId)) return prev;
+      const next = [...prev, stepId];
+      const id = worldRef.current?.player?.id;
+      if (id) saveTutorial(id, next);
+      return next;
+    });
+  }, []);
+
+  const objective = useMemo(
+    () => nextObjective({ tutorialDone, quests, daily }),
+    [tutorialDone, quests, daily],
+  );
+
+  /** Select a building and bring the camera to it. */
+  const focusBuilding = useCallback((type: 'keep' | 'mine') => {
+    const world = worldRef.current;
+    const b = world?.player?.buildings.find((x) => x.type === type)
+      ?? (type === 'mine' ? world?.player?.buildings.find((x) => x.type === 'forge') : undefined);
+    if (!world || !b) return;
+    const s = TYPES[b.type].s;
+    centerOn(world.cam, b.gx + s / 2, b.gy + s / 2, undefined, world.vp.dpr);
+    world.selectedId = b.id;
+    setSelectedId(b.id);
+  }, []);
+
+  /** The GO button: take the player where the objective is done. */
+  const goTo = useCallback((go: CoachGo) => {
+    sfx.tap();
+    switch (go) {
+      case 'build': setSheet('build'); return;
+      case 'army': setSheet('army'); void loadProgression(); return;
+      case 'orders': setSheet('orders'); void loadQuests(); return;
+      case 'raid': unlockAudio(); void findRaid(false); return;
+      case 'keep': focusBuilding('keep'); return;
+      case 'mine': focusBuilding('mine'); return;
+      case 'collect': {
+        const world = worldRef.current;
+        const ready = (world?.player?.buildings ?? []).some((b) => PROD[b.type] && b.stock >= 1);
+        if (ready) void collectAll();
+        else { focusBuilding('mine'); say('The pouch is still filling — come back in a moment'); }
+        return;
+      }
+      default: return;
+    }
+  }, [loadProgression, loadQuests, findRaid, focusBuilding, collectAll, say]);
+
+  // Point at what the objective names: a rail button, or a building on the field.
+  const railHighlight = objective.target && ['build', 'army', 'orders', 'raid', 'log', 'home'].includes(objective.target)
+    ? objective.target
+    : null;
+  useEffect(() => {
+    const world = worldRef.current;
+    if (!world) return;
+    const t = objective.target;
+    let id: string | null = null;
+    const own = player?.buildings ?? [];
+    if (t === 'keep') id = own.find((b) => b.type === 'keep')?.id ?? null;
+    else if (t === 'mine') id = own.find((b) => b.type === 'mine')?.id ?? null;
+    else if (t === 'producers') {
+      const fullest = [...own].filter((b) => PROD[b.type]).sort((a, b) => b.stock - a.stock)[0];
+      id = fullest?.id ?? null;
+    }
+    world.coachTargetId = id;
+  }, [objective.target, player]);
 
   const ordersReady = player
     ? hasClaimableQuest(player.claimedQuests, {
@@ -688,6 +773,8 @@ export function Game() {
           soundOn={sfxLevel > 0 || musicLevel > 0}
           onToggleSound={() => { sfx.tap(); setSheet('settings'); }}
           showGuestNote={showGuestNote}
+          highlight={railHighlight}
+          onHelp={() => { sfx.tap(); setSheet('help'); }}
           onDismissGuestNote={() => {
             setGuestNoteDismissed(true);
             try {
@@ -743,8 +830,35 @@ export function Game() {
         />
       )}
 
+      {player && mode === 'base' && !sheet && !scout && !outcome && (
+        <Coach
+          objective={objective}
+          busy={claimingQuest !== null}
+          onGo={() => goTo(objective.go)}
+          onClaim={() => {
+            if (objective.kind === 'quest') void claimQuest(objective.id);
+            else if (objective.kind === 'daily') void claimDaily(objective.id);
+          }}
+          onNext={() => { sfx.tap(); markTutorial(objective.id); }}
+          onSkipTutorial={() => { sfx.tap(); for (const step of TUTORIAL) markTutorial(step.id); }}
+          onHelp={() => { sfx.tap(); setSheet('help'); }}
+        />
+      )}
+
+      {sheet === 'help' && player && (
+        <HelpSheet
+          onClose={() => setSheet(null)}
+          onReplayTutorial={() => {
+            setTutorialDone([]);
+            saveTutorial(player.id, []);
+            setSheet(null);
+          }}
+        />
+      )}
+
       {mode === 'place' && world?.placement && (
         <PlaceBar
+          key={placeTick}
           typeName={TYPES[world.placement.type].n}
           moving={world.placement.movingId !== null}
           ok={world.placement.ok}
@@ -803,6 +917,7 @@ export function Game() {
           busyId={claimingQuest}
           onClose={() => setSheet(null)}
           onClaim={(id) => { void claimQuest(id); }}
+          onGo={(kind, id) => { setSheet(null); goTo(goFor(kind, id)); }}
         />
       )}
 
@@ -893,6 +1008,7 @@ export function Game() {
                   : 'That name will not do',
               ));
           }}
+          onHelp={() => setSheet('help')}
           onDeleteAccount={() => {
             setConfirm({
               title: 'DELETE THIS HOLD?',

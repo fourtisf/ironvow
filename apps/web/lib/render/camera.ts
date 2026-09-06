@@ -140,6 +140,7 @@ export function frameBase(
   vp: Viewport,
   buildings: readonly { gx: number; gy: number; size: number }[],
   margin = 70,
+  maxZoom = ZOOM_MAX,
 ): void {
   if (buildings.length === 0) {
     centerOn(cam, N / 2, N / 2, 0.95, vp.dpr);
@@ -165,7 +166,7 @@ export function frameBase(
   const zx = (vp.w - margin * 2) / Math.max(1, spanW);
   const zy = (vp.h - margin * 2 - headroom) / Math.max(1, spanH);
 
-  centerOn(cam, (minX + maxX) / 2, (minY + maxY) / 2, clamp(Math.min(zx, zy), ZOOM_MIN, ZOOM_MAX), vp.dpr);
+  centerOn(cam, (minX + maxX) / 2, (minY + maxY) / 2, clamp(Math.min(zx, zy), ZOOM_MIN, maxZoom), vp.dpr);
 }
 
 /** Grid bounds of what the screen currently covers, for terrain iteration. */

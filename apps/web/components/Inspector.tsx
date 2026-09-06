@@ -97,7 +97,7 @@ export function Inspector({
           <br />
           {fmt(hpOf(building.type, building.level))} hit points
           {!atCap && seconds > 0 && ` · next takes ${Math.round(seconds / 60) >= 1 ? `${Math.round(seconds / 60)}m` : `${seconds}s`}`}
-          {!isKeep && <><br />Drag it on the field to move it.</>}
+          <br />Drag it on the field to move it.
         </p>
       </div>
 
@@ -116,7 +116,7 @@ export function Inspector({
               ? 'NO BUILDER'
               : <>UPGRADE {cost.g > 0 && <><GoldIcon />{fmt(cost.g)}</>}{cost.i > 0 && <><IronIcon />{fmt(cost.i)}</>}</>}
         </button>
-        {!isKeep && <button className="btn grey" onClick={onMove}>MOVE</button>}
+        <button className="btn grey" onClick={onMove}>MOVE</button>
         {/*
           Without this a misplaced building is permanent, and because count
           limits are per Keep level, a wrong choice spends that slot for good.

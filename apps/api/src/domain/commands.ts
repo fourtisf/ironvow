@@ -67,7 +67,6 @@ export type CommandError =
   | 'outOfBounds'
   | 'overlaps'
   | 'notInteger'
-  | 'cannotMoveKeep'
   | 'barracksTooLow'
   | 'warbandFull'
   | 'noSuchTroop'
@@ -186,7 +185,6 @@ export interface MovePlan {
 export function planMove(player: PlayerView, buildingId: string, gx: number, gy: number): Verdict<MovePlan> {
   const b = player.buildings.find((x) => x.id === buildingId);
   if (!b) return fail('unknownBuilding');
-  if (b.type === 'keep') return fail('cannotMoveKeep');
   // Moving a building mid-job would leave the builder walking to an empty plot.
   if (isBusy(timed(b))) return fail('alreadyBusy');
 
@@ -301,7 +299,6 @@ export const ERROR_MESSAGE: Record<CommandError, string> = {
   outOfBounds: 'That spot is outside the field.',
   overlaps: 'That spot is blocked.',
   notInteger: 'Buildings sit on whole cells.',
-  cannotMoveKeep: 'The Keep does not move.',
   barracksTooLow: 'A higher Barracks level is needed.',
   warbandFull: 'Warband is full — upgrade or build a Barracks.',
   noSuchTroop: 'No such troop.',

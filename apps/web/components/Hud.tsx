@@ -33,13 +33,17 @@ export interface HudProps {
   onToggleSound: () => void;
   /** Whether the guest nudge has earned its place on screen yet. */
   showGuestNote: boolean;
+  /** Which button the guide is pointing at, if any. */
+  highlight: string | null;
+  onHelp: () => void;
 }
 
 export function Hud({
   player, incomingCount, ordersReady, pending, showGuestNote,
   onHome, onBuild, onArmy, onOrders, onLog, onClan, onLadder, onRaid, onCollectAll, onClaimAccount,
-  onDismissGuestNote, soundOn, onToggleSound,
+  onDismissGuestNote, soundOn, onToggleSound, highlight, onHelp,
 }: HudProps) {
+  const hi = (name: string): string => (highlight === name ? ' hi' : '');
   return (
     <div id="hud">
       <div className="res" id="rGold">
@@ -65,6 +69,8 @@ export function Hud({
 
       {/* Tapping the trophy count opens the ladder: the number and the thing
           it means should be one tap apart. */}
+      <button id="helpBtn" onClick={onHelp} aria-label="How to play">?</button>
+
       <button id="trophyBar" onClick={onLadder} aria-label="Open the ladder">
         <TrophyIcon />
         <span>{player.trophies}</span>
@@ -91,7 +97,7 @@ export function Hud({
         </div>
       )}
 
-      <button id="homeBtn" onClick={onHome} aria-label="Centre on the keep">
+      <button id="homeBtn" className={hi('home')} onClick={onHome} aria-label="Centre on the keep">
         <HomeIcon />
       </button>
 
@@ -113,20 +119,20 @@ export function Hud({
       )}
 
       <div id="rail">
-        <button className="rbtn" onClick={onBuild}><BuildIcon /><span>BUILD</span></button>
-        <button className="rbtn" onClick={onArmy}><ArmyIcon /><span>ARMY</span></button>
-        <button className="rbtn" onClick={onOrders}>
+        <button className={`rbtn${hi('build')}`} onClick={onBuild}><BuildIcon /><span>BUILD</span></button>
+        <button className={`rbtn${hi('army')}`} onClick={onArmy}><ArmyIcon /><span>ARMY</span></button>
+        <button className={`rbtn${hi('orders')}`} onClick={onOrders}>
           <OrdersIcon />
           <span>ORDERS</span>
           {ordersReady && <span className="dot" />}
         </button>
-        <button className="rbtn" onClick={onLog}>
+        <button className={`rbtn${hi('log')}`} onClick={onLog}>
           <LogIcon />
           <span>LOG</span>
           {incomingCount > 0 && <span className="dot" />}
         </button>
         <button className="rbtn" onClick={onClan}><ClanIcon /><span>CLAN</span></button>
-        <button className="rbtn red" onClick={onRaid}><RaidIcon /><span>RAID</span></button>
+        <button className={`rbtn red${hi('raid')}`} onClick={onRaid}><RaidIcon /><span>RAID</span></button>
       </div>
     </div>
   );

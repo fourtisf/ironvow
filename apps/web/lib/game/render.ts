@@ -3,7 +3,7 @@ import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
 import { blitBuilding, blitDeco } from '../render/sprites';
-import { C } from '../render/palette';
+import { C, PIPH } from '../render/palette';
 import { drawHpBar, isoDiamond, roundRect } from '../render/primitives';
 import { drawAtmosphere } from '../render/atmosphere';
 import { drawTerrain } from '../render/terrain';
@@ -112,6 +112,7 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
       const s = TYPES[b.type].s;
       isoDiamond(d, b.gx, b.gy, s, s, 'rgba(232,178,60,.2)', 0, C.gold);
     }
+    if (b.id === w.coachTargetId) drawCoachMarker(d, b.gx, b.gy, TYPES[b.type].s, b.type);
   }
 
   if (place) {
@@ -317,3 +318,37 @@ function drawPopups(w: World, d: Draw): void {
 }
 
 export { roundRect };
+
+/**
+ * The guide's pointer: a pulsing ring on the footprint and a gold chevron
+ * bobbing above the roof, so "the Gold Mine" on the card is unmistakably
+ * that one on the field.
+ */
+function drawCoachMarker(d: Draw, gx: number, gy: number, size: number, type: BuildingType): void {
+  const { ctx, cam, vp, t } = d;
+  const z = cam.z;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+  ctx.save();
+  ctx.globalAlpha = 0.35 + 0.4 * pulse;
+  isoDiamond(d, gx - 0.15, gy - 0.15, size + 0.3, size + 0.3, 'rgba(0,0,0,0)', 0, C.gold);
+  ctx.restore();
+
+  const [cx, cy] = w2s(cam, vp, isoX(gx + size / 2, gy + size / 2), isoY(gx + size / 2, gy + size / 2));
+  const top = cy - ((PIPH[type] ?? 90) + 34) * z - Math.abs(Math.sin(t * 3)) * 10 * z;
+  const s = 11 * z;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1.6, 2.4 * z);
+  ctx.strokeStyle = C.line;
+  ctx.fillStyle = C.gold;
+  ctx.beginPath();
+  ctx.moveTo(cx, top + s);
+  ctx.lineTo(cx - s, top - s * 0.4);
+  ctx.lineTo(cx - s * 0.45, top - s * 0.4);
+  ctx.lineTo(cx - s * 0.45, top - s * 1.6);
+  ctx.lineTo(cx + s * 0.45, top - s * 1.6);
+  ctx.lineTo(cx + s * 0.45, top - s * 0.4);
+  ctx.lineTo(cx + s, top - s * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}

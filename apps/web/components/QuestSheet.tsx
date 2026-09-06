@@ -27,6 +27,8 @@ export interface QuestSheetProps {
   onClose: () => void;
   onClaim: (questId: string) => void;
   onClaimDaily: (orderId: string) => void;
+  /** Take the player to where this order is done. */
+  onGo: (kind: 'quest' | 'daily', id: string) => void;
 }
 
 /** "4h 20m", for the countdown to the next set. */
@@ -37,7 +39,7 @@ function untilText(ms: number): string {
 }
 
 export function QuestSheet({
-  quests, daily, busyId, onClose, onClaim, onClaimDaily,
+  quests, daily, busyId, onClose, onClaim, onClaimDaily, onGo,
 }: QuestSheetProps) {
   const done = quests.filter((q) => q.claimed).length;
   const allDone = done === quests.length && quests.length > 0;
@@ -84,7 +86,10 @@ export function QuestSheet({
                     {busyId === o.id ? '…' : 'CLAIM'}
                   </button>
                 ) : (
-                  <span className="qrw">{fmt(o.progress)}/{fmt(o.goal)}</span>
+                  <span className="qgo">
+                    <span className="qrw">{fmt(o.progress)}/{fmt(o.goal)}</span>
+                    <button className="btn grey" onClick={() => onGo('daily', o.id)}>GO</button>
+                  </span>
                 )}
               </div>
             );
@@ -122,8 +127,9 @@ export function QuestSheet({
                 {busyId === q.id ? '…' : 'CLAIM'}
               </button>
             ) : (
-              <span className="qrw">
-                {q.progress}/{q.goal}
+              <span className="qgo">
+                <span className="qrw">{q.progress}/{q.goal}</span>
+                <button className="btn grey" onClick={() => onGo('quest', q.id)}>GO</button>
               </span>
             )}
           </div>

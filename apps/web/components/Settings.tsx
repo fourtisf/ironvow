@@ -40,6 +40,7 @@ export interface SettingsSheetProps {
   onClaimAccount: () => void;
   onLogout: () => void;
   onDeleteAccount: () => void;
+  onHelp: () => void;
   onClose: () => void;
 }
 
@@ -81,7 +82,7 @@ function Slider({
 export function SettingsSheet({
   music, sfx, quality, isGuest, playerName, push, layouts, busy,
   onMusic, onSfx, onQuality, onPush, onTestPush, onSaveLayout, onApplyLayout,
-  onRename, onClaimAccount, onLogout, onDeleteAccount, onClose,
+  onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onClose,
 }: SettingsSheetProps) {
   const canPush = push !== 'unsupported' && push !== 'unavailable' && push !== 'denied';
   return (
@@ -190,6 +191,14 @@ export function SettingsSheet({
           <button className="btn gold" onClick={onClaimAccount}>SAVE IT</button>
         </div>
       )}
+
+      <div className="setRow">
+        <div className="setLabel">
+          <h4>HOW TO PLAY</h4>
+          <p>The rules, and the tutorial again if you want it.</p>
+        </div>
+        <button className="btn grey" onClick={onHelp}>OPEN</button>
+      </div>
 
       <div className="qrow" style={{ marginTop: 12 }}>
         <div className="qi">

@@ -261,6 +261,51 @@
   body:has(#placeBar) #rail,body:has(#placeBar) #homeBtn,body:has(#placeBar) #soundBtn,
   body:has(#placeBar) #collectAll{display:none}
 
+  /* ---------- the guide ---------- */
+  #coach{position:fixed;left:9px;right:9px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:14;
+    background:linear-gradient(#22304a,#141d2b);border:2px solid #46608a;border-radius:16px;padding:11px 13px;
+    box-shadow:0 8px 22px rgba(0,0,0,.45)}
+  #coach.ready{border-color:#e8b23c}
+  #coach .head{display:flex;align-items:center;justify-content:space-between}
+  #coach .label{font-size:8px;letter-spacing:1.6px;font-family:Arial;font-weight:900;color:#e8b23c}
+  #coach .fold{width:24px;height:24px;border-radius:8px;background:#31435f;color:#c3d4ea;font-size:14px;line-height:1;flex:none}
+  #coach h3{font-size:12.5px;letter-spacing:1px;margin-top:4px}
+  #coach p{font-size:9.5px;font-family:Arial;font-weight:700;color:#8fa6c4;line-height:1.5;margin-top:4px}
+  #coach .prog{display:flex;align-items:center;gap:8px;margin-top:7px}
+  #coach .prog .qbarBg{flex:1;margin-top:0}
+  #coach .prog span{font-size:10px;color:#ffd97a;flex:none}
+  #coach .acts{display:flex;align-items:center;gap:7px;margin-top:9px;flex-wrap:wrap}
+  #coach .acts .btn{font-size:9.5px;padding:8px 12px}
+  #coach .link{font-size:9px;font-family:Arial;font-weight:700;color:#8fa6c4;text-decoration:underline;margin-left:auto}
+  #coachChip{position:fixed;left:9px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:14;display:flex;align-items:center;gap:7px;
+    background:rgba(20,28,40,.9);border:2px solid #46608a;border-radius:12px;padding:6px 10px;font-size:9px;letter-spacing:1px;color:#f2e4c4}
+  #coachChip .pip{width:8px;height:8px;border-radius:50%;background:#e8b23c;flex:none}
+  #coachChip em{font-style:normal;color:#ffd97a;font-family:Arial;font-weight:900}
+  /* The guide yields the corner to the inspector and the placement bar, and
+     while its card is open the side buttons yield to it; the folded chip sits
+     to the right of the home button instead. */
+  body:has(#insp) #coach,body:has(#insp) #coachChip,body:has(#placeBar) #coach,body:has(#placeBar) #coachChip{display:none}
+  body:has(#coach) #homeBtn,body:has(#coach) #soundBtn{display:none}
+  #coachChip{left:82px}
+
+  /* What the guide is pointing at pulses. */
+  .rbtn.hi,#homeBtn.hi{animation:coachPulse 1.4s ease-in-out infinite}
+  @keyframes coachPulse{0%,100%{box-shadow:0 4px 0 #0d1420,0 0 0 0 rgba(232,178,60,.9)}50%{box-shadow:0 4px 0 #0d1420,0 0 0 7px rgba(232,178,60,0)}}
+  @media (prefers-reduced-motion:reduce){.rbtn.hi,#homeBtn.hi{animation:none;outline:3px solid #e8b23c}}
+
+  #helpBtn{position:absolute;top:calc(68px + env(safe-area-inset-top));right:104px;width:30px;height:30px;border-radius:10px;
+    background:rgba(20,28,40,.82);border:2px solid #3d5170;color:#e8b23c;font-size:15px;font-family:Arial;font-weight:900}
+  #helpBtn:active{transform:translateY(2px)}
+
+  .qgo{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none}
+  .qgo .btn{padding:6px 12px;font-size:9px}
+
+  #helpSheet .helpSec{margin-bottom:12px}
+  #helpSheet .helpSec h3{font-size:10.5px;letter-spacing:1.6px;color:#e8b23c;margin-bottom:5px}
+  #helpSheet .helpSec ul{list-style:none}
+  #helpSheet .helpSec li{font-size:10px;font-family:Arial;font-weight:700;color:#c3d4ea;line-height:1.5;padding:6px 9px;
+    background:#22304a;border:2px solid #3d5170;border-radius:10px;margin-bottom:5px}
+
   /* ---------- wide screens ---------- */
   /* A phone layout stretched across a desktop put a full-width inspector
      under 1900 px of nothing. Above tablet width the inspector and the
@@ -279,6 +324,17 @@
     #placeBar .btn{font-size:11px;padding:10px 16px}
     .res .v{font-size:16px}
     .res .cap{font-size:9px}
+    /* The guide takes the empty left side of a wide screen instead of the bottom. */
+    #coach{left:14px;right:auto;bottom:auto;top:calc(150px + env(safe-area-inset-top));width:330px;padding:14px 16px}
+    #coach h3{font-size:15px}
+    #coach p{font-size:11.5px}
+    #coach .acts .btn{font-size:10.5px;padding:10px 14px}
+    #coachChip{left:14px;bottom:auto;top:calc(150px + env(safe-area-inset-top))}
+    body:has(#insp) #coach{display:block}
+    body:has(#insp) #coachChip{display:flex}
+    body:has(#coach) #homeBtn,body:has(#coach) #soundBtn{display:block}
+    #helpSheet,.sheet{left:50%;right:auto;transform:translateX(-50%);width:min(760px,100vw);border-radius:20px 20px 0 0}
+    @keyframes slideUp{from{transform:translate(-50%,100%)}to{transform:translate(-50%,0)}}
   }
 
   /* Settings rows: a label on the left, one control on the right. */

@@ -94,8 +94,10 @@ describe('the move path uses the same rules', () => {
     expect(planMove(player, 'm', 0, 0)).toEqual({ ok: false, error: 'outOfBounds' });
   });
 
-  it('refuses to move the Keep', () => {
-    expect(planMove(player, 'k', 10, 10)).toEqual({ ok: false, error: 'cannotMoveKeep' });
+  it('moves the Keep like anything else', () => {
+    // The specification never said the Keep was fixed, and the first player
+    // to try moving it took the refusal for a broken game.
+    expect(planMove(player, 'k', 10, 10)).toMatchObject({ ok: true });
   });
 
   it('refuses to move a building that is not the player’s', () => {

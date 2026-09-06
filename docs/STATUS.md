@@ -303,6 +303,42 @@ Arial Black, and a 1200 x 630 card for links shared on X and elsewhere. All of
 it is generated from the same polygon wordmark as the X profile, so it is the
 same mark everywhere.
 
+### The guide: a tutorial, and every order with a way there
+
+Nobody had told the player what to do. The twelve War Orders were a list
+behind a button, the daily orders another list under them, and moving a
+building was a press-and-hold nobody was told about.
+
+What there is now, in `apps/web/lib/game/coach.ts` and `components/Coach.tsx`:
+
+- **One objective at a time**, on a card: the next tutorial step, then the
+  next War Order, then the next of today's orders, then "nothing owed today"
+  with the countdown to tomorrow's. Each says what to do, in words that name
+  the buttons, and has one button that goes there — BUILD opens, ARMY opens,
+  RAID finds a raid, SELECT KEEP selects it and brings the camera, COLLECT
+  collects. When the server says the order is met, the button becomes
+  CLAIM REWARD. The card folds to a chip.
+- **A four-step tutorial** for a new hold: the Keep, the camera, gold and
+  iron, and moving a building — which completes itself the first time a
+  building is moved. Kept in the browser per hold; replayable from HOW TO
+  PLAY.
+- **Pointing.** The rail button the objective needs pulses; a building it
+  names gets a bobbing gold chevron and a pulsing ring on the field.
+- **GO on every open row** of the orders sheet, using the same map.
+- **HOW TO PLAY**, from the ? button and from settings: the rules in the
+  order a player meets them.
+
+Three things found on the way, all fixed:
+
+- The opening frame fitted the hold to the window, which on a desktop meant a
+  Keep the size of the screen. It opens at zoom 0.8 now (`HOME_ZOOM`).
+- The Keep could not be moved, by a rule in `planMove` and again in the
+  client. The specification never asked for it and the first player to try
+  it thought moving was broken. The Keep moves like anything else now.
+- Tapping a mine with a full pouch collected it and did not select it, so the
+  drag that followed panned the camera instead of moving the mine. It does
+  both now.
+
 ## Not done
 
 - **Clan wars.** See above: a second game mode, and none of its decisions have

@@ -4,6 +4,7 @@ import {
   buildingAt,
   deployAt,
   movePlacementTo,
+  placeGhostAt,
   startPlacement,
   type World,
 } from './world';
@@ -34,6 +35,9 @@ interface Pointer {
   dragging: boolean;
   /** The selected building the press landed on, lifted on the first movement. */
   grab: string | null;
+  /** Where in the footprint the finger is, so a drag keeps that point under it. */
+  gdx: number;
+  gdy: number;
 }
 
 const TAP_SLOP = 12;
@@ -50,7 +54,7 @@ export function attachInput(
 ): InputHandle {
   const ptr: Pointer = {
     down: false, moved: false, sx: 0, sy: 0, lx: 0, ly: 0,
-    at: 0, pinch: 0, pinchZoom: 1, dragging: false, grab: null,
+    at: 0, pinch: 0, pinchZoom: 1, dragging: false, grab: null, gdx: 0, gdy: 0,
   };
   let longPress: ReturnType<typeof setTimeout> | null = null;
 
@@ -98,6 +102,8 @@ export function attachInput(
       const s = 3;
       if (gx >= p.gx - 1 && gx < p.gx + s + 1 && gy >= p.gy - 1 && gy < p.gy + s + 1) {
         ptr.dragging = true;
+        ptr.gdx = gx - p.gx;
+        ptr.gdy = gy - p.gy;
       }
       return;
     }
@@ -107,10 +113,10 @@ export function attachInput(
     // A building that is already selected moves the moment it is dragged:
     // tap it, then pull it where it should go. One that is not needs a press
     // and hold first, so a pan that happens to start on a building does not
-    // carry it off. The Keep never moves.
+    // carry it off.
     const [gx, gy] = s2g(w.cam, w.vp, x, y);
     const b = buildingAt(w, gx, gy);
-    if (!b || b.type === 'keep') return;
+    if (!b) return;
     if (w.selectedId === b.id) {
       // Armed, not picked up: it is lifted on the first real movement, so a
       // plain tap on it stays a tap.
@@ -121,6 +127,8 @@ export function attachInput(
       if (!ptr.down || ptr.moved) return;
       startPlacement(w, b.type, b.id);
       ptr.dragging = true;
+      ptr.gdx = gx - b.gx;
+      ptr.gdy = gy - b.gy;
       w.events.onToast(`Carrying the ${b.type} — drop it where you want`);
     }, LONG_PRESS_MS);
   };
@@ -143,10 +151,13 @@ export function attachInput(
       ptr.moved = true;
       clearLongPress();
       if (ptr.grab && w.mode === 'base') {
-        const b = buildingAt(w, ...s2g(w.cam, w.vp, ptr.sx, ptr.sy));
+        const [sgx, sgy] = s2g(w.cam, w.vp, ptr.sx, ptr.sy);
+        const b = buildingAt(w, sgx, sgy);
         if (b && b.id === ptr.grab) {
           startPlacement(w, b.type, b.id);
           ptr.dragging = true;
+          ptr.gdx = sgx - b.gx;
+          ptr.gdy = sgy - b.gy;
         }
         ptr.grab = null;
       }
@@ -154,7 +165,7 @@ export function attachInput(
 
     if (ptr.dragging && w.mode === 'place') {
       const [gx, gy] = s2g(w.cam, w.vp, x, y);
-      movePlacementTo(w, gx, gy);
+      placeGhostAt(w, gx - ptr.gdx, gy - ptr.gdy);
     } else {
       w.cam.x -= (x - ptr.lx) / w.cam.z;
       w.cam.y -= (y - ptr.ly) / w.cam.z;

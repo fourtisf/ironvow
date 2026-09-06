@@ -35,6 +35,12 @@ export interface WorldEvents {
   onPlayerChanged: () => void;
   /** A battle reached an end condition. */
   onBattleEnd: (commands: DeployCommand[]) => void;
+  /**
+   * The ghost moved or its footprint changed colour. The placement bar is
+   * React, the ghost is not, and without this the bar kept saying Blocked —
+   * with DONE greyed out — over a ghost that had long since turned green.
+   */
+  onPlacementChanged: () => void;
 }
 
 export interface World {
@@ -61,6 +67,8 @@ export interface World {
   mode: Mode;
   player: PlayerState | null;
   selectedId: string | null;
+  /** A building the guide is pointing at, drawn with a marker over it. */
+  coachTargetId: string | null;
   placement: Placement | null;
   popups: FloatingText[];
 
@@ -102,6 +110,7 @@ export function createWorld(events: WorldEvents): World {
     mode: 'base',
     player: null,
     selectedId: null,
+    coachTargetId: null,
     placement: null,
     popups: [],
     battle: null,
@@ -155,11 +164,21 @@ export function setMode(w: World, mode: Mode): void {
   w.events.onModeChange(mode);
 }
 
+/**
+ * How close the opening frame may come.
+ *
+ * Fitting a three-building hold to a desktop window zooms all the way in,
+ * and the first thing the player sees is a Keep the size of the screen with
+ * no room to build. This is where the camera opens instead; the player can
+ * zoom in from here.
+ */
+export const HOME_ZOOM = 0.8;
+
 /** Frame the player's own hold. */
 export function centerOnKeep(w: World): void {
   const own = w.player?.buildings ?? [];
   if (own.length > 0) {
-    frameBase(w.cam, w.vp, own.map((b) => ({ gx: b.gx, gy: b.gy, size: TYPES[b.type].s })));
+    frameBase(w.cam, w.vp, own.map((b) => ({ gx: b.gx, gy: b.gy, size: TYPES[b.type].s })), 70, HOME_ZOOM);
     return;
   }
   centerOn(w.cam, N / 2, N / 2, 0.95, w.vp.dpr);
@@ -365,13 +384,31 @@ export function localCellsFree(
   return true;
 }
 
+/** Centre the ghost on a grid point: a tap on the ground. */
 export function movePlacementTo(w: World, gx: number, gy: number): void {
   const p = w.placement;
   if (!p) return;
   const s = TYPES[p.type].s;
-  p.gx = clamp(Math.round(gx - s / 2), 2, N - 2 - s);
-  p.gy = clamp(Math.round(gy - s / 2), 2, N - 2 - s);
+  placeGhostAt(w, gx - s / 2, gy - s / 2);
+}
+
+/**
+ * Put the ghost's top-left corner at a grid point.
+ *
+ * A drag goes through here with the corner the finger picked the building up
+ * by, so the building stays under the finger where it was grabbed instead of
+ * jumping to centre itself on it — grabbed by the roof, a Keep used to leap
+ * two tiles north the moment it moved, and land on its neighbours.
+ */
+export function placeGhostAt(w: World, gx: number, gy: number): void {
+  const p = w.placement;
+  if (!p) return;
+  const s = TYPES[p.type].s;
+  const was = `${p.gx},${p.gy},${p.ok}`;
+  p.gx = clamp(Math.round(gx), 2, N - 2 - s);
+  p.gy = clamp(Math.round(gy), 2, N - 2 - s);
   p.ok = localCellsFree(w, p.type, p.gx, p.gy, p.movingId);
+  if (`${p.gx},${p.gy},${p.ok}` !== was) w.events.onPlacementChanged();
 }
 
 /**

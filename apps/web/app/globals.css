@@ -464,6 +464,9 @@
     background:linear-gradient(#31435f,#22304a);border:2px solid #46608a;color:#dbe6f5;
     text-decoration:none;box-shadow:0 3px 0 #1b2635;transition:transform .08s,border-color .12s,color .12s}
   .sbtn:hover{border-color:#e8b23c;color:#ffd97a}
+  .sbtn.soon{gap:7px;background:rgba(13,20,32,.7);border-style:dashed;border-color:rgba(232,178,60,.4);
+    color:#8fa6c4;box-shadow:none;cursor:default}
+  .sbtn.soon em{font-style:normal;font-size:8.5px;letter-spacing:1.6px;color:#e8b23c;font-family:Arial;font-weight:900}
   .sbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #1b2635}
   .sbtn svg{width:17px;height:17px;display:block;flex:none}
   .ca{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:9px 10px;border-radius:12px;

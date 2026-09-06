@@ -412,8 +412,9 @@ and `turbo.json` as `NEXT_PUBLIC_*` because Next bakes them at build time and
 Turbo's strict env mode drops anything undeclared (which is exactly how the
 first deployment lost `API_PROXY_URL`).
 
-A link with no address is not drawn at all, rather than pointing somewhere
-wrong. The card compresses on a short window — a laptop at 150% scaling
+A link with no address is drawn dimmed and saying SOON rather than pointing
+somewhere wrong — hiding it left the card looking unfinished, and looking
+like a deploy that had not landed. The card compresses on a short window — a laptop at 150% scaling
 leaves the page about 590 CSS pixels, and the card had been growing a
 scrollbar and quietly putting the links below the fold, where nobody found
 them; it now fits with nothing to scroll from 590 pixels up. `CONTRACT` empty means the chip reads COMING SOON; set, it shortens

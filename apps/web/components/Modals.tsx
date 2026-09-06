@@ -211,24 +211,26 @@ function Wordmark() {
  */
 function DoorFooter() {
   const [copied, setCopied] = useState(false);
-  const social = X_URL !== '' || TELEGRAM_URL !== '';
+
+  /*
+   * A button with no address configured is still drawn — dimmed and saying
+   * SOON, like the contract chip beside it. Hiding it left the card looking
+   * unfinished and, worse, looking like the deploy had not landed; a place
+   * marked "soon" says more than an empty row. It becomes a real link the
+   * moment `X_URL` or `TELEGRAM_URL` is set.
+   */
+  const social = (url: string, label: string, icon: React.ReactNode) => (
+    url === ''
+      ? <span className="sbtn soon" aria-label={`${label}: coming soon`}>{icon}<em>SOON</em></span>
+      : <a className="sbtn" href={url} target="_blank" rel="noreferrer noopener" aria-label={`The project on ${label}`}>{icon}</a>
+  );
 
   return (
     <div className="doorFoot">
-      {social && (
-        <div className="social">
-          {X_URL !== '' && (
-            <a className="sbtn" href={X_URL} target="_blank" rel="noreferrer noopener" aria-label="The project on X">
-              <XIcon />
-            </a>
-          )}
-          {TELEGRAM_URL !== '' && (
-            <a className="sbtn" href={TELEGRAM_URL} target="_blank" rel="noreferrer noopener" aria-label="The project on Telegram">
-              <TelegramIcon />
-            </a>
-          )}
-        </div>
-      )}
+      <div className="social">
+        {social(X_URL, 'X', <XIcon />)}
+        {social(TELEGRAM_URL, 'Telegram', <TelegramIcon />)}
+      </div>
 
       {CONTRACT === '' ? (
         <div className="ca soon"><b>CA</b><span>COMING SOON</span></div>

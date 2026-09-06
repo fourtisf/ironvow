@@ -1,7 +1,7 @@
-import { ZOOM_MAX, ZOOM_MIN, clamp } from '@ironvow/config';
+import { TYPES, ZOOM_MAX, ZOOM_MIN, clamp } from '@ironvow/config';
 import { clampCam, s2g } from '../render/camera';
 import {
-  buildingAt,
+  buildingAtScreen,
   deployAt,
   movePlacementTo,
   placeGhostAt,
@@ -115,7 +115,7 @@ export function attachInput(
     // and hold first, so a pan that happens to start on a building does not
     // carry it off.
     const [gx, gy] = s2g(w.cam, w.vp, x, y);
-    const b = buildingAt(w, gx, gy);
+    const b = buildingAtScreen(w, x, y);
     if (!b) return;
     if (w.selectedId === b.id) {
       // Armed, not picked up: it is lifted on the first real movement, so a
@@ -127,8 +127,9 @@ export function attachInput(
       if (!ptr.down || ptr.moved) return;
       startPlacement(w, b.type, b.id);
       ptr.dragging = true;
-      ptr.gdx = gx - b.gx;
-      ptr.gdy = gy - b.gy;
+      const s = TYPES[b.type].s;
+      ptr.gdx = Math.min(s - 0.01, Math.max(0, gx - b.gx));
+      ptr.gdy = Math.min(s - 0.01, Math.max(0, gy - b.gy));
       w.events.onToast(`Carrying the ${b.type} — drop it where you want`);
     }, LONG_PRESS_MS);
   };
@@ -143,6 +144,7 @@ export function attachInput(
       w.cam.tz = w.cam.z;
       clampCam(w.cam, w.vp.dpr);
       ptr.moved = true;
+      w.events.onCameraMoved();
       return;
     }
 
@@ -152,12 +154,15 @@ export function attachInput(
       clearLongPress();
       if (ptr.grab && w.mode === 'base') {
         const [sgx, sgy] = s2g(w.cam, w.vp, ptr.sx, ptr.sy);
-        const b = buildingAt(w, sgx, sgy);
+        const b = buildingAtScreen(w, ptr.sx, ptr.sy);
         if (b && b.id === ptr.grab) {
           startPlacement(w, b.type, b.id);
           ptr.dragging = true;
-          ptr.gdx = sgx - b.gx;
-          ptr.gdy = sgy - b.gy;
+          // Grabbed by the roof: hold it by the nearest point of its footprint,
+          // so it does not leap up the screen to put that point under the finger.
+          const s = TYPES[b.type].s;
+          ptr.gdx = Math.min(s - 0.01, Math.max(0, sgx - b.gx));
+          ptr.gdy = Math.min(s - 0.01, Math.max(0, sgy - b.gy));
         }
         ptr.grab = null;
       }
@@ -170,6 +175,7 @@ export function attachInput(
       w.cam.x -= (x - ptr.lx) / w.cam.z;
       w.cam.y -= (y - ptr.ly) / w.cam.z;
       clampCam(w.cam, w.vp.dpr);
+      if (ptr.moved) w.events.onCameraMoved();
     }
     ptr.lx = x;
     ptr.ly = y;
@@ -196,7 +202,8 @@ export function attachInput(
       return;
     }
 
-    const b = buildingAt(w, gx, gy);
+    void gx; void gy;
+    const b = buildingAtScreen(w, ptr.sx, ptr.sy);
     onTapBuilding(b?.id ?? null);
   };
 
@@ -205,6 +212,7 @@ export function attachInput(
     w.cam.z = clamp(w.cam.z * (e.deltaY > 0 ? 0.92 : 1.08), ZOOM_MIN, ZOOM_MAX);
     w.cam.tz = w.cam.z;
     clampCam(w.cam, w.vp.dpr);
+    w.events.onCameraMoved();
   };
 
   canvas.addEventListener('touchstart', onDown, { passive: false });

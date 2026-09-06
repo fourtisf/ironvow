@@ -1,4 +1,4 @@
-import type { DailyCounter } from '@ironvow/config';
+import type { BuildingType, DailyCounter, TroopType } from '@ironvow/config';
 import { DAILY_POOL } from '@ironvow/config';
 import type { DailyView } from '../api';
 import type { QuestRow } from '../../components/QuestSheet';
@@ -37,6 +37,12 @@ export interface Objective {
   target: CoachTarget;
   go: CoachGo;
   goLabel: string;
+  /** Inside BUILD: the card to light up. */
+  buildType?: BuildingType;
+  /** Inside ARMY: the troop to light up. */
+  troopType?: TroopType;
+  /** One line shown at the top of the sheet the objective sent the player into. */
+  hint?: string;
 }
 
 export interface TutorialStep {
@@ -48,43 +54,48 @@ export interface TutorialStep {
   goLabel: string;
 }
 
+/**
+ * Each step names one thing to do, and finishes itself the moment the player
+ * does it: tap the Keep, move the camera, collect from the mine, move the
+ * mine. The card never asks to be dismissed, only skipped.
+ */
 export const TUTORIAL: readonly TutorialStep[] = [
   {
     id: 'welcome',
-    title: 'This is your hold',
-    text: 'The Keep in the middle is its heart. Everything you build sits on the plateau around it, and it all keeps working on the server while you are away.',
+    title: 'Tap your Keep',
+    text: 'The Keep in the middle is the heart of your hold. Tap it — the arrow is pointing at it — to see what it can do.',
     target: 'keep', go: 'keep', goLabel: 'SHOW ME',
   },
   {
     id: 'camera',
-    title: 'Looking around',
-    text: 'Drag the ground to pan. Pinch, or scroll, to zoom. The HOME button brings you back to the Keep whenever you are lost.',
+    title: 'Look around',
+    text: 'Drag the ground to move about. Pinch, or scroll, to zoom. HOME brings you back to the Keep whenever you are lost.',
     target: 'home', go: null, goLabel: '',
   },
   {
     id: 'resources',
-    title: 'Gold and iron',
-    text: 'Gold pays for buildings and troops; iron for the heavier ones. Mines and forges make them around the clock, and hold them until you collect.',
-    target: 'mine', go: 'mine', goLabel: 'SHOW ME',
+    title: 'Collect your gold',
+    text: 'Your Gold Mine makes gold around the clock and holds it until you take it. Tap the pouch floating over it.',
+    target: 'mine', go: 'collect', goLabel: 'COLLECT',
   },
   {
     id: 'move',
-    title: 'Arrange your hold',
-    text: 'Tap a building to select it, then drag it to move it. Put defences where attackers must pass them. Try moving your Gold Mine now.',
-    target: 'mine', go: 'mine', goLabel: 'SHOW ME',
+    title: 'Move your Gold Mine',
+    text: 'Tap a building to select it, then drag it to a new spot and press DONE. Later, put defences where attackers must pass them.',
+    target: 'mine', go: 'mine', goLabel: 'SELECT IT',
   },
 ];
 
 /** Where each one-time War Order sends the player. */
-const QUEST_GUIDE: Record<string, { target: CoachTarget; go: CoachGo; goLabel: string; how: string }> = {
+const QUEST_GUIDE: Record<string, { target: CoachTarget; go: CoachGo; goLabel: string; how: string; buildType?: BuildingType; troopType?: TroopType; hint?: string }> = {
   q1:  { target: 'mine', go: 'collect', goLabel: 'COLLECT', how: 'Tap the pouch over the Gold Mine, or press COLLECT. Three times fills the order.' },
-  q2:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD, pick Gold Mine, and drop it on free ground. PLACE confirms it.' },
-  q3:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place a Cannon near the Keep. It fires on anyone who raids you.' },
-  q4:  { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train five Raiders. Training takes a moment; they wait in the Barracks.' },
+  q2:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD, pick Gold Mine, and drop it on free ground. PLACE confirms it.', buildType: 'mine', hint: 'Pick the Gold Mine, then drop it on free ground and press PLACE.' },
+  q3:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place a Cannon near the Keep. It fires on anyone who raids you.', buildType: 'cannon', hint: 'Pick the Cannon and put it near the Keep.' },
+  q4:  { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train five Raiders. Training takes a moment; they wait in the Barracks.', troopType: 'raider', hint: 'Tap TRAIN on the Raider five times.' },
   q5:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Press RAID, look the hold over, press ATTACK, then tap the ground to drop troops. Half the hold broken is a win.' },
   q6:  { target: 'keep', go: 'keep', goLabel: 'SELECT KEEP', how: 'Select the Keep and press UPGRADE. A higher Keep unlocks more of everything.' },
-  q7:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place an Iron Forge. Archers and rams cost iron.' },
-  q8:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and lay Ramparts in a ring inside your cannon’s range. Placing one offers the next straight away.' },
+  q7:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place an Iron Forge. Archers and rams cost iron.', buildType: 'forge', hint: 'Pick the Iron Forge and drop it on free ground.' },
+  q8:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and lay Ramparts in a ring inside your cannon’s range. Placing one offers the next straight away.', buildType: 'wall', hint: 'Pick the Rampart. After each PLACE the next one is already in your hand.' },
   q9:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Bring a full warband and take every building down. Rams on walls, archers behind.' },
   q10: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Every win earns trophies; losses cost some. Keep raiding to climb.' },
   q11: { target: 'keep', go: 'keep', goLabel: 'SELECT KEEP', how: 'Raise the Keep to level 4. Towers and rams open up on the way.' },
@@ -92,9 +103,9 @@ const QUEST_GUIDE: Record<string, { target: CoachTarget; go: CoachGo; goLabel: s
 };
 
 /** Where each kind of daily order sends the player. */
-const DAILY_GUIDE: Record<DailyCounter, { target: CoachTarget; go: CoachGo; goLabel: string; how: string }> = {
+const DAILY_GUIDE: Record<DailyCounter, { target: CoachTarget; go: CoachGo; goLabel: string; how: string; troopType?: TroopType; hint?: string }> = {
   dayCollected:  { target: 'producers', go: 'collect', goLabel: 'COLLECT', how: 'Every COLLECT from a mine or forge counts once. Come back through the day as they fill.' },
-  dayTrained:    { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train troops. Any kind counts.' },
+  dayTrained:    { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train troops. Any kind counts.', troopType: 'raider', hint: 'Tap TRAIN on any troop. Each one counts.' },
   dayRaids:      { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Launching a raid counts whether or not you win it.' },
   dayWins:       { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Break at least half a hold, or its Keep, to win.' },
   dayStars:      { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'One star for half the hold, one for the Keep, one for all of it. They add up across raids.' },
@@ -136,6 +147,9 @@ export function nextObjective(input: CoachInput): Objective {
       text: claimable ? `Done. Claim ${rewardLine(quest.reward)}.` : guide.how,
       progress: Math.min(quest.progress, quest.goal), goal: quest.goal, claimable,
       target: claimable ? 'orders' : guide.target, go: claimable ? null : guide.go, goLabel: guide.goLabel,
+      buildType: claimable ? undefined : guide.buildType,
+      troopType: claimable ? undefined : guide.troopType,
+      hint: claimable ? undefined : guide.hint,
     };
   }
 
@@ -153,6 +167,8 @@ export function nextObjective(input: CoachInput): Objective {
       text: claimable ? `Done. Claim ${rewardLine(order.reward)}.` : guide.how,
       progress: Math.min(order.progress, order.goal), goal: order.goal, claimable,
       target: claimable ? 'orders' : guide.target, go: claimable ? null : guide.go, goLabel: guide.goLabel,
+      troopType: claimable ? undefined : ('troopType' in guide ? guide.troopType : undefined),
+      hint: claimable ? undefined : ('hint' in guide ? guide.hint : undefined),
     };
   }
 

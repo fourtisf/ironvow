@@ -134,6 +134,16 @@ export function Game() {
       .catch(() => setGate(false));
   }, []);
 
+  const markTutorial = useCallback((stepId: string) => {
+    setTutorialDone((prev) => {
+      if (prev.includes(stepId)) return prev;
+      const next = [...prev, stepId];
+      const id = worldRef.current?.player?.id;
+      if (id) saveTutorial(id, next);
+      return next;
+    });
+  }, []);
+
   /* --- toasts are the game's only error channel, as in the prototype --- */
   const say = useCallback((message: string) => setToast(message + '​'.repeat(Math.random() * 3 | 0)), []);
 
@@ -348,6 +358,7 @@ export function Game() {
     const amount = result.collected.gold + result.collected.iron;
     if (amount > 0) {
       sfx.coin();
+      markTutorial('resources');
       const s = TYPES[target.type].s;
       popup(world, target.gx + s / 2, target.gy + s / 2, '+' + fmt(amount),
         target.type === 'mine' ? '#ffd25c' : '#c3d2e0');
@@ -355,7 +366,7 @@ export function Game() {
     }
     if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
     void loadQuests();
-  }, [runCommand, say, loadQuests]);
+  }, [runCommand, say, loadQuests, markTutorial]);
 
   /** Empty every producer at once. Twelve taps is a chore, not a decision. */
   const collectAll = useCallback(async () => {
@@ -366,6 +377,7 @@ export function Game() {
 
     if (result.collected.gold + result.collected.iron > 0) {
       sfx.coin();
+      markTutorial('resources');
       for (const b of producers) {
         const s = TYPES[b.type].s;
         if (world) {
@@ -377,7 +389,7 @@ export function Game() {
     }
     if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
     void loadQuests();
-  }, [runCommand, say, loadQuests]);
+  }, [runCommand, say, loadQuests, markTutorial]);
 
   const claimDaily = useCallback(async (orderId: string) => {
     setClaimingQuest(orderId);
@@ -622,6 +634,7 @@ export function Game() {
     onPlayerChanged: () => setBattleTick((n) => n + 1),
     onBattleEnd: (commands: DeployCommand[]) => { void finishBattle(commands); },
     onPlacementChanged: () => setPlaceTick((t) => t + 1),
+    onCameraMoved: () => { if (objectiveRef.current === 'camera') markTutorial('camera'); },
   };
 
   const onTapBuilding = useCallback((id: string | null) => {
@@ -636,9 +649,10 @@ export function Game() {
     if (building && building.stock >= 1 && (building.type === 'mine' || building.type === 'forge')) {
       void collect(building.id);
     } else if (id) sfx.tap();
+    if (building?.type === 'keep') markTutorial('welcome');
     world.selectedId = id;
     setSelectedId(id);
-  }, [collect]);
+  }, [collect, markTutorial]);
 
   const selected = player?.buildings.find((b) => b.id === selectedId) ?? null;
   const world = worldRef.current;
@@ -669,20 +683,14 @@ export function Game() {
     if (player?.id) setTutorialDone(loadTutorial(player.id));
   }, [player?.id]);
 
-  const markTutorial = useCallback((stepId: string) => {
-    setTutorialDone((prev) => {
-      if (prev.includes(stepId)) return prev;
-      const next = [...prev, stepId];
-      const id = worldRef.current?.player?.id;
-      if (id) saveTutorial(id, next);
-      return next;
-    });
-  }, []);
 
   const objective = useMemo(
     () => nextObjective({ tutorialDone, quests, daily }),
     [tutorialDone, quests, daily],
   );
+  /** For event handlers that outlive a render. */
+  const objectiveRef = useRef<string>(objective.id);
+  objectiveRef.current = objective.id;
 
   /** Select a building and bring the camera to it. */
   const focusBuilding = useCallback((type: 'keep' | 'mine') => {
@@ -694,7 +702,8 @@ export function Game() {
     centerOn(world.cam, b.gx + s / 2, b.gy + s / 2, undefined, world.vp.dpr);
     world.selectedId = b.id;
     setSelectedId(b.id);
-  }, []);
+    if (type === 'keep') markTutorial('welcome');
+  }, [markTutorial]);
 
   /** The GO button: take the player where the objective is done. */
   const goTo = useCallback((go: CoachGo) => {
@@ -955,6 +964,8 @@ export function Game() {
       {sheet === 'build' && player && (
         <BuildSheet
           player={player}
+          highlight={objective.buildType ?? null}
+          hint={objective.buildType ? objective.hint ?? null : null}
           onClose={() => setSheet(null)}
           onPick={(type: BuildingType) => {
             if (!world) return;
@@ -968,6 +979,8 @@ export function Game() {
       {sheet === 'army' && player && (
         <ArmySheet
           player={player}
+          highlight={objective.troopType ?? null}
+          hint={objective.troopType ? objective.hint ?? null : null}
           progression={progression}
           onClose={() => setSheet(null)}
           onTrain={(type, count) => { void runCommand(() => api.train(type, count)).then((r) => { if (r) sfx.train(); }); }}

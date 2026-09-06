@@ -54,9 +54,12 @@ export interface BuildSheetProps {
   player: PlayerState;
   onClose: () => void;
   onPick: (type: BuildingType) => void;
+  /** The guide: which card to light up, and the line to say above the grid. */
+  highlight?: BuildingType | null;
+  hint?: string | null;
 }
 
-export function BuildSheet({ player, onClose, onPick }: BuildSheetProps) {
+export function BuildSheet({ player, onClose, onPick, highlight = null, hint = null }: BuildSheetProps) {
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   // Hidden entirely until the Keep unlocks one, rather than shown greyed out:
   // a new player has enough to read without a locked row of ornaments.
@@ -71,6 +74,7 @@ export function BuildSheet({ player, onClose, onPick }: BuildSheetProps) {
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
+      {hint && <div className="sheetHint">{hint}</div>}
 
       <div className="grid">{BUILDABLE.map(card)}</div>
 
@@ -98,7 +102,7 @@ export function BuildSheet({ player, onClose, onPick }: BuildSheetProps) {
     return (
       <button
         key={type}
-        className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}`}
+        className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}${type === highlight ? ' hi' : ''}`}
         onClick={() => !locked && onPick(type)}
         disabled={locked}
       >
@@ -131,10 +135,14 @@ export interface ArmySheetProps {
   onUpgradeHero: () => void;
   onUpgradeTroop: (type: TroopType) => void;
   onCancelJob: (jobId: string) => void;
+  /** The guide: which troop to light up, and the line to say at the top. */
+  highlight?: TroopType | null;
+  hint?: string | null;
 }
 
 export function ArmySheet({
   player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop, onCancelJob,
+  highlight = null, hint = null,
 }: ArmySheetProps) {
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   const barracks = bestBarracksLevel(owned);
@@ -151,6 +159,7 @@ export function ArmySheet({
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
+      {hint && <div className="sheetHint">{hint}</div>}
 
       <div className="grid">
         {TROOP_ORDER.map((type) => {
@@ -162,7 +171,7 @@ export function ArmySheet({
           return (
             <button
               key={type}
-              className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}`}
+              className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}${type === highlight ? ' hi' : ''}`}
               onClick={() => !locked && room && onTrain(type, 1)}
               disabled={locked || !room}
             >

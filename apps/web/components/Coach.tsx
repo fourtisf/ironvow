@@ -54,8 +54,8 @@ export function Coach({ objective: o, busy, onGo, onClaim, onNext, onSkipTutoria
           <button className="btn gold" onClick={onClaim} disabled={busy}>{busy ? '…' : 'CLAIM REWARD'}</button>
         ) : o.kind === 'tutorial' ? (
           <>
-            {o.go && <button className="btn grey" onClick={onGo}>{o.goLabel}</button>}
-            <button className="btn" onClick={onNext}>GOT IT</button>
+            {o.go && <button className="btn" onClick={onGo}>{o.goLabel}</button>}
+            <button className="link" onClick={onNext}>Skip this step</button>
           </>
         ) : (
           o.go && <button className="btn" onClick={onGo}>{o.goLabel}</button>

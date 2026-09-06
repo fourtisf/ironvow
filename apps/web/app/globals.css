@@ -424,3 +424,9 @@
   /* ---------- the door ---------- */
   .gate label{display:block;font-size:9px;letter-spacing:2px;color:#e8b23c;margin-bottom:6px;font-family:Arial;font-weight:900}
   .gate input{text-align:center;font-size:22px;letter-spacing:10px;font-family:'Arial Black',Arial,sans-serif}
+
+  /* ---------- the guide inside a sheet ---------- */
+  .sheetHint{display:flex;align-items:center;gap:8px;background:#3a2c11;border:2px solid #e8b23c;border-radius:12px;
+    padding:8px 11px;margin:-4px 0 10px;font-size:10px;font-family:Arial;font-weight:700;color:#ffd97a;line-height:1.4}
+  .sheetHint::before{content:'';width:8px;height:8px;border-radius:50%;background:#e8b23c;flex:none;animation:coachPulse 1.4s ease-in-out infinite}
+  .card.hi,.tcard.hi{border-color:#e8b23c;animation:coachPulse 1.4s ease-in-out infinite}

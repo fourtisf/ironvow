@@ -2,16 +2,21 @@ import {
   MAX_DPR,
   N,
   PROD,
+  TH,
   TICKS_PER_SECOND,
   TICK_SECONDS,
+  TW,
   TYPES,
+  ZOOM_MAX,
+  ZOOM_MIN,
   clamp,
   type BuildingType,
   type TroopType,
 } from '@ironvow/config';
 import { createBattle, type Battle } from '@ironvow/sim';
 import { sfx } from '../sfx';
-import { type Camera, centerOn, clampCam, frameBase, newCamera, type Viewport } from '../render/camera';
+import { PIPH } from '../render/palette';
+import { type Camera, centerOn, clampCam, s2g, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
 import { clearSpriteCache } from '../render/sprites';
 import type { BaseSnapshot, BattleKind, DeployableType, DeployCommand } from '@ironvow/types';
@@ -42,6 +47,8 @@ export interface WorldEvents {
    * with DONE greyed out — over a ghost that had long since turned green.
    */
   onPlacementChanged: () => void;
+  /** The player panned or zoomed. The tutorial's second step listens. */
+  onCameraMoved: () => void;
 }
 
 export interface World {
@@ -169,23 +176,32 @@ export function setMode(w: World, mode: Mode): void {
 }
 
 /**
- * How close the opening frame may come.
- *
- * Fitting a three-building hold to a desktop window zooms all the way in,
- * and the first thing the player sees is a Keep the size of the screen with
- * no room to build. This is where the camera opens instead; the player can
- * zoom in from here.
+ * The furthest the opening frame will pull back. Fitting a three-building
+ * hold to a desktop window zoomed all the way in, and pulling back to 0.8
+ * still showed a Keep the size of a hand with the plateau's edge out of
+ * sight. The opening view is the whole plateau, or as much of it as the
+ * screen can take.
  */
-export const HOME_ZOOM = 0.8;
+export const HOME_ZOOM_MAX = 0.7;
 
-/** Frame the player's own hold. */
+/**
+ * Open on the whole plateau, centred on the Keep.
+ *
+ * Fit the buildable diamond to what is left of the screen once the HUD has
+ * taken its top and bottom, and clamp to the zoom limits: a phone cannot show
+ * all 56 tiles across and simply opens as far out as it may.
+ */
 export function centerOnKeep(w: World): void {
   const own = w.player?.buildings ?? [];
-  if (own.length > 0) {
-    frameBase(w.cam, w.vp, own.map((b) => ({ gx: b.gx, gy: b.gy, size: TYPES[b.type].s })), 70, HOME_ZOOM);
-    return;
-  }
-  centerOn(w.cam, N / 2, N / 2, 0.95, w.vp.dpr);
+  const keep = own.find((b) => b.type === 'keep');
+  const cx = keep ? keep.gx + TYPES.keep.s / 2 : N / 2;
+  const cy = keep ? keep.gy + TYPES.keep.s / 2 : N / 2;
+  const hudTop = 130;
+  const hudBottom = 130;
+  const fitW = (w.vp.w - 40) / (N * TW);
+  const fitH = (w.vp.h - hudTop - hudBottom) / (N * TH);
+  const z = clamp(Math.min(fitW, fitH, HOME_ZOOM_MAX), ZOOM_MIN, ZOOM_MAX);
+  centerOn(w.cam, cx, cy, z, w.vp.dpr);
 }
 
 /** Show a defender's base, framed, without starting the fight. */
@@ -495,6 +511,31 @@ export function buildingAt(w: World, gx: number, gy: number) {
   for (const b of w.player?.buildings ?? []) {
     const s = TYPES[b.type].s;
     if (gx >= b.gx && gx < b.gx + s && gy >= b.gy && gy < b.gy + s) return b;
+  }
+  return null;
+}
+
+/**
+ * The building under a screen point, roof included.
+ *
+ * Buildings stand up out of their footprint, and a finger lands on the roof
+ * far more often than on the ground beneath it. So the point is tested
+ * against the footprint, then against the footprint slid down the screen by
+ * every height up to the building's own — which is the shape a box makes
+ * seen from this angle. Front-most wins where roofs overlap.
+ */
+export function buildingAtScreen(w: World, sx: number, sy: number) {
+  const direct = buildingAt(w, ...s2g(w.cam, w.vp, sx, sy));
+  if (direct) return direct;
+  const z = w.cam.z;
+  const list = [...(w.player?.buildings ?? [])].sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy));
+  for (const b of list) {
+    const s = TYPES[b.type].s;
+    const height = (PIPH[b.type] ?? 60) * z;
+    for (let dy = 6 * z; dy <= height; dy += 6 * z) {
+      const [gx, gy] = s2g(w.cam, w.vp, sx, sy + dy);
+      if (gx >= b.gx && gx < b.gx + s && gy >= b.gy && gy < b.gy + s) return b;
+    }
   }
   return null;
 }

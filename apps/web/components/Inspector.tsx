@@ -97,6 +97,7 @@ export function Inspector({
           <br />
           {fmt(hpOf(building.type, building.level))} hit points
           {!atCap && seconds > 0 && ` · next takes ${Math.round(seconds / 60) >= 1 ? `${Math.round(seconds / 60)}m` : `${seconds}s`}`}
+          {!isKeep && <><br />Drag it on the field to move it.</>}
         </p>
       </div>
 

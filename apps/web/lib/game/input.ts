@@ -9,7 +9,8 @@ import {
 } from './world';
 
 /**
- * Pointer handling: pan, pinch, tap, and press-and-drag to relocate.
+ * Pointer handling: pan, pinch, tap, and drag to relocate — straight away on
+ * the selected building, after a press and hold on any other.
  *
  * Bound directly to the canvas rather than going through React events, because
  * these fire far more often than a frame and every one of them would otherwise
@@ -31,6 +32,8 @@ interface Pointer {
   pinchZoom: number;
   /** True while the pointer is moving a building instead of the camera. */
   dragging: boolean;
+  /** The selected building the press landed on, lifted on the first movement. */
+  grab: string | null;
 }
 
 const TAP_SLOP = 12;
@@ -47,7 +50,7 @@ export function attachInput(
 ): InputHandle {
   const ptr: Pointer = {
     down: false, moved: false, sx: 0, sy: 0, lx: 0, ly: 0,
-    at: 0, pinch: 0, pinchZoom: 1, dragging: false,
+    at: 0, pinch: 0, pinchZoom: 1, dragging: false, grab: null,
   };
   let longPress: ReturnType<typeof setTimeout> | null = null;
 
@@ -77,6 +80,7 @@ export function attachInput(
     ptr.down = true;
     ptr.moved = false;
     ptr.dragging = false;
+    ptr.grab = null;
     ptr.sx = x; ptr.sy = y;
     ptr.lx = x; ptr.ly = y;
     ptr.at = Date.now();
@@ -100,10 +104,19 @@ export function attachInput(
 
     if (w.mode !== 'base') return;
 
-    // Press and hold on a building picks it up. The Keep never moves.
+    // A building that is already selected moves the moment it is dragged:
+    // tap it, then pull it where it should go. One that is not needs a press
+    // and hold first, so a pan that happens to start on a building does not
+    // carry it off. The Keep never moves.
     const [gx, gy] = s2g(w.cam, w.vp, x, y);
     const b = buildingAt(w, gx, gy);
     if (!b || b.type === 'keep') return;
+    if (w.selectedId === b.id) {
+      // Armed, not picked up: it is lifted on the first real movement, so a
+      // plain tap on it stays a tap.
+      ptr.grab = b.id;
+      return;
+    }
     longPress = setTimeout(() => {
       if (!ptr.down || ptr.moved) return;
       startPlacement(w, b.type, b.id);
@@ -129,6 +142,14 @@ export function attachInput(
     if (Math.abs(x - ptr.sx) > TAP_SLOP || Math.abs(y - ptr.sy) > TAP_SLOP) {
       ptr.moved = true;
       clearLongPress();
+      if (ptr.grab && w.mode === 'base') {
+        const b = buildingAt(w, ...s2g(w.cam, w.vp, ptr.sx, ptr.sy));
+        if (b && b.id === ptr.grab) {
+          startPlacement(w, b.type, b.id);
+          ptr.dragging = true;
+        }
+        ptr.grab = null;
+      }
     }
 
     if (ptr.dragging && w.mode === 'place') {
@@ -150,6 +171,7 @@ export function attachInput(
     ptr.pinch = 0;
     const wasDragging = ptr.dragging;
     ptr.dragging = false;
+    ptr.grab = null;
     if (!wasTap || wasDragging) return;
 
     const [gx, gy] = s2g(w.cam, w.vp, ptr.sx, ptr.sy);

@@ -31,6 +31,7 @@ import { fmt } from '../lib/format';
 import { loadSoundPreference, setSfxVolume, sfx, unlockAudio } from '../lib/sfx';
 import { loadMusicPreference, setMusicVolume, startMusic, stopMusic, unlockMusic } from '../lib/music';
 import { BattleHud } from './BattleHud';
+import { AttractField } from './AttractField';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
 import { Inspector, PlaceBar } from './Inspector';
@@ -775,6 +776,8 @@ export function Game() {
   // The door, for everyone: a returning player with a session is asked too.
   if (gate !== false && accessCode === null) {
     return (
+      <>
+      <AttractField />
       <SignInModal
         sent={false}
         busy={signInBusy}
@@ -785,11 +788,14 @@ export function Game() {
         onGuest={() => undefined}
         onRequest={() => undefined}
       />
+      </>
     );
   }
 
   if (signedIn === false) {
     return (
+      <>
+      <AttractField />
       <SignInModal
         sent={signInSent}
         busy={signInBusy}
@@ -823,6 +829,7 @@ export function Game() {
             .finally(() => setSignInBusy(false));
         }}
       />
+      </>
     );
   }
 

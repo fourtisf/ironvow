@@ -10,6 +10,9 @@
   html,body{width:100%;height:100%;overflow:hidden;background:#1b2432;touch-action:none;overscroll-behavior:none;
     font-family:'Arial Black','Segoe UI Black',Impact,Arial,sans-serif;color:#f2e4c4}
   #field{display:block;width:100vw;height:100vh}
+  /* The field behind the door: the same renderer, drifting, with nothing to
+     tap. The cards on top own every pointer event. */
+  #attract{position:fixed;inset:0;display:block;width:100vw;height:100vh;pointer-events:none;z-index:0}
   .vignette{position:fixed;inset:0;pointer-events:none;
     background:
       linear-gradient(rgba(6,12,20,.34),rgba(6,12,20,0) 120px),
@@ -148,6 +151,11 @@
   /* ---------- modal ---------- */
   .ovl{position:fixed;inset:0;z-index:40;background:rgba(8,12,20,.78);
     display:flex;align-items:center;justify-content:center;padding:22px;backdrop-filter:blur(3px)}
+  /* Over the drifting field the scrim is lighter and darkest at the edges:
+     enough for the card to be read, little enough to see the hold behind it. */
+  body:has(#attract) .ovl{backdrop-filter:none;
+    background:radial-gradient(ellipse 62% 62% at 50% 50%,rgba(8,12,20,.34),rgba(8,12,20,.72) 100%)}
+  body:has(#attract) .modal{box-shadow:0 20px 60px rgba(0,0,0,.65)}
   .modal{width:100%;max-width:340px;background:linear-gradient(#25344e,#141d2b);
     border:3px solid #e8b23c;border-radius:22px;padding:20px 18px;text-align:center;
     box-shadow:0 16px 44px rgba(0,0,0,.6);max-height:86vh;overflow-y:auto}

@@ -394,7 +394,10 @@ Still no audio files: all of it is oscillators and shaped noise.
 
 The game is by invitation for now: `ACCESS_CODE` in `.env` (1010 out of the
 box in `docker-compose.yml`; set it empty to open the game). The first screen
-asks for the code before anything else — every time the page opens, refresh
+stands over the game rather than a flat dark rectangle — `AttractField` runs
+the same renderer on its own world, drawing a generated hold with the camera
+drifting slowly around it, offset so the hold stands beside the card instead
+of behind it. The door asks for the code before anything else — every time the page opens, refresh
 included, signed in or not; nothing remembers it — and the server checks it in
 constant time on every call that creates or reaches a hold. Twenty tries in
 ten minutes per address. It is a door, not a lock: four digits typed on a phone.

@@ -25,13 +25,38 @@ function recorder(): { ctx: CanvasRenderingContext2D; log: string[] } {
     'beginPath', 'closePath', 'moveTo', 'lineTo', 'arc', 'arcTo', 'ellipse',
     'quadraticCurveTo', 'fill', 'stroke', 'fillRect', 'fillText', 'strokeText',
     'save', 'restore', 'translate', 'rotate', 'scale', 'setTransform', 'drawImage',
+    'clip',
   ];
+  const fmt = (a: unknown): string => (typeof a === 'number' ? a.toFixed(3) : String(a));
   const target: Record<string, unknown> = {};
   for (const name of methods) {
     target[name] = (...args: unknown[]): void => {
-      log.push(`${name}(${args.map((a) => (typeof a === 'number' ? a.toFixed(3) : String(a))).join(',')})`);
+      log.push(`${name}(${args.map(fmt).join(',')})`);
     };
   }
+
+  /*
+   * Gradients are part of the drawing, so they are part of the record.
+   *
+   * The shading on every wall and roof is a gradient, and a colour stop that
+   * moved with the clock would be exactly the bug this file exists to catch —
+   * baked into a sprite on whichever frame it was first rasterised. So each
+   * gradient gets an identity, its stops are logged against it, and assigning
+   * it to `fillStyle` logs that identity through `toString`.
+   */
+  let made = 0;
+  const gradient = (kind: string, args: unknown[]): unknown => {
+    const id = `${kind}#${made++}(${args.map(fmt).join(',')})`;
+    log.push(id);
+    return {
+      addColorStop: (at: number, col: string): void => {
+        log.push(`stop(${id},${at.toFixed(3)},${col})`);
+      },
+      toString: () => id,
+    };
+  };
+  target['createLinearGradient'] = (...args: unknown[]): unknown => gradient('linear', args);
+  target['createRadialGradient'] = (...args: unknown[]): unknown => gradient('radial', args);
   const ctx = new Proxy(target, {
     set(obj, key, value) {
       log.push(`${String(key)}=${String(value)}`);

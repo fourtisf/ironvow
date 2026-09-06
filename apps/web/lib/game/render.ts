@@ -61,7 +61,11 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
       if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
     });
   }
+  const walls = new Set<number>();
   for (const b of w.player?.buildings ?? []) {
+    // Every Rampart, not only the visible ones: a run that leaves the screen
+    // must not grow an end cap at the edge of the viewport.
+    if (b.type === 'wall') walls.add(wallKey(b.gx, b.gy));
     // Culled here rather than inside the draw call, so an off-screen structure
     // costs neither a sprite lookup nor a slot in the depth sort.
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
@@ -103,7 +107,8 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     // One being upgraded is solid, because it is working the whole time.
     const ghost = job?.scaffold ? 0.5 : undefined;
     if (ghost !== undefined) ctx.globalAlpha = ghost;
-    drawStruct(w, d, b.type, b.level, false, b.gx, b.gy);
+    drawStruct(w, d, b.type, b.level, false, b.gx, b.gy,
+      undefined, undefined, linkOf(walls, b.gx, b.gy));
     ctx.restore();
 
     if (job) drawBuilderMark(d, { ...b, ...job }, TYPES[b.type].s);
@@ -130,6 +135,28 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   drawPopups(w, d);
 }
 
+/*
+ * Which Ramparts touch which.
+ *
+ * A Rampart is its own one-tile building, so nothing in the data says a run of
+ * twenty is a wall — the art has to work it out. Rebuilt each frame rather
+ * than cached on the world, because a wall breached mid-raid has to stop
+ * joining onto its neighbour the moment it falls, and a cache keyed on
+ * anything cheaper than "the walls standing right now" would be wrong exactly
+ * when a player is watching.
+ *
+ * A few hundred set operations a frame; the sort above it costs more.
+ */
+const wallKey = (gx: number, gy: number): number => (gy + 256) * 1024 + (gx + 256);
+
+function linkOf(walls: Set<number>, gx: number, gy: number): number {
+  if (walls.size === 0) return 0;
+  return (walls.has(wallKey(gx + 1, gy)) ? 1 : 0)
+    | (walls.has(wallKey(gx, gy + 1)) ? 2 : 0)
+    | (walls.has(wallKey(gx - 1, gy)) ? 4 : 0)
+    | (walls.has(wallKey(gx, gy - 1)) ? 8 : 0);
+}
+
 function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
   const snapshot = w.preview!;
   const ents: BattleEntity[] = [];
@@ -138,7 +165,9 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
       if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
     });
   }
+  const walls = new Set<number>();
   snapshot.buildings.forEach((b, i) => {
+    if (b.type === 'wall') walls.add(wallKey(b.gx, b.gy));
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) return;
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'struct', i });
   });
@@ -148,7 +177,8 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
     if (e.k === 'deco') blitDeco(d, w.terrain.deco[e.i]!);
     else if (e.k === 'struct') {
       const b = snapshot.buildings[e.i]!;
-      drawStruct(w, d, b.type, b.level, true, b.gx, b.gy);
+      drawStruct(w, d, b.type, b.level, true, b.gx, b.gy,
+        undefined, undefined, linkOf(walls, b.gx, b.gy));
     }
   }
   if (w.quality === 'high') drawAtmosphere(d);
@@ -165,7 +195,11 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
       if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
     });
   }
+  const walls = new Set<number>();
   battle.structs.forEach((s, i) => {
+    // A breached Rampart stops joining its neighbours the frame it falls,
+    // which is how a hole in a wall reads as a hole.
+    if (!s.dead && s.t === 'wall') walls.add(wallKey(s.gx, s.gy));
     if (s.dead || !structOnScreen(w.cam, w.vp, s.gx, s.gy, s.size)) return;
     ents.push({ d: s.gx + s.gy + s.size * 0.5, k: 'struct', i });
   });
@@ -195,7 +229,7 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
     } else {
       const s = battle.structs[e.i]!;
       drawStruct(w, d, s.t, s.lv, battle.kind === 'raid', s.gx, s.gy,
-        w.fx.aim.get(e.i), w.fx.recoil.get(e.i));
+        w.fx.aim.get(e.i), w.fx.recoil.get(e.i), linkOf(walls, s.gx, s.gy));
 
       if (w.fx.flash.has(e.i)) {
         isoDiamond(d, s.gx, s.gy, s.size, s.size, 'rgba(255,255,255,.28)');
@@ -223,10 +257,10 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
  */
 function drawStruct(
   w: World, d: Draw, type: BuildingType, level: number, enemy: boolean,
-  gx: number, gy: number, aim?: number, recoil?: number,
+  gx: number, gy: number, aim?: number, recoil?: number, link = 0,
 ): void {
   const [ax, ay] = w2s(w.cam, w.vp, isoX(gx, gy), isoY(gx, gy));
-  blitBuilding(d, type, level, enemy, ax, ay);
+  blitBuilding(d, type, level, enemy, ax, ay, link);
   if (w.quality === 'high' ? ANIMATED.has(type) : type === 'cannon') {
     drawBuildingFx(d, { type, gx, gy, level, aim, recoil }, enemy);
   }

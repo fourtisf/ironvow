@@ -569,6 +569,76 @@ as a bigger level-3 one is to put them side by side, and playing to level 6 four
 times is not a way to work. It is not linked from anywhere and is not part of
 the game.
 
+## Light, materials, and a wall that is a wall
+
+The tier work above changed what each building *is*. This changed what all of
+them are *made of*, because the answer was "one flat colour with a black line
+round it", which reads as a diagram however good the silhouette is.
+
+It is one change in `apps/web/lib/render/primitives.ts`, so every structure in
+the game gets it at once:
+
+- **Every face is lit.** A vertical gradient down each wall, up each roof
+  slope, and across each flat slab. `shade()` blends toward a warm sun or a
+  cool shadow rather than multiplying toward black — multiplying turns every
+  dark end the same muddy grey and loses the material.
+- **Every face has a surface.** Stone gets courses with staggered joints,
+  timber gets planks, roofs get tile courses with an eave board and a ridge
+  catching the light. Which one a face gets is inferred from its fill colour: a
+  handful of greys and browns *are* the material vocabulary of this palette, so
+  one map does it without touching forty call sites. A colour that is not
+  listed gets no texture, which is exactly the old look.
+- **Every box has a rim.** A thin warm line inside the two edges the sun
+  reaches. One stroke, and most of the difference between a solid drawn on a
+  screen and a thing standing in a light.
+- **Every shadow is soft.** A radial gradient with a dense core instead of a
+  flat ellipse at one alpha, which is the tell of a sprite pasted onto grass.
+
+**The Rampart is the one that needed more than paint.** A Rampart is its own
+one-tile building, so nothing in the data says a run of twenty is a wall — and
+drawn as an island each one was a waist-high crate with its top face doing most
+of the talking. A base defended by twenty of them looked like a delivery. Now
+`link` carries which of the four neighbours is also a Rampart: the block
+stretches to the shared edge on those sides so a run merges into one length of
+masonry, and it is narrowed across the run and left square at a corner, because
+a wall is a wall by being much longer than it is thick. The coping is a course
+of stone standing proud of it, with merlons on top.
+
+The mask is part of the sprite cache key — a linked wall is a different shape,
+not a different position — and there are only sixteen combinations. It is
+recomputed each frame rather than cached on the world, because a Rampart
+breached mid-raid has to stop joining its neighbour the moment it falls, which
+is how a hole in a wall reads as a hole.
+
+### Paying for it
+
+All of this lives in `drawBuildingBody`, which is rasterised once per (type,
+level, livery, link, zoom) and blitted from then on, so steady-state cost is
+unchanged — it is the rasterisation that got dearer. The first version issued a
+`stroke()` per course: about six hundred for one Keep, and it showed as a
+longer worst frame the first time a base was drawn. Batching every line of one
+colour into a single path fixed it. Measured on the attract field, 200 frames,
+headless Chromium with no GPU:
+
+| | before | after |
+| --- | --- | --- |
+| no throttle | 16.7 ms median, 0 dropped | 16.7 ms, 0 dropped |
+| 4x — mid-range phone | 33.3 ms median, 66.6 ms worst | 33.3 ms median, 50–67 ms worst |
+| 6x — slow phone | 50.0 ms median | 50.0 ms median |
+
+Run-to-run variance on a shared container is wider than the difference, which
+is the honest summary: the median did not move and the worst frame is back
+where it was. Detail is also skipped below the size it would read at — courses
+need 14 px of wall, tiles 16 px of slope — so a base seen from far out pays
+none of it.
+
+`apps/web/test/render.test.ts` had to learn about gradients. Its recorder
+compares two draws at different clock values, and a gradient it could not
+create threw; now each gradient gets an identity and its colour stops are
+logged against it, so a stop that moved with the clock — the exact bug the file
+exists to catch, baked into a sprite on whichever frame it was first
+rasterised — still fails the test.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

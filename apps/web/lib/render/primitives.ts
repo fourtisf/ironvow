@@ -29,6 +29,182 @@ export interface BoxResult {
   cy: number;
 }
 
+/*
+ * Light, materials, and why a flat fill is not enough.
+ *
+ * Every surface in this game used to be one solid colour with a black line
+ * round it. That reads as a diagram, not as a building: real light falls off
+ * down a wall, catches the top edge, and shows the courses of whatever the
+ * wall is made of. None of that needs an asset pipeline — it needs a gradient
+ * per face, a rim on the lit edges, and a few lines clipped to the surface.
+ *
+ * It is affordable because building bodies are rasterised once into a sprite
+ * and reused every frame; only the per-frame effects pass pays per frame, and
+ * it does not use these.
+ */
+
+/** The sun's colour, blended into a surface to light it. */
+const SUN = [255, 244, 214] as const;
+/** The shadow's colour, blended into a surface to darken it. */
+const SHADE = [26, 34, 52] as const;
+
+/** `#rrggbb` to channels. Anything else — `rgba(…)`, a named colour — is null. */
+function rgbOf(col: string): [number, number, number] | null {
+  if (col.length !== 7 || col[0] !== '#') return null;
+  const n = Number.parseInt(col.slice(1), 16);
+  if (Number.isNaN(n)) return null;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/**
+ * Move a colour toward the sun (`amount > 0`) or into shadow (`amount < 0`).
+ *
+ * Deliberately not a multiply. Multiplying slides a colour toward black, which
+ * turns every shadow the same muddy grey and loses the material; blending
+ * toward a warm light and a cool shadow keeps stone reading as stone at both
+ * ends. Colours this cannot parse are returned untouched, so a caller passing
+ * `rgba(…)` still gets a flat fill rather than an exception.
+ */
+export function shade(col: string, amount: number): string {
+  const rgb = rgbOf(col);
+  if (!rgb) return col;
+  const [r, g, b] = rgb;
+  const [tr, tg, tb] = amount >= 0 ? SUN : SHADE;
+  const k = Math.min(1, Math.abs(amount));
+  return `rgb(${Math.round(r + (tr - r) * k)},${Math.round(g + (tg - g) * k)},${Math.round(b + (tb - b) * k)})`;
+}
+
+/**
+ * What a colour is made of.
+ *
+ * The palette is the material vocabulary: every stone surface in the game is
+ * one of a handful of greys and every timber one of a handful of browns, so
+ * the fill colour already says what the courses on that face should look
+ * like. Inferring it here is what lets one change put block courses on every
+ * wall and plank lines on every hut without touching forty call sites — and a
+ * colour that is not listed simply gets no texture, which is the old look.
+ */
+const MATERIAL: Record<string, 'stone' | 'wood'> = {
+  '#b6c2cd': 'stone', '#8d9aa8': 'stone', '#5f6d7d': 'stone', '#9aa7b4': 'stone',
+  '#96a3b0': 'stone', '#a9b6c2': 'stone', '#74828e': 'stone', '#54626e': 'stone',
+  '#78858f': 'stone', '#77848f': 'stone', '#3f4a56': 'stone', '#454e58': 'stone',
+  '#7d8994': 'stone', '#59626d': 'stone', '#8e9aa6': 'stone', '#b9c3cd': 'stone',
+  '#6e7a86': 'stone', '#cfd8e2': 'stone', '#7e8a97': 'stone', '#9fabb8': 'stone',
+  '#5c6672': 'stone', '#76818d': 'stone', '#616c79': 'stone', '#7d8894': 'stone',
+  '#9d94b8': 'stone', '#8d84a8': 'stone', '#6d6584': 'stone', '#4c4560': 'stone',
+  '#8a5a30': 'wood', '#5d3b1e': 'wood', '#734829': 'wood', '#a8926f': 'wood',
+  '#8c5f39': 'wood', '#5a3a21': 'wood', '#6b5340': 'wood', '#4a382b': 'wood',
+  '#5a4636': 'wood', '#a06f3d': 'wood', '#6b4526': 'wood',
+};
+// C.dirt and C.dirt2 are deliberately absent: they are ground, and planking
+// the apron under a Barracks makes it look like a stage.
+
+function lerp(p: Corner, q: Corner, f: number): Corner {
+  return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
+}
+
+/**
+ * Courses on a wall face, clipped to it.
+ *
+ * `lo0`/`lo1` are the face's bottom edge, `hi0`/`hi1` the top. Stone gets
+ * horizontal courses with staggered joints; timber gets vertical planks. Both
+ * are drawn in the face's own colour lightened and darkened rather than in
+ * black, so at a distance they read as surface and not as a grid.
+ */
+function courses(
+  ctx: CanvasRenderingContext2D, mat: 'stone' | 'wood', col: string,
+  lo0: Corner, lo1: Corner, hi0: Corner, hi1: Corner, z: number,
+): void {
+  const rise = Math.hypot(hi0[0] - lo0[0], hi0[1] - lo0[1]);
+  const run = Math.hypot(lo1[0] - lo0[0], lo1[1] - lo0[1]);
+  if (rise < 14 || run < 12) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(lo0[0], lo0[1]); ctx.lineTo(lo1[0], lo1[1]);
+  ctx.lineTo(hi1[0], hi1[1]); ctx.lineTo(hi0[0], hi0[1]);
+  ctx.closePath();
+  ctx.clip();
+  ctx.lineWidth = Math.max(0.7, 1.1 * z);
+
+  /*
+   * Batched by colour, not by course.
+   *
+   * A wall of nine courses drawn line by line is four `stroke()` calls a
+   * course; a Keep has eight blocks and sixteen faces, which was six hundred
+   * strokes for one sprite and showed up as a stall the first time a base was
+   * rasterised. Every line of the same colour goes into one path instead, so
+   * the whole face costs three strokes whatever its height.
+   */
+  const line = (a: Corner, b: Corner, dx = 0, dy = 0): void => {
+    ctx.moveTo(a[0] + dx, a[1] + dy); ctx.lineTo(b[0] + dx, b[1] + dy);
+  };
+
+  if (mat === 'stone') {
+    const rows = Math.min(7, Math.max(2, Math.round(rise / (13 * z))));
+    ctx.strokeStyle = shade(col, -0.2);
+    ctx.beginPath();
+    for (let i = 1; i < rows; i++) {
+      const f = i / rows;
+      line(lerp(lo0, hi0, f), lerp(lo1, hi1, f));
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = shade(col, 0.16);
+    ctx.beginPath();
+    for (let i = 1; i < rows; i++) {
+      const f = i / rows;
+      line(lerp(lo0, hi0, f), lerp(lo1, hi1, f), 0, 1.1 * z);
+    }
+    ctx.stroke();
+
+    // Two joints per course, offset on alternate rows: the stagger is what
+    // stops a run of parallel lines reading as corrugation.
+    ctx.strokeStyle = shade(col, -0.16);
+    ctx.beginPath();
+    for (let i = 1; i <= rows; i++) {
+      const f = i / rows;
+      for (let j = 0; j < 2; j++) {
+        const u = (j + (i % 2 === 0 ? 0.28 : 0.72)) / 2;
+        const bot = lerp(lo0, lo1, u);
+        const top = lerp(hi0, hi1, u);
+        line(lerp(bot, top, f), lerp(bot, top, f - 1 / rows));
+      }
+    }
+    ctx.stroke();
+  } else {
+    const planks = Math.min(7, Math.max(2, Math.round(run / (11 * z))));
+    ctx.strokeStyle = shade(col, -0.22);
+    ctx.beginPath();
+    for (let i = 1; i < planks; i++) {
+      const u = i / planks;
+      line(lerp(lo0, lo1, u), lerp(hi0, hi1, u));
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = shade(col, 0.14);
+    ctx.beginPath();
+    for (let i = 1; i < planks; i++) {
+      const u = i / planks;
+      line(lerp(lo0, lo1, u), lerp(hi0, hi1, u), 1.1 * z, 0);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** A face lit from above: caught at the top, falling into shadow at the foot. */
+function wallFill(
+  ctx: CanvasRenderingContext2D, col: string, hi: Corner, lo: Corner,
+): CanvasGradient | string {
+  if (!rgbOf(col)) return col;
+  const grd = ctx.createLinearGradient(hi[0], hi[1], lo[0], lo[1]);
+  grd.addColorStop(0, shade(col, 0.17));
+  grd.addColorStop(0.45, col);
+  grd.addColorStop(1, shade(col, -0.26));
+  return grd;
+}
+
 /**
  * A chunky outlined isometric cuboid. `hgt` is screen pixels before zoom.
  *
@@ -58,23 +234,50 @@ export function isoBox(
   const D = P(gx, gy + h, base + hgt);
 
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(1.6, 2.6 * z);
+  ctx.lineWidth = Math.max(1.5, 2.4 * z);
   ctx.strokeStyle = o;
 
-  ctx.fillStyle = left;
+  // Left face, then right, then the top: painter's order for a box seen from
+  // the south-east, and the order the outlines want to overlap in.
+  ctx.fillStyle = wallFill(ctx, left, A, a);
   ctx.beginPath();
   ctx.moveTo(a[0], a[1]); ctx.lineTo(dd[0], dd[1]); ctx.lineTo(D[0], D[1]); ctx.lineTo(A[0], A[1]);
   ctx.closePath(); ctx.fill(); ctx.stroke();
+  const leftMat = MATERIAL[left];
+  if (leftMat) courses(ctx, leftMat, left, a, dd, A, D, z);
 
-  ctx.fillStyle = right;
+  ctx.fillStyle = wallFill(ctx, right, D, dd);
   ctx.beginPath();
   ctx.moveTo(dd[0], dd[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.lineTo(D[0], D[1]);
   ctx.closePath(); ctx.fill(); ctx.stroke();
+  const rightMat = MATERIAL[right];
+  if (rightMat) courses(ctx, rightMat, right, dd, c, D, Cc, z);
 
-  ctx.fillStyle = top;
+  ctx.fillStyle = wallFill(ctx, top, A, Cc);
   ctx.beginPath();
   ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.lineTo(D[0], D[1]);
   ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  /*
+   * The rim.
+   *
+   * A thin warm line inside the two edges the sun reaches — the back-left and
+   * back-right of the cap. It costs one stroke and it is most of the
+   * difference between a solid drawn on a screen and a thing standing in a
+   * light: the eye reads a lit edge as a physical corner.
+   */
+  if (hgt * z > 8) {
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = shade(top, 0.5);
+    ctx.lineWidth = Math.max(1, 1.5 * z);
+    ctx.beginPath();
+    ctx.moveTo(D[0], D[1] + 1.2 * z);
+    ctx.lineTo(A[0], A[1] + 1.2 * z);
+    ctx.lineTo(B[0], B[1] + 1.2 * z);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   return { A, B, C: Cc, D, cx: (A[0] + Cc[0]) / 2, cy: (A[1] + Cc[1]) / 2 };
 }
@@ -92,7 +295,16 @@ export function isoDiamond(
   const b = P(gx + w, gy);
   const c = P(gx + w, gy + h);
   const dd = P(gx, gy + h);
-  ctx.fillStyle = fill;
+  // Lit from the back corner, so a flat slab still has a direction to it.
+  const grd = ctx.createLinearGradient(a[0], a[1], c[0], c[1]);
+  if (rgbOf(fill)) {
+    grd.addColorStop(0, shade(fill, 0.18));
+    grd.addColorStop(0.6, fill);
+    grd.addColorStop(1, shade(fill, -0.12));
+    ctx.fillStyle = grd;
+  } else {
+    ctx.fillStyle = fill;
+  }
   ctx.beginPath();
   ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(dd[0], dd[1]);
   ctx.closePath(); ctx.fill();
@@ -123,11 +335,100 @@ export function isoRoof(
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(1.5, 2.5 * z);
   ctx.strokeStyle = C.line;
+
+  /*
+   * A roof, not a coloured triangle.
+   *
+   * Three things do the work: a gradient running up to the ridge, courses of
+   * tiles clipped to the slope and following the eave, and a heavier board
+   * along the eave itself. A tiled roof is the single most legible surface on
+   * a building of this size — it is what the eye uses to judge scale — so it
+   * is worth more detail than the walls under it.
+   */
   const face = (p: Corner, q: Corner, col: string): void => {
-    ctx.fillStyle = col;
+    const eave: Corner = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    if (rgbOf(col)) {
+      const grd = ctx.createLinearGradient(K[0], K[1], eave[0], eave[1]);
+      grd.addColorStop(0, shade(col, 0.2));
+      grd.addColorStop(0.5, col);
+      grd.addColorStop(1, shade(col, -0.2));
+      ctx.fillStyle = grd;
+    } else {
+      ctx.fillStyle = col;
+    }
     ctx.beginPath();
     ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.lineTo(K[0], K[1]);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    const slope = Math.hypot(K[0] - eave[0], K[1] - eave[1]);
+    const span = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (slope < 16 || span < 14 || !rgbOf(col)) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.lineTo(K[0], K[1]);
+    ctx.closePath();
+    ctx.clip();
+
+    // Batched by colour, as on the walls: three strokes a slope, not three a
+    // course.
+    const rows = Math.min(6, Math.max(2, Math.round(slope / (12 * z))));
+    ctx.lineWidth = Math.max(0.7, 1.1 * z);
+    ctx.strokeStyle = shade(col, -0.24);
+    ctx.beginPath();
+    for (let i = 1; i < rows; i++) {
+      const f = i / rows;
+      const l = lerp(p, K, f); const r = lerp(q, K, f);
+      ctx.moveTo(l[0], l[1]); ctx.lineTo(r[0], r[1]);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = shade(col, 0.2);
+    ctx.beginPath();
+    for (let i = 1; i < rows; i++) {
+      const f = i / rows;
+      const l = lerp(p, K, f); const r = lerp(q, K, f);
+      ctx.moveTo(l[0], l[1] + 1.2 * z); ctx.lineTo(r[0], r[1] + 1.2 * z);
+    }
+    ctx.stroke();
+
+    // The joints between tiles, staggered against the course below so the
+    // slope does not read as a set of stripes.
+    ctx.strokeStyle = shade(col, -0.18);
+    ctx.beginPath();
+    for (let i = 1; i <= rows; i++) {
+      const f = i / rows;
+      const l = lerp(p, K, f); const r = lerp(q, K, f);
+      const l0 = lerp(p, K, f - 1 / rows); const r0 = lerp(q, K, f - 1 / rows);
+      const tiles = Math.min(8, Math.max(2, Math.round((span * (1 - f)) / (11 * z))));
+      for (let j = 1; j < tiles; j++) {
+        const u = (j + (i % 2 === 0 ? 0 : 0.5)) / tiles;
+        if (u >= 1) continue;
+        const s0 = lerp(l, r, u);
+        const s1 = lerp(l0, r0, u);
+        ctx.moveTo(s0[0], s0[1]); ctx.lineTo(s1[0], s1[1]);
+      }
+    }
+    ctx.stroke();
+
+    // The eave board, and the ridge catching the light above it.
+    ctx.strokeStyle = shade(col, -0.34);
+    ctx.lineWidth = Math.max(1.6, 3.2 * z);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = shade(col, 0.55);
+    ctx.lineWidth = Math.max(1, 1.6 * z);
+    const l1 = lerp(p, K, 0.9);
+    const r1 = lerp(q, K, 0.9);
+    ctx.beginPath(); ctx.moveTo(l1[0], l1[1]); ctx.lineTo(r1[0], r1[1]); ctx.stroke();
+    ctx.restore();
+    ctx.lineWidth = Math.max(1.5, 2.5 * z);
+    ctx.strokeStyle = C.line;
   };
   face(A, B, dark);
   face(A, D, dark);
@@ -140,9 +441,23 @@ export function shadowAt(d: Draw, gx: number, gy: number, w: number, h: number):
   const { ctx, cam, vp } = d;
   const z = cam.z;
   const [sx, sy] = w2s(cam, vp, isoX(gx + w / 2, gy + h / 2), isoY(gx + w / 2, gy + h / 2));
-  ctx.fillStyle = 'rgba(20,40,18,.26)';
+  /*
+   * A soft shadow with a dark core.
+   *
+   * A flat ellipse at one alpha is the tell of a sprite pasted onto grass: a
+   * real contact shadow is dense where the building meets the ground and
+   * dissolves at its edge. A radial gradient costs one extra object and puts
+   * the building on the field rather than above it.
+   */
+  const rx = ((w * TW) / 2) * 0.72 * z;
+  const ry = ((h * TH) / 2) * 0.82 * z;
+  const grd = ctx.createRadialGradient(sx, sy + 3 * z, 0, sx, sy + 3 * z, Math.max(rx, ry));
+  grd.addColorStop(0, 'rgba(18,38,16,.34)');
+  grd.addColorStop(0.62, 'rgba(20,40,18,.2)');
+  grd.addColorStop(1, 'rgba(20,40,18,0)');
+  ctx.fillStyle = grd;
   ctx.beginPath();
-  ctx.ellipse(sx, sy + 3 * z, ((w * TW) / 2) * 0.62 * z, ((h * TH) / 2) * 0.72 * z, 0, 0, 6.29);
+  ctx.ellipse(sx, sy + 3 * z, rx, ry, 0, 0, 6.29);
   ctx.fill();
 }
 

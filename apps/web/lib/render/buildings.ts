@@ -32,6 +32,12 @@ export interface Renderable {
   aim?: number;
   /** 0..1, decays after firing. */
   recoil?: number;
+  /**
+   * For a Rampart: which neighbours are also Ramparts, as bits — 1 east
+   * (gx+1), 2 south (gy+1), 4 west, 8 north. Part of the sprite cache key,
+   * because a linked wall is a different shape, not a different position.
+   */
+  link?: number;
 }
 
 /** Types with a moving part. Everything else needs no per-frame work at all. */
@@ -770,20 +776,75 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     ctx.fill(); ctx.stroke();
 
   } else if (b.type === 'wall') {
-    const wh = 24 + lv * 2.2;
-    isoBox(d, gx + 0.02, gy + 0.02, 0.96, 0.96, wh, '#96a3b0', '#54626e', '#74828e');
-    const [px, py] = P(gx + 0.5, gy + 0.5);
-    ctx.fillStyle = '#a9b6c2';
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = Math.max(1.1, 1.8 * z);
-    roundRect(ctx, px - 5 * z, py - (wh + 9) * z, 10 * z, 10 * z, 2 * z);
-    ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(30,40,52,.35)';
-    ctx.lineWidth = Math.max(1, 1.5 * z);
-    ctx.beginPath();
-    ctx.moveTo(px, py - wh * z + 8 * z);
-    ctx.lineTo(px, py + 6 * z);
-    ctx.stroke();
+    /*
+     * A rampart that joins the one next to it.
+     *
+     * Each Rampart is its own one-tile building, and drawing it as an island
+     * is what made a twenty-piece wall read as twenty crates left in a row —
+     * the single worst-looking thing in a built-up hold. `link` says which of
+     * the four neighbours is also a Rampart, and the block is stretched to the
+     * shared edge on those sides, so a run merges into one length of masonry
+     * while an isolated piece keeps its own corners.
+     *
+     * There are only sixteen combinations, so this costs at most sixteen
+     * cached sprites a level rather than one.
+     */
+    const link = b.link ?? 0;
+    const east = (link & 1) !== 0;
+    const south = (link & 2) !== 0;
+    const west = (link & 4) !== 0;
+    const north = (link & 8) !== 0;
+    const alongX = east || west;
+    const alongY = south || north;
+    /*
+     * Thin across the run, long along it.
+     *
+     * A Rampart owns its whole tile, and drawing the whole tile made a
+     * waist-high block whose top face was most of what you saw — a row of
+     * tables. A wall is a wall because it is much longer than it is thick, so
+     * a piece with neighbours east or west keeps its full length in x and is
+     * narrowed in y, and the reverse going north-south. A corner, or a piece
+     * standing alone, keeps its square footing because that is what a corner
+     * bastion looks like.
+     */
+    const thin = alongX !== alongY;
+    const x0 = west ? 0 : thin && alongX ? 0.05 : 0.16;
+    const x1 = east ? 1 : thin && alongX ? 0.95 : 0.84;
+    const y0 = north ? 0 : thin && alongY ? 0.05 : 0.16;
+    const y1 = south ? 1 : thin && alongY ? 0.95 : 0.84;
+    const wh = 30 + lv * 2.2;
+
+    const cop = 5;
+    isoBox(d, gx + x0, gy + y0, x1 - x0, y1 - y0, wh, '#96a3b0', '#54626e', '#74828e');
+    /*
+     * The coping: a course of dressed stone standing a little proud of the
+     * wall, carrying the walkway. A box rather than a flat slab, so it has
+     * sides — a slab floating above the wall reads as a shelf, which is what
+     * the first attempt looked like.
+     */
+    isoBox(
+      d, gx + x0 - 0.03, gy + y0 - 0.03, x1 - x0 + 0.06, y1 - y0 + 0.06, cop,
+      '#c2ccd6', '#6b7783', '#8e9aa6', undefined, wh,
+    );
+
+    // Merlons standing on the coping. Two where the wall carries on through
+    // the tile, one where it does not, so an end still reads as an end.
+    const spots: [number, number][] = alongX && !alongY
+      ? [[0.27, 0.5], [0.73, 0.5]]
+      : alongY && !alongX
+        ? [[0.5, 0.27], [0.5, 0.73]]
+        : alongX && alongY
+          ? [[0.3, 0.32], [0.68, 0.7]]
+          : [[0.5, 0.5]];
+    for (const [ux, uy] of spots) {
+      const [px, py] = P(gx + ux, gy + uy);
+      const foot = py - (wh + cop) * z;
+      ctx.fillStyle = '#cdd6df';
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = Math.max(1.1, 1.7 * z);
+      roundRect(ctx, px - 4 * z, foot - 8 * z, 8 * z, 9.5 * z, 1.6 * z);
+      ctx.fill(); ctx.stroke();
+    }
   }
 
   if (b.type !== 'wall') {

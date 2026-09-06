@@ -29,10 +29,17 @@ export interface BoxResult {
   cy: number;
 }
 
-/** A chunky outlined isometric cuboid. `hgt` is screen pixels before zoom. */
+/**
+ * A chunky outlined isometric cuboid. `hgt` is screen pixels before zoom.
+ *
+ * `base` lifts the whole box off the ground, which is how a storey is stacked
+ * on a roof: without it every block has to start at the plinth, and a Keep
+ * with a lantern above its hall could only be drawn as a spire growing out of
+ * the earth through the middle of the building.
+ */
 export function isoBox(
   d: Draw, gx: number, gy: number, w: number, h: number, hgt: number,
-  top: string, left: string, right: string, outline?: string,
+  top: string, left: string, right: string, outline?: string, base = 0,
 ): BoxResult {
   const { ctx, cam, vp } = d;
   const z = cam.z;
@@ -41,14 +48,14 @@ export function isoBox(
     const [sx, sy] = w2s(cam, vp, isoX(ax, ay), isoY(ax, ay));
     return [sx, sy - dz * z];
   };
-  const a = P(gx, gy, 0);
-  const b = P(gx + w, gy, 0);
-  const c = P(gx + w, gy + h, 0);
-  const dd = P(gx, gy + h, 0);
-  const A = P(gx, gy, hgt);
-  const B = P(gx + w, gy, hgt);
-  const Cc = P(gx + w, gy + h, hgt);
-  const D = P(gx, gy + h, hgt);
+  const a = P(gx, gy, base);
+  const b = P(gx + w, gy, base);
+  const c = P(gx + w, gy + h, base);
+  const dd = P(gx, gy + h, base);
+  const A = P(gx, gy, base + hgt);
+  const B = P(gx + w, gy, base + hgt);
+  const Cc = P(gx + w, gy + h, base + hgt);
+  const D = P(gx, gy + h, base + hgt);
 
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(1.6, 2.6 * z);

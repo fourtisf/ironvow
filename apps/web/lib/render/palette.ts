@@ -33,7 +33,14 @@ export const C = {
 export const bannerColor = (enemy: boolean): string => (enemy ? '#c2412d' : '#3f7fd6');
 
 /** Vertical offset of the level pip above each building type. */
+/**
+ * Vertical offset of the level pip above each building type.
+ *
+ * Multiplied by the level's growth in `pipHeightOf`, so a pip stays clear of
+ * a building that gets taller as it is upgraded. The mine's headframe and the
+ * forge's chimneys are what set those two.
+ */
 export const PIPH: Record<string, number> = {
-  keep: 172, mine: 74, forge: 104, store: 78, barr: 122, lab: 108, cannon: 56, tower: 132, wall: 0,
+  keep: 172, mine: 96, forge: 112, store: 82, barr: 122, lab: 108, cannon: 56, tower: 132, wall: 0,
   statue: 128, brazier: 58, standard: 96,
 };

@@ -1,10 +1,19 @@
 import { TYPES, isVanity, type BuildingType } from './buildings.js';
 import { barracksSlots, TROOP, TROOP_ORDER, type TroopType } from './troops.js';
 
+/*
+ * What a producer makes in a minute.
+ *
+ * Raised again after the first hour still felt thin: a level-1 mine made 37
+ * gold a minute against a second mine costing 233, so the second building of
+ * the game was six minutes of watching. Both curves are steeper as well as
+ * higher, so levelling a producer is worth more than laying another one.
+ * TUNABLE.
+ */
 /** Gold per minute from one Gold Mine. */
-export const mineRate = (level: number): number => 22 + level * 15;
+export const mineRate = (level: number): number => 40 + level * 26;
 /** Iron per minute from one Iron Forge. */
-export const forgeRate = (level: number): number => 12 + level * 9;
+export const forgeRate = (level: number): number => 22 + level * 16;
 
 export const PROD: Partial<Record<BuildingType, (lv: number) => number>> = {
   mine: mineRate,
@@ -26,9 +35,10 @@ export const PRODUCES: Partial<Record<BuildingType, 'gold' | 'iron'>> = {
  * screen. Two hours is long enough that coming back after a meal is worth
  * something and short enough that a player who checks in often still gets
  * more than one who does not. TUNABLE, and the number to move first if the
- * economy feels slow.
+ * economy feels slow. Now four hours, matching OFFLINE_CAP_SECONDS: a night's
+ * sleep pays the same as it would if the tab had been left open.
  */
-export const STOCK_BUFFER_MINUTES = 120;
+export const STOCK_BUFFER_MINUTES = 240;
 
 /** Uncollected output a single producer can hold. */
 export function stockCapOf(type: BuildingType, level: number): number {
@@ -36,8 +46,13 @@ export function stockCapOf(type: BuildingType, level: number): number {
   return rate ? rate(level) * STOCK_BUFFER_MINUTES : 0;
 }
 
-/** Storage added by one Vault. */
-export const CAPACITY = (level: number): number => 1400 + level * 1500;
+/**
+ * Storage added by one Vault.
+ *
+ * Sized against what the producers now make: a Vault has to be worth the
+ * plot it stands on, and at 2,900 it was not.
+ */
+export const CAPACITY = (level: number): number => 3000 + level * 3000;
 
 /**
  * Storage every player has before building a single Vault.
@@ -46,7 +61,7 @@ export const CAPACITY = (level: number): number => 1400 + level * 1500;
  * into waste before the first Vault was up, and made the opening hour feel
  * like it was throwing money away.
  */
-export const BASE_STORAGE = 4000;
+export const BASE_STORAGE = 9000;
 
 /**
  * Starting purse.
@@ -60,8 +75,8 @@ export const BASE_STORAGE = 4000;
  * mine collection was clamped away and vanished with no feedback. The invariant
  * below is asserted at module load and again in the economy tests.
  */
-export const START_GOLD = 3000;
-export const START_IRON = 1200;
+export const START_GOLD = 6000;
+export const START_IRON = 2400;
 
 if (START_GOLD >= BASE_STORAGE || START_IRON >= BASE_STORAGE) {
   throw new Error(

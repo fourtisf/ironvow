@@ -489,6 +489,86 @@ gold and 860 iron still in hand.
 Two tests failed on this and both were right to: they asserted the literals
 `900` and `2500` rather than the constants. They read the constants now.
 
+## The purse, and what a building looks like
+
+Two complaints, one session, and they turn out to be the same complaint: the
+game did not feel like it was giving anything back.
+
+**The purse.** A new hold started on 900 gold and 320 iron against a first
+upgrade that costs several hundred, so the opening move was to wait. Producers
+also stopped filling long before a player who checks in once a day came back:
+the buffer above the collectable stock was twelve minutes, then two hours, and
+a hold left overnight was earning nothing for most of the night. Now:
+
+| | before | now |
+|---|---|---|
+| `START_GOLD` / `START_IRON` | 900 / 320 | 6,000 / 2,400 |
+| `BASE_STORAGE` | 2,500 | 9,000 |
+| `mineRate(level)` | `18 + level × 12` | `40 + level × 26` |
+| `forgeRate(level)` | `9 + level × 7` | `22 + level × 16` |
+| `CAPACITY(level)` | `1200 + level × 1200` | `3000 + level × 3000` |
+| `STOCK_BUFFER_MINUTES` | 12 | 240 |
+
+The starting purse now covers the first four War Orders and leaves 4,247 gold
+and 2,060 iron, which is the difference between opening the game and opening a
+waiting room. `START_GOLD` and `START_IRON` are asserted below `BASE_STORAGE`
+at module load: a hold that starts over its own cap silently loses the
+difference on the first write, and that is not a bug anyone would find by
+reading the balance table.
+
+Existing holds keep the resources they already have — the constants only apply
+where they are read, and a hold's stock lives in its own row.
+
+**What a building looks like.** The Gold Mine was a hut with a cart beside it,
+which is a hut, and level 9 was level 1 with a bigger number floating over it.
+Every producer and defence is now drawn from what it actually does, and every
+building is drawn at one of four tiers — levels 1-2, 3-5, 6-7, 8+ — that change
+the structure rather than the paint:
+
+- **Gold Mine** — a terraced pit sunk into the dirt with the seam glinting in
+  the wall of each step, a headframe standing over the shaft with a winch wheel
+  and a bucket on a rope, rails with sleepers, an ore cart heaped with gold, and
+  spoil heaps beside it. Timber prop → grey steel derrick → braced derrick over
+  a deeper pit → gilded.
+- **Iron Forge** — a furnace block with a glowing arched mouth, an anvil, ingot
+  stacks that grow with the tier and a quench trough. One chimney → two →
+  stone-clad with three → gilded caps. Smoke rises from each chimney the body
+  actually drew.
+- **Vault** — a wooden chest with a banded lid and coins, then a stone vault
+  with a spoked wheel door and gold bars stacked beside it.
+- **Keep** — four squat turrets, then taller turrets flying pennants, then a
+  lantern storey standing above the roof, then the whole crown gilded. The
+  banner flies from whichever ridge the body drew, lantern included.
+- **Barracks** — a longhouse that gains a stone footing and a second storey,
+  with another spear on the rack each tier.
+- **War Lab** — crystals stood on the plinth, one a tier, and an observatory
+  turret capped with a crystal once it is more than a shed with a pot in it.
+- **Cannon**, **Arrow Tower**, **Rampart** — sandbags then iron plate, another
+  arrow slit each tier, and a gilded roof at the top.
+
+Three things this needed underneath:
+
+1. `isoBox` gained a `base` argument, so a storey can be stacked on a roof.
+   Without it every block starts at the plinth, and a Keep with a lantern above
+   its hall could only be drawn as a spire growing out of the earth through the
+   middle of the building. That was the bug behind the black spires on the first
+   attempt: `isoBox` was being used to draw a cap and was drawing a whole box
+   from the ground up. A flat cap is `isoDiamond` at a height.
+2. `pipHeightOf` now clears the art. The tiers do not just scale a building,
+   they add to it, so scaling `PIPH` by growth alone buried the level pip in the
+   roof of exactly the buildings a player most wants to read the level of.
+3. Everything in `drawBuildingFx` that hangs off the body — the Keep's banner,
+   the Barracks' banner, the Forge's smoke, the Lab's glow — is derived from the
+   same expression the body uses, not a copied literal. Smoke rising from where
+   a chimney used to be is worse than no smoke at all.
+
+`apps/web/app/art/page.tsx` is the workbench this was built on: every type down
+the page, levels 1/3/6/9 across it, one camera per cell. The art is procedural
+and varies with level, so the only way to see whether a level-6 Gold Mine reads
+as a bigger level-3 one is to put them side by side, and playing to level 6 four
+times is not a way to work. It is not linked from anywhere and is not part of
+the game.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

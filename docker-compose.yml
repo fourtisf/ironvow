@@ -68,7 +68,10 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     ports:
-      - '${API_PORT:-4000}:4000'
+      # Loopback only. The browser never talks to the API directly — it goes
+      # through the web container's /api rewrite — so on a public VPS there is
+      # no reason for port 4000 to face the internet.
+      - '127.0.0.1:${API_PORT:-4000}:4000'
 
   worker:
     build:
@@ -105,7 +108,9 @@ services:
     environment:
       NODE_ENV: production
     ports:
-      - '${WEB_PORT:-3000}:3000'
+      # Loopback only: a reverse proxy on the host (deploy/Caddyfile) is what
+      # answers on 80 and 443, and it is the thing that holds the certificate.
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
 
 volumes:
   pgdata:

@@ -1,0 +1,22 @@
+# IRONVOW behind Caddy.
+#
+# Caddy answers on 80 and 443, fetches and renews the Let's Encrypt certificate
+# on its own, and hands everything to the web container on loopback port 3000.
+# The API is reached through Next's /api rewrite, so nothing else needs a route.
+#
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+
+ironvow.xyz, www.ironvow.xyz {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3000
+
+    # Web push and the session cookie both need the page to be genuinely HTTPS,
+    # which Caddy guarantees; these headers stop it being framed or sniffed.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}

@@ -191,6 +191,14 @@ Two things worth knowing about the build:
   `next build` — the rewrite gets `http://api:4000` and the client bundle
   keeps `/api`. Expect to fix something the first time you run it.
 
+### On a VPS with a domain
+
+Same stack, plus Caddy on the host for HTTPS. `deploy/Caddyfile` proxies
+`ironvow.xyz` to the web container on loopback port 3000 and handles the
+certificate itself; the compose file binds 3000 and 4000 to `127.0.0.1` so
+nothing but Caddy faces the internet. Set `WEB_ORIGIN=https://ironvow.xyz` in
+`.env` — it is the CORS allow-list and the host in every login link.
+
 ### The long way
 
 `deploy/ecosystem.config.cjs` runs the API clustered, the worker as a single

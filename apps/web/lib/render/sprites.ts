@@ -186,19 +186,23 @@ function blit(
  */
 export function blitBuilding(
   d: Draw, type: BuildingType, level: number, enemy: boolean, ax: number, ay: number,
-  link = 0,
+  link = 0, pips = true,
 ): void {
   const { ctx, cam, vp } = d;
   const z = cam.z;
   // `link` only varies for Ramparts, and only over sixteen values, so it costs
   // nothing on every other type and at most sixteen sprites on that one.
-  const shape = `b|${type}|${level}|${enemy ? 1 : 0}|${link}`;
+  // `pips` belongs in the key like everything else that changes the picture:
+  // bounds are measured once per shape, and a badge is part of the silhouette.
+  const shape = `b|${type}|${level}|${enemy ? 1 : 0}|${link}|${pips ? 1 : 0}`;
   const paint: Painter = (c, k) => {
     // The art is translation-invariant, so a camera at the origin puts grid
     // (0,0) at the canvas origin, where the transform has already been aimed.
     const cam0: Camera = { x: 0, y: 0, z: k, tz: k };
     const vp0: Viewport = { w: 0, h: 0, dpr: vp.dpr };
-    drawBuildingBody({ ctx: c, cam: cam0, vp: vp0, t: 0 }, { type, gx: 0, gy: 0, level, link }, enemy);
+    drawBuildingBody(
+      { ctx: c, cam: cam0, vp: vp0, t: 0 }, { type, gx: 0, gy: 0, level, link, pips }, enemy,
+    );
   };
   blit(ctx, spriteFor(shape, paint, z, vp.dpr), vp.dpr, ax, ay);
 }

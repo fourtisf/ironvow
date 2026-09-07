@@ -698,7 +698,7 @@ function drawStruct(
   gx: number, gy: number, aim?: number, recoil?: number, link = 0,
 ): void {
   const [ax, ay] = w2s(w.cam, w.vp, isoX(gx, gy), isoY(gx, gy));
-  blitBuilding(d, type, level, enemy, ax, ay, link);
+  blitBuilding(d, type, level, enemy, ax, ay, link, w.levelPips);
   if (ANIMATED.has(type)) {
     drawBuildingFx(d, { type, gx, gy, level, aim, recoil }, enemy);
   }

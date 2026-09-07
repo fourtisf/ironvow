@@ -94,6 +94,11 @@ export interface World {
    */
   previewEnemy: boolean;
   /**
+   * Level badges over the roofs. Always on in the game; off only where the
+   * renderer is being used to take a photograph of it.
+   */
+  levelPips: boolean;
+  /**
    * How fast a raid is watched. See `SPEEDS` — the simulation still runs every
    * tick, in order; this only decides how many of them a second of real time
    * is worth, so the commands the server replays are unchanged by it.
@@ -146,6 +151,7 @@ export function createWorld(events: WorldEvents): World {
     progressionLevels: {},
     showRanges: false,
     previewEnemy: true,
+    levelPips: true,
     battleSpeed: 1,
     mode: 'base',
     player: null,

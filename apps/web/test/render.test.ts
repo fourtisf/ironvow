@@ -203,3 +203,33 @@ describe('troop kit is cacheable, and changes with the level', () => {
     expect(log.some((l) => l.includes('#ffd8c2'))).toBe(true);
   });
 });
+
+/**
+ * The level badge is part of a building's silhouette, so it has to be part of
+ * the sprite key — bounds are measured once per shape and reused at every zoom,
+ * and a badged and an unbadged Keep sharing one entry would clip whichever was
+ * rasterised second. `blitBuilding` carries it; this pins the half that can be
+ * tested without a canvas, which is that it changes the drawing at all.
+ *
+ * Off only for key art: a field of numbers is the one thing in a banner that
+ * says "menu" rather than "kingdom". See `/banner`.
+ */
+describe('the level badge can be turned off', () => {
+  it('draws less without it, and the rest identically', () => {
+    const on = draw(0);
+    const off = draw(0);
+    drawBuildingBody(on.d, { type: 'keep', gx: 4, gy: 4, level: 9 }, false);
+    drawBuildingBody(off.d, { type: 'keep', gx: 4, gy: 4, level: 9, pips: false }, false);
+    expect(off.log.length).toBeLessThan(on.log.length);
+    // The badge is the last thing the body draws, so what is left is a prefix.
+    expect(on.log.slice(0, off.log.length)).toEqual(off.log);
+  });
+
+  it('is on unless it is asked not to be', () => {
+    const implied = draw(0);
+    const explicit = draw(0);
+    drawBuildingBody(implied.d, { type: 'cannon', gx: 4, gy: 4, level: 3 }, false);
+    drawBuildingBody(explicit.d, { type: 'cannon', gx: 4, gy: 4, level: 3, pips: true }, false);
+    expect(implied.log).toEqual(explicit.log);
+  });
+});

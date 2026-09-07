@@ -38,6 +38,12 @@ export interface Renderable {
    * because a linked wall is a different shape, not a different position.
    */
   link?: number;
+  /**
+   * The level badge over the roof. On by default — it is how a player reads
+   * their own hold at a glance. Off for key art, where a field of numbers is
+   * the one thing that says "screenshot of a menu" rather than "a place".
+   */
+  pips?: boolean;
 }
 
 /** Types with a moving part. Everything else needs no per-frame work at all. */
@@ -972,7 +978,7 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     }
   }
 
-  if (b.type !== 'wall') {
+  if (b.type !== 'wall' && b.pips !== false) {
     const [px, py] = P(gx + s / 2, gy + s / 2);
     drawLevelPip(d, px, py - pipHeightOf(b.type, lv) * z, lv);
   }

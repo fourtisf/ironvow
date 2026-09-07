@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
   TROOP,
   TROOP_ORDER,
@@ -190,10 +192,22 @@ export interface ArmySheetProps {
   hint?: string | null;
 }
 
+/**
+ * How many a tap trains.
+ *
+ * MAX is not a number, it is "as many as still fit" — worked out per troop,
+ * because a Ram takes six slots and a Raider one, so one setting cannot be a
+ * count. The server already validates each unit of a batch on its own and
+ * queues what it can afford, so asking for more than the purse allows fills
+ * the warband as far as the gold goes rather than failing.
+ */
+type Batch = 1 | 5 | 'max';
+
 export function ArmySheet({
   player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop, onCancelJob,
   highlight = null, hint = null,
 }: ArmySheetProps) {
+  const [batch, setBatch] = useState<Batch>(1);
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   const barracks = bestBarracksLevel(owned);
   const now = Date.now();
@@ -207,6 +221,23 @@ export function ArmySheet({
           <h2>ARMY</h2>
           <p>Warband {player.armyUsed} / {player.armyCap} slots</p>
         </div>
+        {/*
+          * Filling a warband was fourteen taps on the same card. This says how
+          * many one tap is worth, and it stays where it is put — a player who
+          * has decided to train in fives is going to do it more than once.
+          */}
+        <div className="batchPick" role="group" aria-label="How many each tap trains">
+          {([1, 5, 'max'] as const).map((n) => (
+            <button
+              key={String(n)}
+              className={batch === n ? 'on' : ''}
+              onClick={() => setBatch(n)}
+              aria-pressed={batch === n}
+            >
+              {n === 'max' ? 'MAX' : `×${n}`}
+            </button>
+          ))}
+        </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
       {hint && <div className="sheetHint">{hint}</div>}
@@ -217,12 +248,16 @@ export function ArmySheet({
           const locked = barracks < TROOP_UNLOCK[type];
           const affordable = player.gold >= def.cost.g && player.iron >= def.cost.i;
           const room = player.armyUsed + def.sp <= player.armyCap;
+          // What one tap queues. Slots are the binding constraint, not gold:
+          // the server stops a batch when the purse runs out and says so.
+          const fits = Math.max(1, Math.floor((player.armyCap - player.armyUsed) / def.sp));
+          const count = batch === 'max' ? Math.min(50, fits) : batch;
 
           return (
             <button
               key={type}
               className={`card${locked ? ' locked' : ''}${affordable ? '' : ' poor'}${type === highlight ? ' hi' : ''}`}
-              onClick={() => !locked && room && onTrain(type, 1)}
+              onClick={() => !locked && room && onTrain(type, count)}
               disabled={locked || !room}
             >
               <span className="cnt">{player.army[type] ?? 0}</span>

@@ -1,13 +1,14 @@
-import { DEF_STAT, PROD, TH, TW, TYPES, type BuildingType } from '@ironvow/config';
+import { DEF_STAT, PROD, TH, TROOP_ORDER, TW, TYPES, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
 import { blitBuilding, blitDeco } from '../render/sprites';
 import { C, PIPH } from '../render/palette';
-import { drawHpBar, isoDiamond, roundRect } from '../render/primitives';
+import { drawHpBar, isoBox, isoDiamond, roundRect } from '../render/primitives';
 import { drawAtmosphere } from '../render/atmosphere';
 import { drawTerrain } from '../render/terrain';
 import { drawProjectile, drawUnit } from '../render/units';
+import type { DeployableType } from '@ironvow/types';
 import type { ClientBuilding } from './types';
 import type { World } from './world';
 
@@ -37,7 +38,8 @@ export function renderFrame(w: World, ctx: CanvasRenderingContext2D): void {
  */
 type BaseEntity =
   | { d: number; k: 'deco'; i: number }
-  | { d: number; k: 'building'; b: ClientBuilding };
+  | { d: number; k: 'building'; b: ClientBuilding }
+  | { d: number; k: 'muster'; m: Mustered };
 
 type BattleEntity =
   | { d: number; k: 'deco'; i: number }
@@ -120,6 +122,164 @@ function rangeRing(
   ctx.restore();
 }
 
+/*
+ * Where the army stands.
+ *
+ * A warband was a number on a sheet: fourteen Raiders looked exactly like
+ * none. In a base builder the army is half of what a player is proud of, so
+ * the troops muster on the ground in front of their Barracks and stay there
+ * until they are sent somewhere — which is also the honest picture, because
+ * that is the warband a raid will actually field.
+ *
+ * Laid out from the same list every frame rather than remembered, so it costs
+ * nothing to keep in step with the roster: train one and a figure appears,
+ * lose them on a raid and the yard empties.
+ */
+
+/**
+ * How far apart they stand.
+ *
+ * The first attempt used 0.62 of a tile and the yard came out as one mass of
+ * helmets. A figure is about 34 device pixels across at zoom 1 and one grid
+ * step sideways is only `TW / 2` — 32 — so anything under about 1.1 tiles has
+ * neighbours' shoulders inside each other. Wide enough that a player can count
+ * them is the bar, so: a shade over one and a half.
+ */
+const MUSTER_GAP = 1.5;
+/** Ground left between the outermost rank and the fence. */
+const MUSTER_PAD = 0.8;
+/**
+ * Beyond this the yard reads as a crowd and the frame starts paying for it.
+ * A maxed Barracks fields more than this, and the rest are simply not drawn —
+ * nobody counts a crowd.
+ */
+export const MUSTER_MAX = 24;
+
+/**
+ * The yard grows with the warband rather than being a fixed rectangle: two
+ * Raiders should not stand at opposite ends of a parade ground. Square-ish,
+ * capped at six to a rank so a full camp stays wider than it is deep — which
+ * is the shape the isometric projection flatters.
+ */
+function rankOf(n: number): number {
+  return Math.min(6, Math.max(2, Math.ceil(Math.sqrt(n))));
+}
+
+export interface Mustered {
+  type: DeployableType;
+  gx: number;
+  gy: number;
+  level: number;
+  /** Alternated down the ranks, so a yard is a crowd and not a wallpaper. */
+  face: 1 | -1;
+}
+
+/** The bare ground they stand on, painted before anything else goes down. */
+export interface Yard {
+  gx: number;
+  gy: number;
+  w: number;
+  h: number;
+}
+
+export interface Muster {
+  yards: Yard[];
+  troops: Mustered[];
+}
+
+const EMPTY_MUSTER: Muster = { yards: [], troops: [] };
+
+/**
+ * Exported for the tests: the layout is arithmetic in the projection's axes,
+ * and arithmetic is worth pinning down without a canvas.
+ */
+export function musterOf(w: World): Muster {
+  const player = w.player;
+  if (!player) return EMPTY_MUSTER;
+  const barracks = player.buildings.filter((b) => b.type === 'barr' && !b.completesAt);
+  if (barracks.length === 0) return EMPTY_MUSTER;
+
+  // Flattened first, so the split across yards is a plain deal of one list and
+  // the roster order still holds inside each one.
+  const roster: { type: DeployableType; level: number }[] = [];
+  const levels = w.progressionLevels;
+  for (const type of TROOP_ORDER) {
+    const count = player.army[type] ?? 0;
+    for (let i = 0; i < count && roster.length < MUSTER_MAX; i++) {
+      roster.push({ type, level: levels[type] ?? 1 });
+    }
+  }
+  if (roster.length === 0) return EMPTY_MUSTER;
+
+  const yards: Yard[] = [];
+  const troops: Mustered[] = [];
+  const size = TYPES.barr.s;
+  for (let y = 0; y < barracks.length; y++) {
+    const hall = barracks[y]!;
+    // Spread across every Barracks, so a second one is somewhere the army
+    // actually is rather than a number that went up.
+    const mine = roster.filter((_, i) => i % barracks.length === y);
+    if (mine.length === 0) continue;
+    const cols = rankOf(mine.length);
+    const rows = Math.ceil(mine.length / cols);
+    const fw = (cols - 1) * MUSTER_GAP + MUSTER_PAD * 2;
+    const fh = (rows - 1) * MUSTER_GAP + MUSTER_PAD * 2;
+    /*
+     * Ranked up in front of the hall, and centred under it *on screen*.
+     *
+     * Centring in grid coordinates is the obvious thing and it is wrong: the
+     * screen's horizontal axis is `gx - gy`, so a field centred on `gx` alone
+     * slides left by half its depth. Working in the projection's own axes —
+     * `u = gx - gy` across, `v = gx + gy` into the screen — the field wants
+     * `u` equal to the hall's and `v` starting where the hall's south corner
+     * ends, which solves to this pair.
+     */
+    const across = hall.gx - hall.gy + (fh - fw) / 2;
+    const depth = hall.gx + hall.gy + size * 2 + 0.2;
+    const fx = (depth + across) / 2;
+    const fy = (depth - across) / 2;
+    yards.push({ gx: fx, gy: fy, w: fw, h: fh });
+
+    for (let i = 0; i < mine.length; i++) {
+      const unit = mine[i]!;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      // The last rank is short; centre it so the yard does not end in a step.
+      const wide = row === rows - 1 ? mine.length - row * cols : cols;
+      const slack = ((cols - wide) * MUSTER_GAP) / 2;
+      troops.push({
+        type: unit.type,
+        level: unit.level,
+        gx: fx + MUSTER_PAD + slack + col * MUSTER_GAP,
+        gy: fy + MUSTER_PAD + row * MUSTER_GAP,
+        face: (col + row) % 3 === 1 ? -1 : 1,
+      });
+    }
+  }
+  return { yards, troops };
+}
+
+/**
+ * The parade ground itself: packed earth inside a rope line.
+ *
+ * Without it the warband looks like it wandered onto the lawn. With it the
+ * army has an address, which is the whole of what was asked for — the field
+ * is the thing you point at when you want to know what you can field.
+ */
+function drawYard(d: Draw, y: Yard): void {
+  isoDiamond(d, y.gx, y.gy, y.w, y.h, C.earth, 0);
+  isoDiamond(d, y.gx + 0.16, y.gy + 0.16, y.w - 0.32, y.h - 0.32, C.dirt, 0.02);
+  // The rope line, drawn as a thin inset diamond rather than a stroke on the
+  // slab, so it reads as posts and cord and not as an outline.
+  isoDiamond(d, y.gx + 0.34, y.gy + 0.34, y.w - 0.68, y.h - 0.68,
+    'rgba(0,0,0,0)', 0.04, 'rgba(60,42,24,.45)');
+  for (const [px, py] of [
+    [y.gx, y.gy], [y.gx + y.w, y.gy], [y.gx + y.w, y.gy + y.h], [y.gx, y.gy + y.h],
+  ] as const) {
+    isoBox(d, px - 0.13, py - 0.13, 0.26, 0.26, 13, C.wood, C.woodD, C.woodD);
+  }
+}
+
 function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   drawTerrain(d, w.terrain);
@@ -147,6 +307,13 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'building', b });
   }
+  // The warband stands with the buildings in the depth sort, so a troop in
+  // front of its Barracks is drawn over it and one behind is drawn under.
+  const muster = musterOf(w);
+  for (const m of muster.troops) {
+    if (!onScreen(w.cam, w.vp, m.gx, m.gy)) continue;
+    ents.push({ d: m.gx + m.gy, k: 'muster', m });
+  }
   ents.sort((a, b) => a.d - b.d);
 
   /*
@@ -156,6 +323,10 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
    * the decision is never "how far does this one reach" on its own, it is
    * "where is the gap", and one ring cannot answer that.
    */
+  // The parade ground is ground: it goes under the rings and under everything
+  // that stands on it.
+  for (const y of muster.yards) drawYard(d, y);
+
   const place = w.placement;
   const ringFor = place && DEF_STAT[place.type] ? place.type : null;
   const selectedBuilding = w.selectedId
@@ -195,6 +366,15 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   for (const e of ents) {
     if (e.k === 'deco') {
       blitDeco(d, w.terrain.deco[e.i]!);
+      continue;
+    }
+    if (e.k === 'muster') {
+      drawUnit(d, {
+        type: e.m.type, x: e.m.gx, y: e.m.gy, mine: true, hp: 1, maxHp: 1,
+        // Standing at ease: no walk, no swing. The bob and the flash belong to
+        // a fight, and this is a yard.
+        moving: false, face: e.m.face, swing: 0, flash: 0, born: 0, level: e.m.level,
+      });
       continue;
     }
     const b = e.b;

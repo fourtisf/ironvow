@@ -70,6 +70,12 @@ export interface World {
   /** Set by the canvas so a resize can re-size the backing store. */
   resize: (() => void) | null;
   /**
+   * War Lab levels, so the warband mustered in the yard wears the kit it
+   * actually fights in. Pushed down when `/progression` answers; a hold
+   * without a Lab is every troop at level 1, which is the default.
+   */
+  progressionLevels: Partial<Record<TroopType, number>>;
+  /**
    * Whether every defence is painting what it covers.
    *
    * Lives on the world rather than in React state because the renderer reads
@@ -122,6 +128,7 @@ export function createWorld(events: WorldEvents): World {
     t: 0,
     now: Date.now(),
     resize: null,
+    progressionLevels: {},
     showRanges: false,
     mode: 'base',
     player: null,

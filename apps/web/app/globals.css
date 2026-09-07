@@ -178,6 +178,13 @@
   .qrow .qi p{font-size:9px;font-family:Arial;font-weight:700;color:#8fa6c4;margin-top:3px}
   .qbarBg{height:6px;background:#0d1420;border-radius:4px;margin-top:6px;overflow:hidden}
   .qbar{height:100%;background:linear-gradient(90deg,#4fa85a,#8fe07a)}
+  /* How many a tap trains: ×1, ×5, MAX. */
+  .batchPick{display:flex;gap:3px;background:#18233a;border:2px solid #34486a;
+    border-radius:11px;padding:3px;margin-left:auto;margin-right:8px;flex:none}
+  .batchPick button{font:inherit;font-size:10px;letter-spacing:.6px;color:#8fa6c4;
+    background:none;border:0;border-radius:8px;padding:6px 9px;min-width:38px}
+  .batchPick button.on{background:linear-gradient(#3a5a86,#22375a);color:#dff0ff}
+
   .qrw{font-size:10px;color:#ffd97a;display:flex;align-items:center;gap:4px;flex:none}
   .qrw svg{width:14px;height:14px}
 

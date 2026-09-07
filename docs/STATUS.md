@@ -1000,6 +1000,52 @@ cell rather than starting a job off the map. That last one matters more than it
 did: the ghost is clamped inside the field, and one-tap placement means the
 clamp is now load-bearing.
 
+## Train MAX, and a field to stand the army on
+
+ALFA: "harus ada setingan latih max dan harus ada lapanhgan kaya coc yang
+kumpulin armnya"
+
+Two asks, one subject: the army was something you did paperwork for and then
+could not see.
+
+**Training a warband was fourteen taps.** The server had accepted a `count`
+since the day training was written — `POST /train` takes 1 to 50, checks every
+unit against the camp and the purse, and queues what it can afford — so the
+whole of the ask was a control the finger could reach. The ARMY sheet now has a
+×1 / ×5 / MAX selector in its head, and each troop card trains that many. MAX
+is not a magic number: it is `floor((armyCap - armyUsed) / slots)`, the honest
+answer to "how many more of these fit", capped at the 50 the route accepts. One
+tap took the queue from nothing to thirty-two in the browser.
+
+**And then the warband was still a number on a sheet.** Fourteen Raiders looked
+exactly like none, which is a strange thing in a game where half of what a
+player is proud of is the army. So they stand on the grass now: a parade ground
+of packed earth with a rope line and four corner posts, laid out in front of
+each Barracks, with the warband ranked up on it in the kit its War Lab paid
+for. It is derived from the roster every frame rather than remembered, so it
+costs nothing to keep honest — train one and a figure appears, lose them on a
+raid and the yard empties, and what is standing there is exactly what a raid
+will field. The figures sort with the buildings by depth, so one in front of
+its hall is drawn over it and one behind is drawn under.
+
+Two things went wrong on the way, and both are now in
+`apps/web/test/muster.test.ts`:
+
+1. **A gap that looks generous in grid units is not.** The first layout used
+   0.62 of a tile and rendered as one mass of helmets. A figure is about 34
+   device pixels across at zoom 1 and one step sideways in the grid is `TW / 2`
+   — 32 — so shoulders were inside each other before the second rank existed.
+   It is 1.5 tiles now, and you can count them.
+2. **Centring the field on the hall's `gx` slid it half its depth to the left.**
+   The screen's horizontal axis is `gx - gy`, not `gx`. The layout is done in
+   the projection's own axes — `u = gx - gy` across, `v = gx + gy` into the
+   screen — which puts the field under the hall it belongs to and starts it
+   exactly where the hall's south corner ends. The test asserts both, plus that
+   every figure lands inside the ground that was painted for it, that the yard
+   is capped at twenty-four (past that it is a crowd, and nobody counts a
+   crowd), and that a second Barracks gets half the warband rather than a
+   number that went up.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

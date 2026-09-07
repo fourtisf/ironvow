@@ -239,7 +239,15 @@ export function Game() {
 
   const loadProgression = useCallback(async () => {
     try {
-      setProgression(await api.progression());
+      const next = await api.progression();
+      setProgression(next);
+      // The warband standing in the yard wears the kit it fights in, so the
+      // renderer needs the same levels the Lab sheet is about to draw.
+      if (worldRef.current) {
+        worldRef.current.progressionLevels = Object.fromEntries(
+          next.lab.troops.map((t) => [t.type, t.level]),
+        );
+      }
     } catch {
       // The panels fall back to a quiet placeholder rather than a toast.
     }

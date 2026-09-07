@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CLAN_CREATE_COST, CLAN_CREATE_KEEP_LEVEL, CLAN_DESC_MAX, CLAN_NAME_MAX, CLAN_TAG_MAX,
-  cleanTag, validClanName, validTag,
+  TROOP, TROOP_ORDER, cleanTag, validClanName, validTag, type TroopType,
 } from '@ironvow/config';
 import {
   ApiError, api,
@@ -138,6 +138,7 @@ export function ClanSheet({ player, onClose, onToast, onPlayerChanged, onWarAtta
           requests={mine?.requests ?? []}
           role={role}
           me={player.id}
+          army={player.army}
           busy={busy}
           act={act}
         />
@@ -244,16 +245,27 @@ function ChatTab({ onToast }: { onToast: (m: string) => void }) {
 /* --------------------------------------------------------------- members --- */
 
 function MembersTab({
-  clan, requests, role, me, busy, act,
+  clan, requests, role, me, army, busy, act,
 }: {
   clan: ClanSummary & { members: ClanMemberRow[] };
   requests: { id: string; name: string; trophies: number; keepLevel: number }[];
   role: ClanRole;
   me: string;
+  /** What the giver actually has to give. */
+  army: Partial<Record<TroopType, number>>;
   busy: boolean;
   act: (run: () => Promise<unknown>, done?: string) => Promise<void>;
 }) {
   const canModerate = role === 'leader' || role === 'elder';
+  /*
+   * Which member the giving row is open under.
+   *
+   * One at a time and only on request, because a chip per troop on every row
+   * would turn a member list into a spreadsheet — and the list is read far
+   * more often than it is donated from.
+   */
+  const [giving, setGiving] = useState<string | null>(null);
+  const spare = TROOP_ORDER.filter((t) => (army[t] ?? 0) > 0);
 
   return (
     <>
@@ -305,8 +317,53 @@ function MembersTab({
               KICK
             </button>
           )}
+          {/*
+            * The only thing in this game one player can do for another.
+            * Offered on every clanmate except yourself: a hold that can
+            * garrison itself is a hold with a second warband.
+            */}
+          {m.id !== me && (
+            <button
+              className={`btn${giving === m.id ? ' gold' : ' grey'}`}
+              disabled={busy || spare.length === 0}
+              onClick={() => setGiving(giving === m.id ? null : m.id)}
+            >
+              GIVE
+            </button>
+          )}
         </div>
-      ))}
+      )).flatMap((row, i) => {
+        const m = clan.members[i]!;
+        if (giving !== m.id) return [row];
+        return [row, (
+          <div className="qrow" key={`${m.id}-give`} style={{ paddingTop: 0 }}>
+            <div className="qi">
+              <h4>Send to {m.name}</h4>
+              <p>
+                {spare.length === 0
+                  ? 'Train something first — you can only give what you have.'
+                  : 'One tap sends one. They stand in their hold until somebody raids it.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {spare.map((t) => (
+                <button
+                  key={t}
+                  className="btn"
+                  disabled={busy}
+                  style={{ padding: '8px 10px' }}
+                  onClick={() => void act(
+                    () => api.donate(m.id, t, 1),
+                    `Sent a ${TROOP[t].n} to ${m.name}`,
+                  )}
+                >
+                  {TROOP[t].n} {army[t] ?? 0}
+                </button>
+              ))}
+            </div>
+          </div>
+        )];
+      })}
 
       {role === 'leader' && <ClanSettings clan={clan} busy={busy} act={act} />}
 

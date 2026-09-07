@@ -12,7 +12,10 @@ import {
   armyCapOf,
   armyUsedOf,
   bestBarracksLevel,
+  garrisonSlots,
   keepLevelOf,
+  parseGarrison,
+  type Garrison,
   storageCapOf,
   type BuildingType,
   type TroopType,
@@ -43,6 +46,9 @@ export interface LoadedPlayer extends PlayerView {
   /** War Lab level per troop type. */
   troopLevels: Record<TroopType, number>;
   keepLevel: number;
+  /** Troops the clan has given this hold, and how much room there is. */
+  garrison: Garrison;
+  garrisonCap: number;
   shieldUntil: Date | null;
   buildings: (OwnedBuildingRow & { stock: number })[];
   storageCap: number;
@@ -264,6 +270,8 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     iron: player.iron,
     trophies: player.trophies,
     keepLevel,
+    garrison: parseGarrison(player.garrison),
+    garrisonCap: garrisonSlots(keepLevel),
     shieldUntil: player.shieldUntil,
     buildings,
     army,

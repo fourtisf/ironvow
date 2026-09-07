@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TYPES, hpOf, starsFor } from '@ironvow/config';
 import type { BaseSnapshot, BattleArmy, DeployCommand, SnapshotBuilding } from '@ironvow/types';
-import { createBattle, simulate } from '../src/index.js';
+import { createBattle, generateOpponent, simulate } from '../src/index.js';
 
 const NONE: BattleArmy = { raider: 0, archer: 0, lancer: 0, ram: 0, scaler: 0 };
 
@@ -175,5 +175,51 @@ describe('the Scaler goes over ramparts', () => {
 
   it('leaves every rampart standing, because it never targets one', () => {
     expect(play('scaler', 10).wallsAlive).toBe(18);
+  });
+});
+
+/**
+ * The garrison: troops a clan gave the defender, standing in the hold when a
+ * raid opens. They are on the field from the first tick rather than released
+ * by a trigger, because a garrison the attacker cannot see coming is one they
+ * cannot play around — and playing around it is what makes one worth asking a
+ * clanmate for.
+ */
+describe('a defender fights with what their clan gave them', () => {
+  const withGuards = (): BaseSnapshot => ({
+    ...generateOpponent(3),
+    garrison: [
+      { type: 'raider', x: 28, y: 30, scale: 1 },
+      { type: 'lancer', x: 30, y: 28, scale: 1 },
+    ],
+  });
+
+  it('puts them on the field, on the defending side, before a tick runs', () => {
+    const battle = createBattle({
+      snapshot: withGuards(), commands: [], army: { ...NONE, raider: 8 }, seed: 5,
+    });
+    const defenders = battle.units.filter((u) => u.side === 'def');
+    expect(defenders).toHaveLength(2);
+    expect(defenders.map((u) => u.t).sort()).toEqual(['lancer', 'raider']);
+  });
+
+  it('an empty garrison leaves the field to the attacker alone', () => {
+    const battle = createBattle({
+      snapshot: generateOpponent(3), commands: [], army: { ...NONE, raider: 8 }, seed: 5,
+    });
+    expect(battle.units.filter((u) => u.side === 'def')).toHaveLength(0);
+  });
+
+  it('costs the attacker something: the same raid goes worse against one', () => {
+    const run = (guarded: boolean) => {
+      const battle = createBattle({
+        snapshot: guarded ? withGuards() : generateOpponent(3),
+        commands: [], army: { ...NONE, raider: 6 }, seed: 5,
+      });
+      for (let i = 0; i < 6; i++) battle.deploy('raider', 20 + i, 40);
+      for (let i = 0; i < 2000; i++) if (battle.step()) break;
+      return battle.destroyedPct();
+    };
+    expect(run(true)).toBeLessThanOrEqual(run(false));
   });
 });

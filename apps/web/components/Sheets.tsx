@@ -10,6 +10,7 @@ import {
   bestBarracksLevel,
   KEEP_MAX,
   capOf,
+  garrisonUsed,
   costOf,
   countOf,
   type BuildingType,
@@ -467,6 +468,45 @@ export function ArmySheet({
               <button className="btn gold" onClick={onBuildLab}>BUILD</button>
             )}
           </div>
+        </>
+      )}
+
+      {/*
+        * The garrison: what the clan gave you.
+        *
+        * On the ARMY screen rather than the CLAN one, because this is part of
+        * what your hold fields — it is just the part somebody else paid for.
+        */}
+      {player.garrisonCap > 0 && (
+        <>
+          <div className="sheetHead" style={{ marginTop: 14 }}>
+            <div>
+              <h2>GARRISON</h2>
+              <p>
+                {garrisonUsed(player.garrison)} / {player.garrisonCap} slots · they
+                defend your hold, and they are spent doing it
+              </p>
+            </div>
+          </div>
+          {TROOP_ORDER.some((t) => (player.garrison[t] ?? 0) > 0) ? (
+            <div className="grid">
+              {TROOP_ORDER.filter((t) => (player.garrison[t] ?? 0) > 0).map((t) => (
+                <div className="card" key={t}>
+                  <span className="cnt">{player.garrison[t]}</span>
+                  <TroopArt type={t} level={troopLevel(progression, t)} size={52} />
+                  <div className="nm">{TROOP[t].n}</div>
+                  <div className="sub">GIVEN</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="qrow">
+              <div className="qi">
+                <h4>Empty</h4>
+                <p>Ask your clan. Anyone in it can send troops, and they fight for you while you are asleep.</p>
+              </div>
+            </div>
+          )}
         </>
       )}
 

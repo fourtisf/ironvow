@@ -37,6 +37,10 @@ model Player {
   /// to ten with gold; see STARTING_BUILDERS and builderCost in @ironvow/config.
   builders  Int      @default(2)
 
+  /// Troops the clan has given this hold. They spawn as defenders when it is
+  /// raided, and they are spent doing it — see garrison.ts in @ironvow/config.
+  garrison Json @default("{}")
+
   /// This player's own invitation code, handed out to bring people in.
   /// Null on holds raised before invitations existed; filled in on first read.
   inviteCode  String? @unique

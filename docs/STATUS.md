@@ -1402,6 +1402,67 @@ the corners and nowhere else, so daylight came through the middle of the Keep
 from every side. The hall is inset 0.40 now: half a cell of overlap with each
 turret, and the walls are walls.
 
+## A code of your own, and the clanmate who answers
+
+Two things went in together because they are the same shape: a reason to bring
+somebody in, and a reason to stay once you are.
+
+**Invitations.** ALFA was going to launch by handing out one access code in
+replies on X, one person at a time. That is already a referral programme; it was
+just one nobody was writing down. Every player has a code now (`inviteCode`,
+drawn from an alphabet with no O/0, I/1 or S/5 in it, because these get read off
+a phone screen and typed into another one), the door takes it as readily as the
+operator's `ACCESS_CODE`, and the person whose code it was is credited.
+
+Two rules keep it off the farms, and both live in `apps/api/src/domain/invites.ts`
+rather than in a route:
+
+- **The inviter is paid at Keep 3, never at sign-up.** A code that pays on a
+  fresh account pays for account farms, and a launch farmed on day one is worse
+  than one nobody joins. `settleInvite` hangs off the single line in
+  `settleAndLoad` where a Keep level can change, so both the instant upgrade path
+  and the timed one reach it on the very next read.
+- **It is paid once, and the row enforces the once.** `updateMany` with
+  `invitePaidAt: null` in the `where` clause *is* the lock; paying first and
+  marking after pays twice under a burst, which `apps/api/test/invites.test.ts`
+  fires fifty of.
+
+The invited player gets a smaller welcome purse immediately. That half can be
+paid at sign-up safely: farming it costs the farmer an account per payout and
+returns less than the account is worth.
+
+`openDoor` tries the invitation **first** and the operator gate second. The other
+way round, `ACCESS_CODE` being set meant every invited player came in
+uncredited — which is what the first version did, and what the test now pins.
+
+**A garrison your clan fills.** A clan was a chat room with a war attached: you
+could talk to people you would never otherwise interact with. `POST /clan/donate`
+sends troops from your warband into a clanmate's hold, where they stand until
+somebody raids it and then fight on the defending side.
+
+The parts that had to be right:
+
+- **Capacity is the Keep's, not the donor's** — `garrisonSlots(keepLevel) = 6 +
+  lv*4`, and a donation is clamped to `garrisonRoomFor` rather than rejected, so
+  two clanmates answering the same request at once both give something.
+- **Both rows are locked in sorted order.** Donor and recipient are two players
+  and the pair can be requested in either direction; sorting the lock order is
+  the whole of the deadlock prevention.
+- **The donor is paid for it** — `donationReward` returns gold by troop supply,
+  because a donation that costs the donor their own next raid is one nobody
+  makes twice.
+- **The garrison is spent, not permanent.** A real raid clears it; a war raid
+  does not, because war attacks are scheduled and clearing on the first would
+  make the donation a lottery on attack order.
+
+Placement is the server's (`placeGarrison` in `apps/api/src/domain/raid.ts`): a
+ring round the Keep, seeded off the raid's own seed, so the attacker cannot learn
+the standing spots from a previous raid on the same hold, and so a replay of a
+raid puts them back exactly where the live fight had them. The sim spawns them
+before the first tick rather than releasing them on a trigger — a garrison the
+attacker cannot see coming is one they cannot play around, and playing around it
+is the point.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

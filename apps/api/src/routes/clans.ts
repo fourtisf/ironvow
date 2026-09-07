@@ -1,4 +1,9 @@
 import {
+  TROOP,
+  donationReward,
+  garrisonRoomFor,
+  isTroopType,
+  parseGarrison,
   CHAT_HISTORY,
   CHAT_RATE_LIMIT,
   CHAT_RATE_WINDOW_MS,
@@ -54,6 +59,11 @@ const createSchema = z.object({
 
 const idSchema = z.object({ clanId: z.string().min(1).max(40) });
 const playerSchema = z.object({ playerId: z.string().min(1).max(40) });
+const donateSchema = z.object({
+  playerId: z.string().min(1).max(40),
+  type: z.string().min(1).max(20),
+  count: z.number().int().min(1).max(20),
+});
 const roleSchema = z.object({ playerId: z.string().min(1).max(40), role: z.string().max(16) });
 const decideSchema = z.object({ playerId: z.string().min(1).max(40), accept: z.boolean() });
 const messageSchema = z.object({ body: z.string().min(1).max(2000) });
@@ -413,6 +423,89 @@ export async function clanRoutes(app: FastifyInstance): Promise<void> {
 
     if (!result.ok) return refuse(reply, result.error);
     return reply.send({ ok: true });
+  });
+
+  /**
+   * Give troops to a clanmate.
+   *
+   * The only thing in the game one player can do *for* another — everything
+   * else is taken from somebody — and the reason a clan is worth being in
+   * between wars. What is given comes out of the giver's own warband and
+   * stands in the receiver's hold until somebody raids it.
+   *
+   * Refused for anyone outside your own clan, including yourself: a hold that
+   * can garrison itself is a hold with a second warband, which is a balance
+   * change nobody asked for.
+   */
+  app.post('/clan/donate', async (request, reply) => {
+    const parsed = donateSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+    if (!isTroopType(parsed.data.type)) return refuse(reply, 'badTroop', 400);
+    const type = parsed.data.type;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const me = await seatOf(tx, request.playerId!);
+      if (!me) return { ok: false as const, error: 'notInClan' };
+      if (parsed.data.playerId === request.playerId) return { ok: false as const, error: 'notAllowed' };
+
+      const them = await tx.clanMember.findUnique({
+        where: { playerId: parsed.data.playerId },
+        select: { clanId: true, player: { select: { id: true, name: true, keepLevel: true, garrison: true } } },
+      });
+      if (!them || them.clanId !== me.clanId) return { ok: false as const, error: 'notInYourClan' };
+
+      // Locked in the same order every command in this codebase locks, or two
+      // donations crossing between the same pair would deadlock.
+      const pair = [request.playerId!, them.player.id].sort();
+      await lockPlayer(tx, pair[0]!);
+      await lockPlayer(tx, pair[1]!);
+
+      const giver = await tx.player.findUniqueOrThrow({
+        where: { id: request.playerId! }, select: { name: true },
+      });
+      const mine = await tx.troop.findUnique({
+        where: { playerId_type: { playerId: request.playerId!, type } },
+        select: { count: true },
+      });
+      const have = mine?.count ?? 0;
+      if (have < parsed.data.count) return { ok: false as const, error: 'notEnoughTroops' };
+
+      const garrison = parseGarrison(them.player.garrison);
+      const room = garrisonRoomFor(garrison, them.player.keepLevel, type);
+      if (room <= 0) return { ok: false as const, error: 'garrisonFull' };
+      // Clamped rather than refused: asking for five when four fit should give
+      // four, not an error message about arithmetic.
+      const count = Math.min(parsed.data.count, room);
+
+      await tx.troop.update({
+        where: { playerId_type: { playerId: request.playerId!, type } },
+        data: { count: have - count },
+      });
+      garrison[type] = (garrison[type] ?? 0) + count;
+      await tx.player.update({
+        where: { id: them.player.id },
+        data: { garrison: garrison as unknown as object },
+      });
+      // Paid in gold, and slightly more than the troop cost, so that giving one
+      // away is never worse than keeping it. A donation economy where being
+      // generous costs you is one nobody uses.
+      const reward = donationReward(type, count);
+      await tx.player.update({
+        where: { id: request.playerId! },
+        data: { gold: { increment: BigInt(reward) } },
+      });
+
+      await tx.clanMessage.create({
+        data: {
+          clanId: me.clanId, playerId: null, authorName: giver.name, kind: 'system',
+          body: `${giver.name} sent ${count} ${TROOP[type].n}${count > 1 ? 's' : ''} to ${them.player.name}.`,
+        },
+      });
+      return { ok: true as const, count, reward };
+    }, COMMAND_TX);
+
+    if (!result.ok) return refuse(reply, result.error);
+    return reply.send({ ok: true, count: result.count, reward: result.reward });
   });
 
   /**

@@ -1,6 +1,7 @@
 import {
   RAID_EXPIRY_MINUTES,
   SCOUT_REROLL_COST,
+  parseGarrison,
   TROOP_ORDER,
   heroRespawnMinutes,
   heroUnlocked,
@@ -177,13 +178,19 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const withBuildings = opponent as typeof opponent & {
+        garrison: unknown;
         buildings: {
           id: string; type: string; gx: number; gy: number; level: number;
           completesAt: Date | null; upgradingTo: number | null;
         }[];
       };
 
+      // Rolled before the snapshot, because the snapshot is what freezes where
+      // the garrison stands and a replay has to land them in the same spots.
+      const seed = randomSeed();
       const snapshot = snapshotBase({
+        seed,
+        garrison: parseGarrison(withBuildings.garrison),
         id: withBuildings.id,
         name: withBuildings.name,
         keepLevel: withBuildings.keepLevel,
@@ -203,7 +210,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         data: {
           attackerId: me.id,
           defenderId: withBuildings.id,
-          seed: BigInt(randomSeed()),
+          seed: BigInt(seed),
           snapshot: snapshot as unknown as object,
           army: armyOf(me.army) as unknown as object,
           // Frozen for the same reason as the warband: upgrading the hero or
@@ -279,7 +286,10 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         return { kind: 'shielded' as const };
       }
 
+      const seed = randomSeed();
       const snapshot = snapshotBase({
+        seed,
+        garrison: parseGarrison(target.garrison),
         id: target.id,
         name: target.name,
         keepLevel: target.keepLevel,
@@ -296,7 +306,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         data: {
           attackerId: me.id,
           defenderId: target.id,
-          seed: BigInt(randomSeed()),
+          seed: BigInt(seed),
           snapshot: snapshot as unknown as object,
           army: armyOf(me.army) as unknown as object,
           hero: {
@@ -431,6 +441,18 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           defenderTrophies: defender?.trophies ?? stageFromTrophies(attacker.trophies) * 120,
           now,
         });
+
+      /*
+       * The defender's garrison is spent, whatever happened to it.
+       *
+       * A garrison that survives is a garrison nobody ever asks their clan for
+       * again, and the asking is the whole point of having one. Only on a real
+       * raid: a war attack is scored against a frozen roster base and nobody's
+       * hold is actually touched.
+       */
+      if (!isWar && raid.defenderId && snapshot.garrison && snapshot.garrison.length > 0) {
+        await tx.player.update({ where: { id: raid.defenderId }, data: { garrison: {} } });
+      }
 
       /* --- the attacker spends the troops they deployed, wins or loses --- */
       const spent: Partial<Record<TroopType, number>> = {};

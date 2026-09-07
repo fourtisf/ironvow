@@ -36,6 +36,14 @@ export interface BaseSnapshot {
    * Node and a browser.
    */
   defendWave?: DefendWaveUnit[];
+  /**
+   * The defender's garrison, pre-placed.
+   *
+   * Troops their clan gave them, standing in the hold when a raid opens. Rolled
+   * once on the server like `defendWave` and frozen here, so a replay puts them
+   * in exactly the same places a year later.
+   */
+  garrison?: DefendWaveUnit[];
 }
 
 export interface DefendWaveUnit {

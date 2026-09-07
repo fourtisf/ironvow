@@ -9,9 +9,12 @@ import {
   stageFromTrophies,
   trophyLoss,
   trophyWin,
+  TROOP_ORDER,
   type BuildingType,
+  type Garrison,
 } from '@ironvow/config';
-import type { BaseSnapshot } from '@ironvow/types';
+import { mulberry } from '@ironvow/sim';
+import type { BaseSnapshot, DefendWaveUnit } from '@ironvow/types';
 
 /**
  * Raid rules that do not need a database.
@@ -27,6 +30,50 @@ export interface SnapshotSource {
   gold: bigint;
   iron: bigint;
   buildings: { id: string; type: BuildingType; gx: number; gy: number; level: number }[];
+  /** Troops the clan gave them, standing in the hold. */
+  garrison?: Garrison;
+  /** Seeds where the garrison stands, so a replay puts them back. */
+  seed?: number;
+}
+
+/**
+ * Where a garrison stands.
+ *
+ * In a ring around the Keep, because that is where a defender wants them and
+ * because it is the one landmark every hold has. Rolled here — on the server,
+ * once — rather than in the simulation: `simulate` never touches sin or cos,
+ * and that is what keeps a replay identical between Node and a browser.
+ */
+export function placeGarrison(
+  garrison: Garrison,
+  buildings: SnapshotSource['buildings'],
+  seed: number,
+): DefendWaveUnit[] {
+  const keep = buildings.find((b) => b.type === 'keep');
+  if (!keep) return [];
+  const cx = keep.gx + 1.5;
+  const cy = keep.gy + 1.5;
+
+  const out: DefendWaveUnit[] = [];
+  const r = mulberry(seed ^ 0x5f37);
+  let n = 0;
+  for (const t of TROOP_ORDER) {
+    for (let i = 0; i < (garrison[t] ?? 0); i++, n++) {
+      // Spread round the Keep with a little wander, so a big garrison is a
+      // crowd standing about rather than a clock face.
+      const a = n * 2.399 + r() * 0.5;
+      const rad = 2.6 + (n % 3) * 0.9 + r() * 0.4;
+      out.push({
+        type: t,
+        x: cx + Math.cos(a) * rad,
+        y: cy + Math.sin(a) * rad,
+        // They fight at their owner's level; the donor's War Lab does not
+        // travel with them, which is the simple rule and the honest one.
+        scale: 1,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -55,6 +102,9 @@ export function snapshotBase(source: SnapshotSource): BaseSnapshot {
       g: availableLoot(Number(source.gold), owned),
       i: availableLoot(Number(source.iron), owned),
     },
+    ...(source.garrison && Object.keys(source.garrison).length > 0
+      ? { garrison: placeGarrison(source.garrison, source.buildings, source.seed ?? 1) }
+      : {}),
   };
 }
 

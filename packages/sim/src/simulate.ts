@@ -297,6 +297,18 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     for (const w of snapshot.defendWave) spawn(w.type, w.x, w.y, 'atk', w.scale, 0);
   }
 
+  /*
+   * And the defender's garrison, whichever way round the battle is.
+   *
+   * These are the troops a clan gave them. They are on the field from the
+   * first tick rather than released by a trigger, because a garrison the
+   * attacker cannot see coming is a garrison they cannot play around — and
+   * playing around it is the whole of what makes one worth asking for.
+   */
+  if (snapshot.garrison) {
+    for (const g of snapshot.garrison) spawn(g.type, g.x, g.y, 'def', g.scale, 0);
+  }
+
   /* ---- commands are bucketed by tick, preserving submission order within a tick ---- */
   const byTick = new Map<number, { cmd: DeployCommand; index: number }[]>();
   let lastTick = -1;

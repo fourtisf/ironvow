@@ -46,6 +46,9 @@ export interface PlayerState {
   buildersFree: number;
   buildersTotal: number;
   armyCap: number;
+  /** Troops the clan has given this hold, and the room there is for more. */
+  garrison: Partial<Record<TroopType, number>>;
+  garrisonCap: number;
   armyUsed: number;
   army: Partial<Record<TroopType, number>>;
   buildings: ClientBuilding[];

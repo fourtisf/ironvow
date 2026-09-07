@@ -119,6 +119,32 @@ export interface ClanLadderRow {
   memberCount: number; trophies: number; rank: number; isMine: boolean;
 }
 
+export interface SeasonTierView {
+  id: string; n: string; at: number; reward: { g: number; i: number };
+}
+
+export interface SeasonState {
+  index: number;
+  startedAt: string;
+  endsAt: string;
+  /** Milliseconds left when the server answered. The banner counts down from it. */
+  msLeft: number;
+  /** The highest total reached this season. What the payout is on. */
+  peak: number;
+  trophies: number;
+  rank: number;
+  /** How many holds are above the first tier and therefore in the running. */
+  contenders: number;
+  tier: SeasonTierView | null;
+  next: SeasonTierView | null;
+  tiers: SeasonTierView[];
+  /** Where the current total lands when the season closes. */
+  resetTo: number;
+  last: {
+    index: number; rank: number; trophies: number; tier: string; gold: number; iron: number;
+  } | null;
+}
+
 export const api = {
   me: (): Promise<PlayerState> => call('/me'),
 
@@ -282,6 +308,9 @@ export const api = {
     me: { id: string; name: string; trophies: number; keepLevel: number; rank: number } | null;
     total: number;
   }> => call('/leaderboard'),
+
+  /** The running season: the countdown, the band, and the last payout. */
+  season: (): Promise<SeasonState> => call('/season'),
 
   layouts: (): Promise<{
     layouts: { slot: 'defence' | 'farming'; name: string; saved: boolean; buildings: number; savedAt: string | null }[];

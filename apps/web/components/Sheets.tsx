@@ -17,7 +17,8 @@ import {
   type Cost,
   type TroopType,
 } from '@ironvow/config';
-import { fmt, until } from '../lib/format';
+import { fmt, longUntil, until } from '../lib/format';
+import type { SeasonState } from '../lib/api';
 import type { PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
 import { TroopArt } from './TroopArt';
@@ -617,7 +618,74 @@ export interface LadderSheetProps {
   top: LadderRow[];
   me: { name: string; trophies: number; rank: number } | null;
   total: number;
+  /** Null while it is still loading, or if the request failed. The board works without it. */
+  season: SeasonState | null;
   onClose: () => void;
+}
+
+/**
+ * The season banner: a clock, a band, and what the band is worth.
+ *
+ * It sits above the board rather than in a sheet of its own because the two
+ * numbers only mean anything together — a rank without a deadline is a
+ * scoreboard, and a deadline without a rank is a countdown to nothing.
+ *
+ * The peak is what is shown, not the current total. Those differ exactly when
+ * a player has lost trophies since their best night, and that is the moment
+ * the distinction is worth making: what they already earned is safe.
+ */
+export function SeasonBanner({ season }: { season: SeasonState }) {
+  const { tier, next, peak } = season;
+  const span = next ? next.at - (tier?.at ?? 0) : 1;
+  const done = next ? Math.min(1, Math.max(0, (peak - (tier?.at ?? 0)) / span)) : 1;
+
+  return (
+    <div className="season">
+      <div className="seasonHead">
+        <h3>SEASON {season.index}</h3>
+        <span className="seasonClock">{longUntil(season.msLeft)} left</span>
+      </div>
+
+      <div className="seasonBand">
+        <strong>{tier ? tier.n : 'Unranked'}</strong>
+        <span>#{season.rank} of {season.contenders || 1}</span>
+      </div>
+
+      <div className="seasonBar"><i style={{ width: `${Math.round(done * 100)}%` }} /></div>
+
+      <p className="lead">
+        {next
+          ? <>Peak {peak} — {next.at - peak} more to reach {next.n}</>
+          : <>Peak {peak} — the top band. Hold it.</>}
+      </p>
+
+      {tier && (
+        <p className="lead">
+          Pays <GoldIcon /> {fmt(tier.reward.g)} and <IronIcon /> {fmt(tier.reward.i)} when the
+          season ends. Losing trophies cannot take it back.
+        </p>
+      )}
+      {!tier && season.next && (
+        <p className="lead">
+          Reach {season.next.at} trophies to be paid at all. Below that a season is worth nothing.
+        </p>
+      )}
+
+      <p className="lead dim">
+        At the close you keep {season.resetTo} of your {season.trophies}, and the climb starts again.
+      </p>
+
+      {season.last && (
+        <div className="qrow" style={{ marginTop: 10 }}>
+          <div className="qi">
+            <h4>Season {season.last.index} paid out</h4>
+            <p>#{season.last.rank} at {season.last.trophies} trophies</p>
+          </div>
+          <span className="qrw">{fmt(season.last.gold)}g</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -626,7 +694,7 @@ export interface LadderSheetProps {
  * A player far down the list still gets their own rank pinned at the top,
  * because that is the number they actually came to see.
  */
-export function LadderSheet({ top, me, total, onClose }: LadderSheetProps) {
+export function LadderSheet({ top, me, total, season, onClose }: LadderSheetProps) {
   const inTop = top.some((p) => p.isMe);
 
   return (
@@ -638,6 +706,8 @@ export function LadderSheet({ top, me, total, onClose }: LadderSheetProps) {
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
+
+      {season && <SeasonBanner season={season} />}
 
       {me && !inTop && (
         <div className="qrow" style={{ borderColor: '#e8b23c', marginBottom: 12 }}>

@@ -1463,6 +1463,53 @@ before the first tick rather than releasing them on a trigger — a garrison the
 attacker cannot see coming is one they cannot play around, and playing around it
 is the point.
 
+## The ladder ends, pays, and starts again
+
+Trophies had a top and no bottom of the calendar: a number that only ever goes
+up, which stops being a competition roughly a month in, because the people who
+started first are permanently ahead of the people who play better. A season is
+the fix — the board is paid out and pulled back to a floor on a fixed clock, so
+climbing is something you do repeatedly rather than once.
+
+Three decisions carry it, all in `packages/config/src/seasons.ts` so the worker
+that closes a season and the banner that counts down to it cannot disagree:
+
+- **You are paid on the highest you reached, not where you finished.** Paying on
+  the final number makes the last night of a season the only one that matters
+  and rewards sitting on a total instead of pushing it. `seasonPeak` is a
+  watermark moved in the same write that moves the trophies, so a lost raid
+  leaves it exactly where it was.
+- **The reset keeps the floor and half of everything above it.** A full wipe
+  throws away the season's work; no wipe is not a season. A hold *below* the
+  floor is left where it is rather than raised to it — a season must not be a
+  way to gain trophies by losing them.
+- **Nothing is paid below the first band.** A season reward every account
+  collects for existing is a faucet, not a prize.
+
+The bands run Stone → Iron Crown, 200 to 3,800 trophies, 2,000g to 75,000g.
+Payouts go through `grant` and are capped by storage like every other payout in
+the game.
+
+**Closing is one transaction, and that is the deliberate part.** It is not the
+cheapest shape — a few thousand player rows go through it — but it is the only
+one where "paid but not reset" and "reset but not paid" are both unreachable,
+and it runs once a fortnight rather than once a minute. The claim is
+`updateMany ... where closedAt is null`: two workers reaching the same due
+season each issue that statement and exactly one gets a count of 1, so the
+other returns without paying anybody. `apps/api/test/seasons.test.ts` fires
+three closes at once and asserts one receipt.
+
+The reset itself is a single raw `UPDATE`, because a per-row loop over every
+player in the game is the one part of this that would not stay fast. It
+duplicates `seasonReset`'s arithmetic in SQL, so a test walks every tier
+boundary through the real close and compares the row against the pure function
+the client previewed it with.
+
+One smaller thing worth writing down: the next season starts from the previous
+one's **scheduled** end, not from when the worker noticed. Otherwise a worker
+that was down for three hours moves every future season three hours later,
+permanently — and that error accumulates.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

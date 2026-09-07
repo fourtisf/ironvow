@@ -28,14 +28,19 @@ model Player {
   /// asking them to secure the account.
   isGuest Boolean @default(false)
 
-  gold      BigInt   @default(900)
-  iron      BigInt   @default(320)
-  trophies  Int      @default(0)
-  keepLevel Int      @default(1)
+  gold      BigInt @default(900)
+  iron      BigInt @default(320)
+  trophies  Int    @default(0)
+  keepLevel Int    @default(1)
 
   /// How many jobs this hold can run at once. Starts at two and is hired up
   /// to ten with gold; see STARTING_BUILDERS and builderCost in @ironvow/config.
-  builders  Int      @default(2)
+  builders Int @default(2)
+
+  /// The highest trophy total reached during the running season. A season is
+  /// paid on this rather than on the final number, so a bad last night costs
+  /// nothing that was already earned. Reset to the post-reset total at close.
+  seasonPeak Int @default(0)
 
   /// Troops the clan has given this hold. They spawn as defenders when it is
   /// raided, and they are spent doing it — see garrison.ts in @ironvow/config.
@@ -43,9 +48,9 @@ model Player {
 
   /// This player's own invitation code, handed out to bring people in.
   /// Null on holds raised before invitations existed; filled in on first read.
-  inviteCode  String? @unique
+  inviteCode   String?   @unique
   /// Who invited them, if anybody. Set once, at sign-up, and never moved.
-  invitedById String?
+  invitedById  String?
   /// When the inviter was paid for them. Null until the invited hold reaches
   /// INVITE_REWARD_KEEP_LEVEL, so a fresh account is worth nothing to a script.
   invitePaidAt DateTime?
@@ -62,11 +67,11 @@ model Player {
 
   /// War Order counters. Server-incremented, because a quest a client can
   /// report progress on is a quest a client can award itself.
-  collected     Int @default(0)
-  trainedTotal  Int @default(0)
-  raids         Int @default(0)
-  wins          Int @default(0)
-  threeStars    Int @default(0)
+  collected     Int      @default(0)
+  trainedTotal  Int      @default(0)
+  raids         Int      @default(0)
+  wins          Int      @default(0)
+  threeStars    Int      @default(0)
   /// Ids of War Orders whose reward has been paid out.
   claimedQuests String[] @default([])
 
@@ -97,13 +102,14 @@ model Player {
   pushSubs   PushSubscription[]
   troops     Troop[]
   queue      TrainJob[]
-  raidsMade  Raid[]     @relation("attacker")
-  raidsTaken Raid[]     @relation("defender")
+  raidsMade  Raid[]             @relation("attacker")
+  raidsTaken Raid[]             @relation("defender")
   sessions   Session[]
   loginLinks LoginLink[]
+  seasons    SeasonResult[]
 
   @@index([trophies])
-
+  @@index([seasonPeak])
   @@index([invitedById])
 }
 
@@ -122,7 +128,7 @@ model Building {
   /// non-null value is what occupies one of the player's three builders.
   completesAt DateTime?
   /// When the player was told this job finished, so it is announced once.
-  notifiedAt DateTime?
+  notifiedAt  DateTime?
   /// The level this becomes when the timer runs out.
   ///
   /// Null while a brand-new building is still going up, which is how a fresh
@@ -165,15 +171,15 @@ model Layout {
 /// endpoints. A push that comes back 404 or 410 means the browser has thrown
 /// the subscription away, and the row goes with it.
 model PushSubscription {
-  id        String   @id @default(cuid())
-  playerId  String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
+  id         String    @id @default(cuid())
+  playerId   String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
   /// Set when the player last had a build or raid pushed to them, so a quiet
   /// period is distinguishable from a broken subscription.
   lastSentAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
@@ -210,7 +216,7 @@ model TrainJob {
 }
 
 model Raid {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   attackerId String
   /// Null for a raid against a generated hold.
   ///
@@ -220,21 +226,21 @@ model Raid {
   defenderId String?
 
   /// Drives all RNG in the sim. Stored so a replay reproduces exactly.
-  seed BigInt
+  seed        BigInt
   /// Frozen copy of the defender's base. The battle is fought against this,
   /// so the defender rebuilding mid-raid changes nothing.
-  snapshot Json
+  snapshot    Json
   /// Ordered deploy commands from the attacker. The only thing the client sends.
-  commands Json?
+  commands    Json?
   /// The warband the attacker had when the raid opened.
   ///
   /// Frozen here rather than read at submit time, because training more troops
   /// mid-raid would otherwise change what a replay is allowed to deploy and the
   /// stored result would stop reproducing.
-  army Json
+  army        Json
   /// The hero as it stood when the raid opened: its level, and whether it was
   /// available at all. Frozen for the same reason as the warband.
-  hero Json?
+  hero        Json?
   /// War Lab levels per troop type at the moment the raid opened.
   troopLevels Json?
 
@@ -243,15 +249,15 @@ model Raid {
   warId       String?
   warMemberId String?
 
-  status       String   @default("open") // open | resolved | expired
-  stars        Int      @default(0)
-  destroyedPct Float    @default(0)
-  lootGold     BigInt   @default(0)
-  lootIron     BigInt   @default(0)
-  trophyDelta  Int      @default(0)
+  status       String    @default("open") // open | resolved | expired
+  stars        Int       @default(0)
+  destroyedPct Float     @default(0)
+  lootGold     BigInt    @default(0)
+  lootIron     BigInt    @default(0)
+  trophyDelta  Int       @default(0)
   /// Server checksum of the replay. Compared against the client's to spot drift.
   checksum     String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   expiresAt    DateTime
   resolvedAt   DateTime?
 
@@ -295,14 +301,14 @@ model Session {
 }
 
 model LoginLink {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   /// SHA-256 of the emailed token.
-  tokenHash String   @unique
+  tokenHash String    @unique
   email     String
   playerId  String?
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
@@ -401,21 +407,21 @@ model ClanMessage {
 /// sides' running scores are denormalised here by the submit route so the
 /// sheet is one read.
 model ClanWar {
-  id           String    @id @default(cuid())
+  id        String    @id @default(cuid())
   /// search | challenge | active | done | cancelled
-  state        String
-  clanAId      String
-  clanBId      String?
-  size         Int       @default(0)
-  startsAt     DateTime?
-  endsAt       DateTime?
-  starsA       Int       @default(0)
-  starsB       Int       @default(0)
-  pctA         Float     @default(0)
-  pctB         Float     @default(0)
+  state     String
+  clanAId   String
+  clanBId   String?
+  size      Int       @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  starsA    Int       @default(0)
+  starsB    Int       @default(0)
+  pctA      Float     @default(0)
+  pctB      Float     @default(0)
   /// a | b | draw, once done.
-  outcome      String?
-  createdAt    DateTime  @default(now())
+  outcome   String?
+  createdAt DateTime  @default(now())
 
   members WarMember[]
   attacks WarAttack[]
@@ -435,8 +441,8 @@ model WarMember {
   keepLevel Int
   snapshot  Json
   /// Best result anyone got against this base. Kept current by the submit route.
-  bestStars Int   @default(0)
-  bestPct   Float @default(0)
+  bestStars Int    @default(0)
+  bestPct   Float  @default(0)
 
   war ClanWar @relation(fields: [warId], references: [id], onDelete: Cascade)
 
@@ -470,6 +476,51 @@ model Feedback {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// A ladder window. Exactly one row is open at a time: the one with a null
+/// `closedAt`. `index` counts up from 1 and is what the client shows.
+model Season {
+  id        String    @id @default(cuid())
+  index     Int       @unique
+  startedAt DateTime  @default(now())
+  /// Scheduled, not observed. The next season starts from this instant rather
+  /// than from when the worker noticed, so a worker outage cannot walk the
+  /// whole schedule forward.
+  endsAt    DateTime
+  /// Set by the worker, and the lock that makes closing idempotent: the update
+  /// that sets it is conditional on it being null.
+  closedAt  DateTime?
+
+  results SeasonResult[]
+
+  @@index([closedAt])
+}
+
+/// What one player got out of one season. Written once, at the close, and
+/// never touched again -- this is the receipt, not a running total.
+model SeasonResult {
+  id        String   @id @default(cuid())
+  seasonId  String
+  playerId  String
+  /// Placing among everyone who was paid, by peak, ties broken by who got
+  /// there first -- the same ordering the live ladder uses.
+  rank      Int
+  /// The peak this was paid on.
+  trophies  Int
+  /// Tier id from SEASON_TIERS. Stored rather than recomputed, so retuning the
+  /// bands does not rewrite history.
+  tier      String
+  gold      Int
+  iron      Int
+  createdAt DateTime @default(now())
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, playerId])
+  @@index([seasonId, rank])
+  @@index([playerId, createdAt])
 }
 
 /// Server-generated secrets that would otherwise have to be pasted into an

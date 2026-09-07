@@ -53,14 +53,14 @@ export async function resetDatabase(): Promise<void> {
     // Clan is listed explicitly: unlike everything else here it does not hang
     // off a Player, so truncating players leaves the clans behind and the next
     // test fails on a name that is still taken.
-    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "ClanWar", "Feedback", "ServerSetting", "Clan", "Player" RESTART IDENTITY CASCADE',
+    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "ClanWar", "Feedback", "ServerSetting", "Season", "Clan", "Player" RESTART IDENTITY CASCADE',
   );
 }
 
 /** A fresh player with the opening layout and an optional custom purse. */
 export async function makePlayer(
   name: string,
-  opts: { gold?: number; iron?: number; trophies?: number; keepLevel?: number; builders?: number } = {},
+  opts: { gold?: number; iron?: number; trophies?: number; seasonPeak?: number; keepLevel?: number; builders?: number } = {},
 ): Promise<string> {
   const mid = Math.floor(56 / 2) - 1;
   const player = await db.player.create({
@@ -69,6 +69,7 @@ export async function makePlayer(
       gold: BigInt(opts.gold ?? 900),
       iron: BigInt(opts.iron ?? 320),
       trophies: opts.trophies ?? 0,
+      seasonPeak: opts.seasonPeak ?? opts.trophies ?? 0,
       keepLevel: opts.keepLevel ?? 1,
       // The schema default is the opening crew; a test that is about
       // something else says so by asking for more.

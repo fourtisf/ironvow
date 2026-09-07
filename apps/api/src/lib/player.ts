@@ -40,6 +40,8 @@ export interface LoadedPlayer extends PlayerView {
   name: string;
   isGuest: boolean;
   trophies: number;
+  /** The highest trophy total this season. What the season pays on. */
+  seasonPeak: number;
   heroLevel: number;
   /** Null once the hero has returned. */
   heroReadyAt: Date | null;
@@ -269,6 +271,7 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     gold: player.gold,
     iron: player.iron,
     trophies: player.trophies,
+    seasonPeak: player.seasonPeak,
     keepLevel,
     garrison: parseGarrison(player.garrison),
     garrisonCap: garrisonSlots(keepLevel),

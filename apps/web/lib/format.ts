@@ -22,3 +22,20 @@ export function until(iso: string, now = Date.now()): string {
   if (m < 60) return `${m}m ${s % 60}s`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
+
+/**
+ * A long wait, in the largest two units that are not zero.
+ *
+ * `until` tops out at hours, which is right for a builder and useless for a
+ * season: "336h 12m" is a number nobody converts in their head. Anything under
+ * a day falls through to `until`, so the last day of a season counts down in
+ * hours and minutes like everything else in the game.
+ */
+export function longUntil(ms: number): string {
+  if (ms <= 0) return 'over';
+  const mins = Math.floor(ms / 60_000);
+  const days = Math.floor(mins / 1_440);
+  if (days < 1) return until(new Date(Date.now() + ms).toISOString());
+  const hours = Math.floor((mins % 1_440) / 60);
+  return `${days}d ${hours}h`;
+}

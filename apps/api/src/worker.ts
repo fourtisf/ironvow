@@ -5,6 +5,7 @@ import { purgeExpired } from './lib/auth.js';
 import { pushBuildFinished } from './lib/push.js';
 import { env } from './lib/env.js';
 import { prisma } from './lib/prisma.js';
+import { closeDueSeasons } from './lib/seasons.js';
 import { expireChallenges, matchSearching, settleDueWars } from './lib/war.js';
 
 /**
@@ -20,7 +21,7 @@ const connection = new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
 export const MAINTENANCE_QUEUE = 'ironvow:maintenance';
 
 interface MaintenanceJob {
-  kind: 'expireRaids' | 'purgeSessions' | 'notifyBuilders' | 'wars';
+  kind: 'expireRaids' | 'purgeSessions' | 'notifyBuilders' | 'wars' | 'seasons';
 }
 
 /**
@@ -35,6 +36,19 @@ async function tendWars(): Promise<{ started: number; expired: number; settled: 
   const expired = await prisma.$transaction((tx) => expireChallenges(tx, now));
   const settled = await settleDueWars(now);
   return { started, expired, settled };
+}
+
+/**
+ * Seasons: pay out the ladder when its clock runs out, reset it, open the next.
+ *
+ * The one job here that hands out resources on a schedule rather than in
+ * response to something a player did. It is safe to run every minute because
+ * closing is claimed by a conditional update: the fifty-nine ticks where
+ * nothing is due cost one indexed query and return an empty array.
+ */
+async function tendSeasons(): Promise<{ closed: number; paid: number }> {
+  const closed = await closeDueSeasons(new Date());
+  return { closed: closed.length, paid: closed.reduce((n, c) => n + c.paid, 0) };
 }
 
 /** Close raids nobody submitted. The attacker keeps their troops. */
@@ -96,6 +110,7 @@ export function createWorker(): Worker<MaintenanceJob> {
       if (job.data.kind === 'purgeSessions') return purgeExpired();
       if (job.data.kind === 'notifyBuilders') return { notified: await notifyBuilders() };
       if (job.data.kind === 'wars') return tendWars();
+      if (job.data.kind === 'seasons') return tendSeasons();
       return {};
     },
     { connection },
@@ -121,6 +136,13 @@ export async function scheduleMaintenance(): Promise<void> {
     removeOnFail: 50,
   });
   await queue.add('wars', { kind: 'wars' }, {
+    repeat: { every: 60_000 },
+    removeOnComplete: 20,
+    removeOnFail: 50,
+  });
+  // A season boundary is a fortnight apart, but it should land within a minute
+  // of the hour it was promised, so this ticks at the same rate as the rest.
+  await queue.add('seasons', { kind: 'seasons' }, {
     repeat: { every: 60_000 },
     removeOnComplete: 20,
     removeOnFail: 50,

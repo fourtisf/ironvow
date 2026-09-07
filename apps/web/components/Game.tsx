@@ -10,7 +10,7 @@ import {
 } from '@ironvow/config';
 import type { DeployCommand } from '@ironvow/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, api, type DailyView } from '../lib/api';
+import { ApiError, api, type DailyView, type SeasonState } from '../lib/api';
 import {
   beginBattle,
   bump,
@@ -98,6 +98,7 @@ export function Game() {
   const [sfxLevel, setSfxLevel] = useState(1);
   const [musicLevel, setMusicLevel] = useState(0.35);
   const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
+  const [season, setSeason] = useState<SeasonState | null>(null);
   const [push, setPush] = useState<PushState>('off');
   const [layouts, setLayouts] = useState<LayoutSlot[]>([]);
   const [busy, setBusy] = useState(false);
@@ -510,6 +511,14 @@ export function Game() {
       setLadder(await api.leaderboard());
     } catch {
       // The sheet shows its empty state rather than a toast.
+    }
+    // Separately, and after: the board is the thing the player opened the
+    // sheet for, and a season endpoint that is slow or down must not hold it
+    // up or hide it.
+    try {
+      setSeason(await api.season());
+    } catch {
+      setSeason(null);
     }
   }, []);
 
@@ -1080,6 +1089,7 @@ export function Game() {
           top={ladder.top}
           me={ladder.me}
           total={ladder.total}
+          season={season}
           onClose={() => setSheet(null)}
         />
       )}

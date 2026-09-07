@@ -1,6 +1,11 @@
 import {
   RAID_EXPIRY_MINUTES,
   SCOUT_REROLL_COST,
+  SEASON_TIERS,
+  nextTier,
+  seasonLeft,
+  seasonReset,
+  tierAt,
   parseGarrison,
   TROOP_ORDER,
   heroRespawnMinutes,
@@ -24,6 +29,7 @@ import { debitDefender, revengeCutoff, settleRaid, snapshotBase, trophyBand } fr
 import { grant } from '../domain/production.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
+import { peakAfter, standing } from '../lib/seasons.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
 import { pushRaided } from '../lib/push.js';
 import { recordWarAttack } from '../lib/war.js';
@@ -485,6 +491,13 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           gold: credited.gold,
           iron: credited.iron,
           trophies: Math.max(0, attacker.trophies + settlement.trophyDelta),
+          // The season is paid on the highest total reached, so the watermark
+          // moves here, in the same write that moved the trophies. A losing
+          // raid leaves it exactly where it was, which is the point of it.
+          seasonPeak: peakAfter(
+            attacker.seasonPeak,
+            Math.max(0, attacker.trophies + settlement.trophyDelta),
+          ),
           // War Order counters. Derived from the server's own result, never
           // from anything the client claimed about the battle.
           raids: { increment: 1 },
@@ -734,6 +747,36 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       top: top.map((p, i) => ({ ...p, rank: i + 1, isMe: p.id === request.playerId })),
       me: me ? { id: me.id, name: me.name, trophies: me.trophies, keepLevel: me.keepLevel, rank: ahead + 1 } : null,
       total: await prisma.player.count(),
+    });
+  });
+
+  /**
+   * The running season.
+   *
+   * Separate from `/leaderboard` because it answers a different question: not
+   * "who is ahead" but "how long have I got, and what is the climb worth". The
+   * previous season's receipt rides along, because the first thing anybody does
+   * when a season ends is look for what they were paid.
+   */
+  app.get('/season', async (request, reply) => {
+    const now = new Date();
+    const s = await standing(request.playerId!, now);
+    const tier = tierAt(s.peak);
+    const next = nextTier(s.peak);
+    return reply.send({
+      index: s.season.index,
+      startedAt: s.season.startedAt.toISOString(),
+      endsAt: s.season.endsAt.toISOString(),
+      msLeft: seasonLeft(s.season.endsAt, now),
+      peak: s.peak,
+      trophies: s.trophies,
+      rank: s.rank,
+      contenders: s.contenders,
+      tier: tier ? { id: tier.id, n: tier.n, at: tier.at, reward: tier.reward } : null,
+      next: next ? { id: next.id, n: next.n, at: next.at, reward: next.reward } : null,
+      tiers: SEASON_TIERS.map((t) => ({ id: t.id, n: t.n, at: t.at, reward: t.reward })),
+      resetTo: seasonReset(s.trophies),
+      last: s.last,
     });
   });
 

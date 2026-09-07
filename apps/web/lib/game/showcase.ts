@@ -147,3 +147,37 @@ export function showcaseHold(): BaseSnapshot {
   };
   return cached;
 }
+
+/**
+ * The hold a player is given on their first morning.
+ *
+ * The same five buildings `createPlayer` lays down — a Keep, a Gold Mine, a
+ * Barracks and the two Muster Fields — at level one. It exists for one picture:
+ * this, beside the hold above, at the same zoom. Half the reason anybody plays
+ * a base builder is the gap between those two, and no screenshot of a menu has
+ * ever said it.
+ */
+let opening: BaseSnapshot | null = null;
+
+export function openingHold(): BaseSnapshot {
+  if (opening) return opening;
+  const mid = Math.floor(N / 2) - 1;
+  const plan: Plan[] = [
+    { type: 'keep', gx: mid, gy: mid },
+    { type: 'mine', gx: mid - 3, gy: mid },
+    { type: 'barr', gx: mid + 3, gy: mid },
+    { type: 'camp', gx: mid - 2, gy: mid + 4 },
+    { type: 'camp', gx: mid + 3, gy: mid + 4 },
+  ];
+  opening = {
+    version: 1,
+    defenderId: 'opening',
+    defenderName: 'IRONVOW',
+    keepLevel: 1,
+    buildings: plan.map((p, i) => ({
+      id: `o${i + 1}`, type: p.type, gx: p.gx, gy: p.gy, level: 1,
+    })),
+    pool: { g: 0, i: 0 },
+  };
+  return opening;
+}

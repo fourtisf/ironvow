@@ -247,6 +247,16 @@
   #soundBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d1420}
   #soundBtn svg{width:19px;height:19px;display:block}
 
+  /* The range toggle, third in the same column. Lit gold when it is on, so
+     the state is readable without reading the icon. */
+  #rangeBtn{position:absolute;left:9px;bottom:calc(177px + env(safe-area-inset-bottom));
+    width:38px;height:38px;border-radius:12px;background:linear-gradient(#2c3d57,#1b2635);
+    border:2px solid #46608a;box-shadow:0 4px 0 #0d1420;display:flex;align-items:center;
+    justify-content:center;color:#a9c4e6}
+  #rangeBtn.on{background:linear-gradient(#3a5a86,#22375a);border-color:#7fb2ea;color:#dff0ff}
+  #rangeBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #0d1420}
+  #rangeBtn svg{width:20px;height:20px;display:block}
+
   /* The hero's tray card is gold, not blue: it is not part of the warband. */
   .tcard.hero{border-color:#e8b23c;background:linear-gradient(#4a3a18,#2a2110)}
   .tcard.hero .nm{color:#ffd97a}
@@ -274,12 +284,14 @@
      the screen and sat on top of its text. While a building is selected the
      inspector has that corner: the buttons come back when it closes, and the
      inspector has a COLLECT of its own. */
-  body:has(#insp) #homeBtn,body:has(#insp) #soundBtn,body:has(#insp) #collectAll{display:none}
+  body:has(#insp) #homeBtn,body:has(#insp) #soundBtn,body:has(#insp) #rangeBtn,
+  body:has(#insp) #collectAll{display:none}
   /* While a building is being placed the rail is not navigation, it is the
      thing standing between the player and the DONE button: the rail is z-17
      and the bar z-16, so a full-width bar at the bottom was under it. Placing
      is modal; the bar takes the rail's place until it is done. */
   body:has(#placeBar) #rail,body:has(#placeBar) #homeBtn,body:has(#placeBar) #soundBtn,
+  body:has(#placeBar) #rangeBtn,
   body:has(#placeBar) #collectAll{display:none}
 
   /* ---------- the guide ---------- */
@@ -306,7 +318,7 @@
      while its card is open the side buttons yield to it; the folded chip sits
      to the right of the home button instead. */
   body:has(#insp) #coach,body:has(#insp) #coachChip,body:has(#placeBar) #coach,body:has(#placeBar) #coachChip{display:none}
-  body:has(#coach) #homeBtn,body:has(#coach) #soundBtn{display:none}
+  body:has(#coach) #homeBtn,body:has(#coach) #soundBtn,body:has(#coach) #rangeBtn{display:none}
   #coachChip{left:82px}
 
   /* What the guide is pointing at pulses. */
@@ -366,7 +378,7 @@
     #keepBadge .n{font-size:19px}
     body:has(#insp) #coach{display:block}
     body:has(#insp) #coachChip{display:flex}
-    body:has(#coach) #homeBtn,body:has(#coach) #soundBtn{display:block}
+    body:has(#coach) #homeBtn,body:has(#coach) #soundBtn,body:has(#coach) #rangeBtn{display:block}
     #helpSheet,.sheet{left:50%;right:auto;transform:translateX(-50%);width:min(760px,100vw);border-radius:20px 20px 0 0}
     @keyframes slideUp{from{transform:translate(-50%,100%)}to{transform:translate(-50%,0)}}
   }

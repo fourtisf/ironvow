@@ -935,12 +935,21 @@ what does it cover — and the game was not showing them. The Inspector printed
 "range 4.4" and left the player to imagine 4.4 of something on an isometric
 field.
 
-Defences now paint their firing envelope on the ground: bright under the one
-being placed or selected, faint under every other defence at the same time,
-because the decision is never "how far does this one reach" on its own, it is
-"where is the gap", and one ring cannot answer that. It goes down before the
-buildings, since it is paint on the ground rather than something standing on
-it.
+Defences now paint their firing envelope on the ground, and there are two
+questions to answer, not one. *Where does this one reach* comes up while a
+defence is being placed or is selected, and that one gets a bright ring with
+the others faint behind it. *Is anything not covered* is about the whole hold
+at once, so it is a switch — the button under the sound toggle holds every
+defence's ring on until it is turned off. It is hidden until the hold has a
+defence, because a button that does nothing is worse than no button.
+
+Three weights, because a ring that is always the same brightness cannot say
+which one is being decided about: `primary` for the one in hand, `shown` for
+every defence while the toggle is on, `context` for the rest while one is
+primary. The washes are additive, so ground covered twice comes out brighter
+than ground covered once and ground covered by nothing stays green — a player
+reads the hole without counting rings. It all goes down before the buildings,
+since it is paint on the ground rather than something standing on it.
 
 **It is the real envelope, not a circle that looks about right.** The
 simulation fires on plain Euclidean distance in grid space, and a circle in

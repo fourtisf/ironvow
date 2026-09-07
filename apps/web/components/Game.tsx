@@ -95,6 +95,11 @@ export function Game() {
   const [push, setPush] = useState<PushState>('off');
   const [layouts, setLayouts] = useState<LayoutSlot[]>([]);
   const [busy, setBusy] = useState(false);
+  /*
+   * The range toggle. Kept in both places on purpose: React needs it to draw
+   * the button lit, and the renderer needs it without a re-render a frame.
+   */
+  const [rangesOn, setRangesOn] = useState(false);
   /** Anything with no undo goes through one confirmation. */
   const [confirm, setConfirm] = useState<{
     title: string; lead: string; label: string; danger?: boolean;
@@ -836,6 +841,16 @@ export function Game() {
           incomingCount={incoming.length}
           ordersReady={ordersReady}
           pending={pendingStock}
+          rangesOn={rangesOn}
+          hasDefences={player.buildings.some((b) => b.type === 'cannon' || b.type === 'tower')}
+          onToggleRanges={() => {
+            sfx.tap();
+            setRangesOn((on) => {
+              const next = !on;
+              if (worldRef.current) worldRef.current.showRanges = next;
+              return next;
+            });
+          }}
           onHome={() => { if (worldRef.current) centerOnKeep(worldRef.current); }}
           onBuild={() => { sfx.tap(); setSheet('build'); }}
           onArmy={() => { sfx.tap(); setSheet('army'); void loadProgression(); }}

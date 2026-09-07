@@ -60,6 +60,14 @@ export interface World {
   now: number;
   /** Set by the canvas so a resize can re-size the backing store. */
   resize: (() => void) | null;
+  /**
+   * Whether every defence is painting what it covers.
+   *
+   * Lives on the world rather than in React state because the renderer reads
+   * it sixty times a second and nothing else does; a re-render per frame to
+   * carry one boolean would be the tail wagging the dog.
+   */
+  showRanges: boolean;
 
   mode: Mode;
   player: PlayerState | null;
@@ -105,6 +113,7 @@ export function createWorld(events: WorldEvents): World {
     t: 0,
     now: Date.now(),
     resize: null,
+    showRanges: false,
     mode: 'base',
     player: null,
     selectedId: null,

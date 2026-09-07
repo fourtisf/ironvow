@@ -63,9 +63,19 @@ export function rangeRadii(r: number, zoom: number): { rx: number; ry: number } 
   return { rx: r * (TW / Math.SQRT2) * zoom, ry: r * (TH / Math.SQRT2) * zoom };
 }
 
+/**
+ * How loudly a ring is drawn.
+ *
+ * `primary` is the one the player is acting on. `shown` is every defence while
+ * the toggle is held on — the whole hold's coverage is the subject, so they are
+ * all worth seeing. `context` is the rest while one is primary: present, so a
+ * gap reads, but plainly not the one being decided about.
+ */
+type RingWeight = 'primary' | 'shown' | 'context';
+
 function rangeRing(
   w: World, d: Draw, gx: number, gy: number, type: BuildingType, level: number,
-  strong: boolean,
+  weight: RingWeight,
 ): void {
   const stat = DEF_STAT[type];
   if (!stat) return;
@@ -77,22 +87,33 @@ function rangeRing(
 
   const { ctx } = d;
   ctx.save();
-  if (strong) {
-    // A wash that fades outward, so the centre of the envelope reads as the
-    // part that is actually covered rather than the whole disc looking equal.
+  if (weight !== 'context') {
+    /*
+     * A wash that fades outward.
+     *
+     * Where two of these overlap the fills add up, which is the point: the
+     * ground a hold covers twice comes out brighter than the ground it covers
+     * once, and the ground it does not cover stays green. A player reads the
+     * hole in a defence without counting rings.
+     */
+    const soft = weight === 'shown';
     const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(rx, ry));
-    grd.addColorStop(0, 'rgba(120,200,255,.16)');
-    grd.addColorStop(0.72, 'rgba(120,200,255,.09)');
+    grd.addColorStop(0, soft ? 'rgba(120,200,255,.10)' : 'rgba(120,200,255,.16)');
+    grd.addColorStop(0.72, soft ? 'rgba(120,200,255,.06)' : 'rgba(120,200,255,.09)');
     grd.addColorStop(1, 'rgba(120,200,255,0)');
     ctx.fillStyle = grd;
     ctx.beginPath();
     ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.strokeStyle = strong ? 'rgba(150,215,255,.85)' : 'rgba(150,215,255,.28)';
-  ctx.lineWidth = Math.max(1.2, (strong ? 2.2 : 1.4) * w.cam.z);
+  const alpha = weight === 'primary' ? 0.85 : weight === 'shown' ? 0.6 : 0.3;
+  const width = weight === 'primary' ? 2.2 : weight === 'shown' ? 1.8 : 1.4;
+  ctx.strokeStyle = `rgba(150,215,255,${alpha})`;
+  ctx.lineWidth = Math.max(1.2, width * w.cam.z);
   // Dashed, because a solid ring reads as a wall rather than as a reach.
-  ctx.setLineDash(strong ? [10 * w.cam.z, 7 * w.cam.z] : [5 * w.cam.z, 6 * w.cam.z]);
+  ctx.setLineDash(weight === 'primary'
+    ? [10 * w.cam.z, 7 * w.cam.z]
+    : [6 * w.cam.z, 6 * w.cam.z]);
   ctx.beginPath();
   ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
   ctx.stroke();
@@ -140,23 +161,28 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   const selectedBuilding = w.selectedId
     ? w.player?.buildings.find((b) => b.id === w.selectedId) ?? null
     : null;
-  if (ringFor || (selectedBuilding && DEF_STAT[selectedBuilding.type])) {
+  // Held on by the toggle, or turned on for as long as one defence is being
+  // placed or inspected — the moment a player is thinking about coverage.
+  const hasPrimary = ringFor !== null
+    || (selectedBuilding !== null && DEF_STAT[selectedBuilding.type] !== undefined);
+  if (w.showRanges || hasPrimary) {
+    const weight: RingWeight = hasPrimary ? 'context' : 'shown';
     for (const b of w.player?.buildings ?? []) {
       if (!DEF_STAT[b.type] || b.id === place?.movingId) continue;
       if (b.id === selectedBuilding?.id) continue;
-      rangeRing(w, d, b.gx, b.gy, b.type, b.level, false);
+      rangeRing(w, d, b.gx, b.gy, b.type, b.level, weight);
     }
   }
   if (selectedBuilding && DEF_STAT[selectedBuilding.type]) {
     rangeRing(w, d, selectedBuilding.gx, selectedBuilding.gy,
-      selectedBuilding.type, selectedBuilding.level, true);
+      selectedBuilding.type, selectedBuilding.level, 'primary');
   }
   if (place && ringFor) {
     // A building being moved keeps its own level; a fresh one is level 1.
     const moving = place.movingId
       ? w.player?.buildings.find((b) => b.id === place.movingId) ?? null
       : null;
-    rangeRing(w, d, place.gx, place.gy, ringFor, moving?.level ?? 1, true);
+    rangeRing(w, d, place.gx, place.gy, ringFor, moving?.level ?? 1, 'primary');
   }
 
   if (place) {

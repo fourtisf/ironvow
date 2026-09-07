@@ -2,7 +2,7 @@
 
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
-import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, SoundIcon, TrophyIcon } from './icons';
+import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, RangeIcon, SoundIcon, TrophyIcon } from './icons';
 
 /**
  * The resource bar, the Keep badge and the bottom rail.
@@ -31,6 +31,11 @@ export interface HudProps {
   onDismissGuestNote: () => void;
   soundOn: boolean;
   onToggleSound: () => void;
+  /** Whether every defence is showing what it covers. */
+  rangesOn: boolean;
+  onToggleRanges: () => void;
+  /** Hidden until the hold has a defence to show the reach of. */
+  hasDefences: boolean;
   /** Whether the guest nudge has earned its place on screen yet. */
   showGuestNote: boolean;
   /** Which button the guide is pointing at, if any. */
@@ -41,7 +46,8 @@ export interface HudProps {
 export function Hud({
   player, incomingCount, ordersReady, pending, showGuestNote,
   onHome, onBuild, onArmy, onOrders, onLog, onClan, onLadder, onRaid, onCollectAll, onClaimAccount,
-  onDismissGuestNote, soundOn, onToggleSound, highlight, onHelp,
+  onDismissGuestNote, soundOn, onToggleSound, rangesOn, onToggleRanges, hasDefences,
+  highlight, onHelp,
 }: HudProps) {
   const hi = (name: string): string => (highlight === name ? ' hi' : '');
   return (
@@ -77,8 +83,30 @@ export function Hud({
         <LadderIcon />
       </button>
 
-      {/* Builders are free and there are only ever three, so this is a status
-          line rather than an upsell. */}
+      {/*
+        What every defence covers, held on.
+        
+        A ring appears on its own while a defence is being placed or is
+        selected, which answers "where does this one reach". This answers the
+        other question — "is anything not covered" — and that one is about the
+        whole hold at once, so it is a switch rather than a selection. Hidden
+        until there is a defence to show, because a button that does nothing is
+        worse than no button.
+      */}
+      {hasDefences && (
+        <button
+          id="rangeBtn"
+          className={rangesOn ? 'on' : ''}
+          onClick={onToggleRanges}
+          aria-label={rangesOn ? 'Hide what your defences cover' : 'Show what your defences cover'}
+          aria-pressed={rangesOn}
+        >
+          <RangeIcon on={rangesOn} />
+        </button>
+      )}
+
+      {/* Builders start at two and are hired up to ten, so this is a status
+          line and the BUILD sheet is where the crew is bought. */}
       <div id="builderBar" className={player.buildersFree === 0 ? 'busy' : ''}>
         <BuilderIcon />
         <span>{player.buildersFree}/{player.buildersTotal}</span>

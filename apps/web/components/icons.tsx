@@ -136,3 +136,21 @@ export const TelegramIcon = () => (
     />
   </svg>
 );
+
+/**
+ * Concentric arcs over a tower: the reach of a defence.
+ *
+ * Drawn as rings rather than a target, because a target reads as "aim here"
+ * and this button means "show me what is covered".
+ */
+export const RangeIcon = ({ on }: { on: boolean }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M12 13v7" />
+    <path d="M9 20h6" />
+    <circle cx="12" cy="10" r="2.4" fill={on ? 'currentColor' : 'none'} />
+    <path d="M7.4 5.4a6.5 6.5 0 0 0 0 9.2" opacity={on ? 1 : 0.55} />
+    <path d="M16.6 5.4a6.5 6.5 0 0 1 0 9.2" opacity={on ? 1 : 0.55} />
+    <path d="M4.6 2.6a10.5 10.5 0 0 0 0 14.8" opacity={on ? 0.8 : 0.28} />
+    <path d="M19.4 2.6a10.5 10.5 0 0 1 0 14.8" opacity={on ? 0.8 : 0.28} />
+  </svg>
+);

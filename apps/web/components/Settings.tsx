@@ -23,6 +23,8 @@ export interface SettingsSheetProps {
   sfx: number;
   isGuest: boolean;
   playerName: string;
+  /** This player's own invitation code, or null until `/invite` answers. */
+  invite: { code: string; invited: number; paid: number } | null;
   push: PushState;
   layouts: LayoutSlot[];
   busy: boolean;
@@ -77,7 +79,7 @@ function Slider({
 }
 
 export function SettingsSheet({
-  music, sfx, isGuest, playerName, push, layouts, busy,
+  music, sfx, isGuest, playerName, invite, push, layouts, busy,
   onMusic, onSfx, onPush, onTestPush, onSaveLayout, onApplyLayout,
   onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onReport, onClose,
 }: SettingsSheetProps) {
@@ -91,6 +93,35 @@ export function SettingsSheet({
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
+
+      {/*
+        * The invitation, at the top of the sheet rather than buried under the
+        * sliders. It is the one thing here a player might act on for somebody
+        * else's benefit, and a code nobody can find is a code nobody hands out.
+        */}
+      {invite && (
+        <div className="setRow">
+          <div className="setLabel">
+            <h4>YOUR INVITE CODE</h4>
+            <p>
+              {invite.invited === 0
+                ? 'Anyone who enters this instead of the access code gets in — and you are paid when their Keep reaches 3.'
+                : `${invite.invited} joined with it · ${invite.paid} reached Keep 3 and paid out`}
+            </p>
+          </div>
+          <button
+            className="btn gold"
+            onClick={() => {
+              // Clipboard is refused in some contexts and there is nothing
+              // useful to say about it; the code is on screen either way.
+              void navigator.clipboard?.writeText(invite.code).catch(() => undefined);
+            }}
+            style={{ letterSpacing: 2 }}
+          >
+            {invite.code}
+          </button>
+        </div>
+      )}
 
       <Slider label="MUSIC" hint="generated as you play, no download" value={music} onChange={onMusic} />
       <Slider label="EFFECTS" hint="coins, blows, collapses" value={sfx} onChange={onSfx} />

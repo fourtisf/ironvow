@@ -6,19 +6,53 @@ import { env } from '../lib/env.js';
 import { consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
 import { MailOff, mailIsOff, sendLoginLink } from '../lib/mail.js';
 import { createPlayer, loadPlayer } from '../lib/player.js';
+import { inviteCodeFor, inviterFor, welcomeBonus } from '../domain/invites.js';
+import { looksLikeInvite } from '@ironvow/config';
 
 /**
  * The access code, if the server has one, must come with anything that
  * creates or reaches a hold. Compared in constant time, and never echoed.
  */
+function codeIn(body: unknown): string {
+  return typeof body === 'object' && body !== null
+    && typeof (body as { accessCode?: unknown }).accessCode === 'string'
+    ? (body as { accessCode: string }).accessCode.trim()
+    : '';
+}
+
 function gateOpen(body: unknown): boolean {
   const expected = env().ACCESS_CODE;
   if (!expected) return true;
-  const given = typeof body === 'object' && body !== null && typeof (body as { accessCode?: unknown }).accessCode === 'string'
-    ? (body as { accessCode: string }).accessCode.trim()
-    : '';
+  const given = codeIn(body);
   if (given.length === 0 || given.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+
+/**
+ * The door takes two kinds of key.
+ *
+ * The operator's `ACCESS_CODE`, which is one string for everybody, and any
+ * player's own invitation code, which is theirs alone. Both open it; only the
+ * second one is worth anything to the person who handed it out.
+ *
+ * Returns the inviter's id when it was an invitation, so the caller can record
+ * who brought this player in. `null` for the operator's code — nobody is owed
+ * for it — and `false` for a key that fits nothing.
+ */
+async function openDoor(body: unknown): Promise<{ inviter: string | null } | false> {
+  /*
+   * An invitation is looked up first, even when there is no operator code and
+   * the door is standing open anyway. Otherwise a server with the gate turned
+   * off would let everybody in — which is right — and quietly credit nobody
+   * for any of them, which is not.
+   */
+  const given = codeIn(body);
+  if (looksLikeInvite(given)) {
+    const inviter = await inviterFor(given);
+    if (inviter) return { inviter };
+  }
+  if (gateOpen(body)) return { inviter: null };
+  return false;
 }
 
 const emailSchema = z.object({ email: z.string().email().max(254) });
@@ -70,7 +104,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post('/auth/gate', {
     config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
   }, async (request, reply) => {
-    if (!gateOpen(request.body)) return reply.code(403).send({ error: 'badAccessCode' });
+    // An invitation is a key to the same door, so the check has to try both
+    // or the card would refuse a code the sign-up would then accept.
+    if (!(await openDoor(request.body))) return reply.code(403).send({ error: 'badAccessCode' });
     return reply.send({ ok: true });
   });
 
@@ -79,7 +115,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const parsed = emailSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badEmail' });
-    if (!gateOpen(request.body)) return reply.code(403).send({ error: 'badAccessCode' });
+    if (!(await openDoor(request.body))) return reply.code(403).send({ error: 'badAccessCode' });
 
     const email = parsed.data.email.toLowerCase().trim();
     // Checked before a link is minted, so a server with no mail does not fill
@@ -156,12 +192,31 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     const existing = await playerIdFromRequest(request);
     if (existing) return reply.send({ ok: true, playerId: existing });
-    if (!gateOpen(request.body)) return reply.code(403).send({ error: 'badAccessCode' });
+    const door = await openDoor(request.body);
+    if (!door) return reply.code(403).send({ error: 'badAccessCode' });
 
     const name = await freeGuestName();
     const playerId = await createPlayer(name, undefined, true);
+    if (door.inviter) {
+      /*
+       * Recorded now, paid later.
+       *
+       * The inviter is not credited until this hold reaches
+       * INVITE_REWARD_KEEP_LEVEL — see settleInvite. What happens here is only
+       * the bookkeeping, plus the newcomer's own smaller share for having
+       * arrived with a name attached rather than at random.
+       */
+      await prisma.player.update({
+        where: { id: playerId },
+        data: {
+          invitedById: door.inviter,
+          gold: { increment: BigInt(welcomeBonus.g) },
+          iron: { increment: BigInt(welcomeBonus.i) },
+        },
+      });
+    }
     await issueSession(reply, playerId);
-    return reply.send({ ok: true, playerId, name });
+    return reply.send({ ok: true, playerId, name, invited: door.inviter !== null });
   });
 
   /**
@@ -261,6 +316,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const player = await loadPlayer(request.playerId!);
     return reply.send(serialise(player));
   });
+
+  /**
+   * This player's own invitation code.
+   *
+   * Made on first read rather than at sign-up: every hold raised before
+   * invitations existed has none, and there is no point writing a string to a
+   * table before anybody has asked to see it.
+   */
+  app.get('/invite', { preHandler: requireAuth }, async (request, reply) => {
+    const code = await inviteCodeFor(request.playerId!);
+    const invited = await prisma.player.count({ where: { invitedById: request.playerId! } });
+    const paid = await prisma.player.count({
+      where: { invitedById: request.playerId!, invitePaidAt: { not: null } },
+    });
+    return reply.send({ code, invited, paid });
+  });
 }
 
 /** BigInt does not survive JSON.stringify, so balances cross the wire as numbers. */
@@ -295,4 +366,5 @@ export function serialise(p: Awaited<ReturnType<typeof loadPlayer>>) {
     claimedQuests: p.claimedQuests,
     serverTime: new Date().toISOString(),
   };
+
 }

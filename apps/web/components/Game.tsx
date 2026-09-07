@@ -78,6 +78,8 @@ export function Game() {
   // Mirrored in React only so the chips re-render; the world holds the value
   // the frame loop actually reads.
   const [battleSpeed, setBattleSpeed] = useState<BattleSpeed>(1);
+  /** Fetched the first time SETTINGS opens: the code is made on first read. */
+  const [invite, setInvite] = useState<{ code: string; invited: number; paid: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [scout, setScout] = useState<ScoutedRaid | null>(null);
   const [outcome, setOutcome] = useState<(BattleOutcome & { pending: boolean }) | null>(null);
@@ -886,7 +888,13 @@ export function Game() {
           onCollectAll={() => { void collectAll(); }}
           onClaimAccount={() => { setClaimOpen(true); setClaimSent(false); setClaimError(null); }}
           soundOn={sfxLevel > 0 || musicLevel > 0}
-          onToggleSound={() => { sfx.tap(); setSheet('settings'); }}
+          onToggleSound={() => {
+            sfx.tap();
+            setSheet('settings');
+            // Made on first read on the server, so this is also what creates
+            // the code. Failing is silent: the row simply does not appear.
+            if (!invite) void api.invite().then(setInvite).catch(() => undefined);
+          }}
           showGuestNote={showGuestNote}
           highlight={railHighlight}
           onHelp={() => { sfx.tap(); setSheet('help'); }}
@@ -1082,6 +1090,7 @@ export function Game() {
           sfx={sfxLevel}
           isGuest={player.isGuest}
           playerName={player.name}
+          invite={invite}
           onMusic={(v) => {
             setMusicLevel(v);
             setMusicVolume(v);

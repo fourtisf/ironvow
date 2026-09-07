@@ -124,6 +124,7 @@ export const api = {
 
   requestLogin: (email: string, accessCode?: string): Promise<{ ok: true }> => post('/auth/request', { email, accessCode }),
   gate: (): Promise<{ required: boolean }> => call('/auth/gate'),
+  invite: (): Promise<{ code: string; invited: number; paid: number }> => call('/invite'),
   tryGate: (accessCode: string): Promise<{ ok: true }> => post('/auth/gate', { accessCode }),
   /** Start playing immediately, with no email. */
   guest: (accessCode?: string): Promise<{ ok: true; playerId: string; name?: string }> => post('/auth/guest', accessCode ? { accessCode } : {}),

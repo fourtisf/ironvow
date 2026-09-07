@@ -37,6 +37,15 @@ model Player {
   /// to ten with gold; see STARTING_BUILDERS and builderCost in @ironvow/config.
   builders  Int      @default(2)
 
+  /// This player's own invitation code, handed out to bring people in.
+  /// Null on holds raised before invitations existed; filled in on first read.
+  inviteCode  String? @unique
+  /// Who invited them, if anybody. Set once, at sign-up, and never moved.
+  invitedById String?
+  /// When the inviter was paid for them. Null until the invited hold reaches
+  /// INVITE_REWARD_KEEP_LEVEL, so a fresh account is worth nothing to a script.
+  invitePaidAt DateTime?
+
   /// Production is lazy: this is the watermark the next read accrues from.
   lastTickAt  DateTime  @default(now())
   shieldUntil DateTime?
@@ -90,6 +99,8 @@ model Player {
   loginLinks LoginLink[]
 
   @@index([trophies])
+
+  @@index([invitedById])
 }
 
 model Building {

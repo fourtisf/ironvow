@@ -301,13 +301,19 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error, gate, unloc
             onSubmit={(e) => { e.preventDefault(); if (code.trim()) onCode(code.trim()); }}
           >
             <label htmlFor="accessCode">ACCESS CODE</label>
+            {/*
+              * Two kinds of key fit this door: the operator's code, and any
+              * player's own invitation. So the keyboard is no longer numeric —
+              * an invitation has letters in it, and a numeric pad on a phone
+              * would make one impossible to type.
+              */}
             <input
               id="accessCode"
               name="accessCode"
-              inputMode="numeric"
+              autoCapitalize="characters"
               autoComplete="one-time-code"
               autoFocus
-              placeholder="····"
+              placeholder="CODE"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               style={inputStyle}
@@ -317,7 +323,9 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error, gate, unloc
               {gate === null ? 'ONE MOMENT…' : busy ? 'CHECKING…' : 'ENTER'}
             </button>
             <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
-              This hold is by invitation. Ask whoever sent you here for the code.
+              By invitation. Use the access code, or a player's own invite code
+              — either opens the door, and the second one pays whoever gave it
+              to you.
             </p>
           </form>
         ) : sent ? (

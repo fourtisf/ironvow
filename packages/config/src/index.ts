@@ -18,3 +18,4 @@ export * from './hero.js';
 export * from './lab.js';
 export * from './building-time.js';
 export * from './refunds.js';
+export * from './invites.js';

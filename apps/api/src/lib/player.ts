@@ -22,6 +22,7 @@ import { accrueProduction } from '../domain/production.js';
 import { resolveQueue } from '../domain/queue.js';
 import type { OwnedBuildingRow, PlayerView } from '../domain/commands.js';
 import { prisma, type Tx } from './prisma.js';
+import { settleInvite } from '../domain/invites.js';
 
 /**
  * Loading a player is a settlement, not a read.
@@ -230,6 +231,15 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   // a join; keep it honest whenever we are here anyway.
   if (player.keepLevel !== keepLevel) {
     await tx.player.update({ where: { id: playerId }, data: { keepLevel } });
+    player.keepLevel = keepLevel;
+    /*
+     * The one place a Keep level ever changes, which is why the invitation is
+     * settled here rather than in the upgrade route: an instant upgrade writes
+     * the level in `base.ts` and a timed one lands above, and both come
+     * through this line on the very next read. `settleInvite` is a no-op for
+     * the overwhelming majority of players, who were not invited by anybody.
+     */
+    await settleInvite(tx, playerId);
   }
 
   const counters = Object.fromEntries(

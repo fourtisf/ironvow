@@ -204,6 +204,23 @@ export function blitBuilding(
 }
 
 /**
+ * Blit one cached piece of a unit at its anchor.
+ *
+ * Troops move, so most of a unit has to be drawn live — but only the parts
+ * that actually move do. The kit a troop wears does not change between frames,
+ * and since the War Lab tiers it is by far the most expensive half to draw, so
+ * it is rasterised once per (shape, scale, pixel ratio) like a building and
+ * blitted under the legs and the weapon.
+ *
+ * `shape` must name everything the painter varies on except the scale.
+ */
+export function blitUnitPart(
+  d: Draw, shape: string, scale: number, ax: number, ay: number, paint: Painter,
+): void {
+  blit(d.ctx, spriteFor(shape, paint, scale, d.vp.dpr), d.vp.dpr, ax, ay);
+}
+
+/**
  * One piece of scenery.
  *
  * A tree is two blits rather than one so its canopy can still sway; the sway is

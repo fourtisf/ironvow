@@ -1,9 +1,11 @@
 'use client';
 
-import { TYPES, type BuildingType } from '@ironvow/config';
+import { TROOP, TYPES, type BuildingType } from '@ironvow/config';
+import type { DeployableType } from '@ironvow/types';
 import { useEffect, useRef } from 'react';
 import { newCamera, type Viewport } from '../../lib/render/camera';
 import { drawBuilding } from '../../lib/render/buildings';
+import { drawUnit } from '../../lib/render/units';
 import { C } from '../../lib/render/palette';
 
 /**
@@ -21,6 +23,7 @@ const LEVELS = [1, 3, 6, 9];
 const SHOWN: BuildingType[] = [
   'mine', 'forge', 'store', 'keep', 'barr', 'lab', 'cannon', 'tower', 'wall',
 ];
+const TROOPS: DeployableType[] = ['raider', 'archer', 'lancer', 'scaler', 'ram', 'hero'];
 
 const CELL = 300;
 const ROW = 420;
@@ -28,7 +31,58 @@ const ROW = 420;
 export default function ArtPage() {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
+  /*
+   * The bench: `/art#bench`.
+   *
+   * Troops are the only art in the game with a per-frame cost that scales with
+   * how well the game is going — a full warband is twenty-eight figures — and
+   * measuring that inside a real raid is useless, because the opponent, the
+   * unit count and how far the fight has got all differ between runs. This
+   * draws a fixed twenty-eight at a fixed scale and reports the frame times on
+   * `window.BENCH`, which is what a throttled headless run reads.
+   *
+   * It is how the kit was found to cost 83 ms a frame at 4x before it was
+   * cached and 33 ms after.
+   */
   useEffect(() => {
+    if (typeof window === 'undefined' || window.location.hash !== '#bench') return;
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    const dpr = 2;
+    canvas.width = 412 * dpr; canvas.height = 892 * dpr;
+    canvas.style.width = '412px'; canvas.style.height = '892px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cam = newCamera(); cam.z = 1; cam.x = 0; cam.y = 0;
+    const vp = { w: 412, h: 892, dpr };
+    const N = 28;
+    const units = Array.from({ length: N }, (_, i) => ({
+      type: (['raider','archer','lancer','scaler','ram'] as const)[i % 5]!,
+      x: -4 + (i % 7) * 1.2, y: -4 + Math.floor(i / 7) * 1.2,
+      mine: true, hp: 1, maxHp: 1, moving: true, face: (i % 2 ? 1 : -1) as 1 | -1,
+      swing: 0.3, flash: 0, born: i * 0.13, level: 9,
+    }));
+    const times: number[] = [];
+    let last = performance.now();
+    let n = 0;
+    const tick = (now: number) => {
+      times.push(now - last); last = now;
+      ctx.fillStyle = '#6ea844'; ctx.fillRect(0, 0, 412, 892);
+      for (const u of units) drawUnit({ ctx, cam, vp, t: now / 1000 }, u);
+      if (++n < 200) requestAnimationFrame(tick);
+      else {
+        const s = times.slice(2).sort((a, b) => a - b);
+        (window as unknown as { BENCH: unknown }).BENCH = {
+          n: N, median: s[Math.floor(s.length / 2)], p95: s[Math.floor(s.length * 0.95)],
+        };
+      }
+    };
+    requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(() => {
+    // The bench above owns the canvas when it is asked for.
+    if (typeof window !== 'undefined' && window.location.hash === '#bench') return;
     // The game's own stylesheet pins html and body to the viewport and hides
     // overflow, which is right for a full-screen canvas game and wrong for a
     // four-thousand-pixel contact sheet. Undone here only, and only while this
@@ -45,7 +99,7 @@ export default function ArtPage() {
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = CELL * LEVELS.length + 120;
-    const h = ROW * (SHOWN.length + 1) + 40;
+    const h = ROW * (SHOWN.length + 1 + TROOPS.length) + 40;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     canvas.style.width = `${w}px`;
@@ -97,6 +151,33 @@ export default function ArtPage() {
     ctx.font = '700 15px Arial';
     ctx.textAlign = 'left';
     ctx.fillText('RAMPART RUN', 14, 30 + row * ROW + ROW / 2);
+
+    /*
+     * The troops, on the same grid.
+     *
+     * A troop's level comes from the War Lab and is the most expensive thing
+     * a player buys, so "does level 6 look like more than level 3" is a
+     * question that has to be answerable without playing to level 6.
+     */
+    TROOPS.forEach((type, k) => {
+      const trow = SHOWN.length + 1 + k;
+      LEVELS.forEach((level, col) => {
+        cam.z = 1.5;
+        cam.x = -(120 + col * CELL + CELL / 2 - w / 2) / cam.z;
+        cam.y = -(30 + trow * ROW + ROW / 2 - h / 2) / cam.z;
+        drawUnit({ ctx, cam, vp, t: 0 }, {
+          type, x: 0, y: 0, mine: true, hp: 1, maxHp: 1,
+          moving: false, face: 1, swing: 0, flash: 0, born: 0, level,
+        });
+      });
+      ctx.fillStyle = C.parch;
+      ctx.font = '700 15px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(
+        (type === 'hero' ? 'VOWKEEPER' : TROOP[type].n).toUpperCase(),
+        14, 30 + trow * ROW + ROW / 2,
+      );
+    });
 
     ctx.fillStyle = C.parch;
     ctx.font = '900 14px Arial';

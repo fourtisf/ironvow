@@ -4,6 +4,7 @@ import { HERO_NAME, TROOP, TROOP_ORDER } from '@ironvow/config';
 import type { BattleArmy, DeployableType } from '@ironvow/types';
 import { mmss } from '../lib/format';
 import { StarIcon } from './icons';
+import { TroopArt } from './TroopArt';
 
 /**
  * The raid HUD.
@@ -23,12 +24,18 @@ export interface BattleHudProps {
   heroReady: boolean;
   /** Shown greyed when the hero was already sent in or is recovering. */
   heroLevel: number;
+  /**
+   * The War Lab levels the raid was frozen with, so the tray shows the same
+   * kit that will walk onto the field.
+   */
+  troopLevels: Partial<Record<DeployableType, number>>;
   onSelect: (type: DeployableType) => void;
   onEnd: () => void;
 }
 
 export function BattleHud({
-  secondsLeft, destroyedPct, stars, avail, selected, heroReady, heroLevel, onSelect, onEnd,
+  secondsLeft, destroyedPct, stars, avail, selected, heroReady, heroLevel, troopLevels,
+  onSelect, onEnd,
 }: BattleHudProps) {
   return (
     <div id="btHud">
@@ -57,6 +64,9 @@ export function BattleHud({
             className={`tcard${selected === t ? ' sel' : ''}${(avail[t] ?? 0) <= 0 ? ' out' : ''}`}
             onClick={() => onSelect(t)}
           >
+            {/* Picked by looking at them, not by reading a list: the tray
+              * draws the troop, at the level it is actually fighting at. */}
+            <TroopArt type={t} level={troopLevels[t] ?? 1} size={34} />
             <span className="nm" style={{ fontSize: 9 }}>{TROOP[t].n}</span>
             <span className="n">{avail[t] ?? 0}</span>
           </button>
@@ -68,6 +78,7 @@ export function BattleHud({
             className={`tcard hero${selected === 'hero' ? ' sel' : ''}${heroReady ? '' : ' out'}`}
             onClick={() => onSelect('hero')}
           >
+            <TroopArt type="hero" level={heroLevel} size={34} />
             <span className="nm" style={{ fontSize: 9 }}>{HERO_NAME}</span>
             <span className="n">{heroReady ? `Lv ${heroLevel}` : '—'}</span>
           </button>

@@ -662,6 +662,87 @@ logged against it, so a stop that moved with the clock — the exact bug the fil
 exists to catch, baked into a sprite on whichever frame it was first
 rasterised — still fails the test.
 
+## Troops you can see the upgrade on
+
+ALFA: "karakter army harus dibuat sebagus mungkin, dan bisa upgrade pakai
+laboratorium — setiap upgrade beda design dan tambah bagus, besar."
+
+A troop upgrade was the most expensive thing in the game and the least
+visible. The War Lab took gold and iron and gave back a number in a sheet and a
+slightly longer health bar; nothing on the field changed, and the only place
+the purchase could be seen was mid-raid, in a crowd of twenty identical
+figures. So the kit now carries the level, on the same four tiers the buildings
+use — levels 1-2, 3-5, 6-7, 8+:
+
+| | |
+|---|---|
+| Tier 0 | Cloth and leather, one pauldron, a cap |
+| Tier 1 | Banded steel: breastplate, greaves, a brow band, a shield rim |
+| Tier 2 | Plate: gorget, both pauldrons, a nasal bar, a plume, a cloak |
+| Tier 3 | Gilded: gold plate, gold plume, gold buckle, gilded weapon |
+
+Each troop's own gear grows with it too: the Raider's blade lengthens, gains a
+fuller and a boss on the shield; the Archer's bow lengthens and recurves and a
+quiver appears on the back; the Lancer's polearm gains a pennon; the Scaler's
+grapnel grows a third and fourth prong; the Ram gains iron banding down the
+beam, four wheels, a hide roof on posts and a third crewman. And every level
+adds 2.2% of height, so an upgrade *inside* a tier still shows.
+
+**Where a player actually sees it.** Three places, all drawn by the same
+`drawUnit` the battle uses, so none of them can drift from the real thing:
+
+- The **War Lab** shows each troop as it stands today and, faded beside it, what
+  the next level turns it into. What the gold buys is on the button.
+- The **ARMY roster** draws the troop on its tile at the level the Lab has taken
+  it to, so the army screen is a barracks rather than a price list.
+- The **battle tray** draws each troop at the level the raid was frozen with, so
+  a warband is picked by looking at it.
+
+The level reaching the field comes from `w.raid.troopLevels` — the levels the
+server froze onto the raid, which are the same numbers the simulation used for
+hit points and damage. The kit on screen is the kit that is fighting.
+
+### Paying for it, again
+
+Troops were the last thing in the renderer with no sprite cache, and the kit is
+not cheap: on the workbench bench at `/art#bench` — twenty-eight units, fixed
+scale, so the measurement does not depend on which opponent the matchmaker
+produced — the tiered art cost **83 ms a frame at 4x throttle** against 50 ms
+without it. Measuring that inside a real raid was useless and briefly
+misleading: the unit count and the state of the fight differ between runs, and
+the first comparison showed a regression that was mostly noise.
+
+So the units were split the way the buildings were. The kit — everything from
+the belt to the plume, plus the shield, the quiver and the rope coil — does not
+move, so it is rasterised once per (type, level, livery, facing, detail, scale)
+and blitted; only the legs, the weapon and the hit bar are still path work. The
+cloak is a second sprite because the legs are drawn between it and the body.
+The Ram has no moving part at all, so it is one blit.
+
+| 28 units | before tiers | tiers, live | tiers, cached |
+| --- | --- | --- | --- |
+| no throttle | 16.7 ms (p95 33.3) | 16.7 ms (p95 33.3) | 16.7 ms (p95 16.7) |
+| 4x — mid-range phone | 50.0 ms | 83.3 ms | **33.3 ms** |
+| 6x — slow phone | 66.7 ms | 100.0 ms | **50.0 ms** |
+
+Full detail, and cheaper than the art it replaced.
+
+Two things had to be got right and both would have been silent:
+
+1. **`detail` is part of the cache key.** A shape's bounds are measured once, at
+   scale 1, and reused at every scale after. A troop first seen zoomed out —
+   without its plume or its cloak — would have handed those bounds to the same
+   troop seen close up and clipped the kit off at the edge of the bitmap.
+2. **A flashing unit is not cached.** The hit flash repaints every colour, so
+   caching it would mean a second bitmap for every troop in the game, for a
+   state that lasts a fifth of a second. It draws live instead, which is also
+   the path `drawUnitUncached` exposes so `apps/web/test/render.test.ts` can
+   reach the painters without a DOM: it asserts a standing troop draws
+   identically at two clock values (a painter that read the clock would freeze
+   every troop of its kind on one frame) and that levels 1, 4, 6 and 9 really do
+   draw differently — otherwise the tiers could silently stop working and
+   nothing about the code would look wrong.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

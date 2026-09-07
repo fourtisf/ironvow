@@ -887,6 +887,7 @@ export function Game() {
           selected={world?.selectedTroop ?? null}
           heroReady={battle.heroReady()}
           heroLevel={world?.raid?.hero.level ?? player?.heroLevel ?? 1}
+          troopLevels={world?.raid?.troopLevels ?? {}}
           onSelect={(t) => { if (world) { world.selectedTroop = t; sfx.tap(); } }}
           onEnd={() => { if (world?.battle) void finishBattle(world.battleCommands); }}
         />

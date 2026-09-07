@@ -16,6 +16,7 @@ import {
 import { fmt, until } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
+import { TroopArt } from './TroopArt';
 
 /**
  * The build and army sheets.
@@ -176,6 +177,10 @@ export function ArmySheet({
               disabled={locked || !room}
             >
               <span className="cnt">{player.army[type] ?? 0}</span>
+              {/* The roster shows the troop, at the level the War Lab has
+                * taken it to, so the army screen is a barracks rather than a
+                * price list. */}
+              <TroopArt type={type} level={progression?.lab?.troops.find((x) => x.type === type)?.level ?? 1} size={52} />
               <div className="nm">{def.n}</div>
               <CostLine cost={def.cost} affordable={affordable} />
               <div className="sub">
@@ -203,6 +208,18 @@ export function ArmySheet({
             </div>
           </div>
           <div className="qrow">
+            {/* The Vowkeeper gets the same before-and-after as the troops:
+              * it is the one unit a player picks out of a crowd, so what a
+              * rank buys should be visible before it is bought. */}
+            <div className="troopStep">
+              <TroopArt type="hero" level={hero.level} size={58} />
+              {hero.level < hero.maxLevel && (
+                <>
+                  <span className="troopArrow">›</span>
+                  <TroopArt type="hero" level={hero.level + 1} size={58} faded />
+                </>
+              )}
+            </div>
             <div className="qi">
               <h4>Rank {hero.level}{hero.level >= hero.maxLevel ? ' · highest' : ''}</h4>
               <p>
@@ -256,6 +273,24 @@ export function ArmySheet({
             const affordable = player.gold >= t.upgradeCost.g && player.iron >= t.upgradeCost.i;
             return (
               <div className="qrow" key={t.type}>
+                {/*
+                  * What the gold actually buys.
+                  *
+                  * The kit changes with the level — leather, banded steel,
+                  * plate and a plume, gilded — so the row shows the troop as
+                  * it stands today and, when there is one to buy, a faded
+                  * preview of what the next level turns it into. It is the
+                  * same drawUnit the battle uses, so these cannot drift apart.
+                  */}
+                <div className="troopStep">
+                  <TroopArt type={t.type} level={t.level} size={58} />
+                  {!capped && (
+                    <>
+                      <span className="troopArrow">›</span>
+                      <TroopArt type={t.type} level={t.level + 1} size={58} faded />
+                    </>
+                  )}
+                </div>
                 <div className="qi">
                   <h4>{TROOP[t.type].n} · level {t.level}</h4>
                   <p>

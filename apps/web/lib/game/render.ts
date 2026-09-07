@@ -213,8 +213,18 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
       blitDeco(d, w.terrain.deco[e.i]!);
     } else if (e.k === 'unit') {
       const u = battle.units[e.i]!;
+      /*
+       * The level the raid was frozen with, not what the player has upgraded
+       * to since. The simulation used exactly this number to work out the
+       * unit's hit points and damage, so the kit a player sees on the field
+       * is the kit that is actually fighting.
+       */
+      const level = u.t === 'hero'
+        ? w.raid?.hero?.level ?? 1
+        : w.raid?.troopLevels?.[u.t] ?? 1;
       drawUnit(d, {
         type: u.t,
+        level,
         x: u.x,
         y: u.y,
         mine: battle.kind === 'raid' ? u.side === 'atk' : u.side === 'def',

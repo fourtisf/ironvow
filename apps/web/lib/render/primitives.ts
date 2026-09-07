@@ -65,7 +65,27 @@ function rgbOf(col: string): [number, number, number] | null {
  * ends. Colours this cannot parse are returned untouched, so a caller passing
  * `rgba(…)` still gets a flat fill rather than an exception.
  */
+/**
+ * Memo, because the units call this every frame.
+ *
+ * Building bodies are rasterised once, so parsing a hex there costs nothing.
+ * Troops are not cached — they walk and swing — and forty of them asking for
+ * six shaded colours apiece is a few hundred string parses a frame for a
+ * result that never changes. Bounded so a livery experiment cannot grow it
+ * without limit.
+ */
+const shadeCache = new Map<string, string>();
+
 export function shade(col: string, amount: number): string {
+  const key = `${col}|${amount}`;
+  const hit = shadeCache.get(key);
+  if (hit !== undefined) return hit;
+  const out = mixToward(col, amount);
+  if (shadeCache.size < 4096) shadeCache.set(key, out);
+  return out;
+}
+
+function mixToward(col: string, amount: number): string {
   const rgb = rgbOf(col);
   if (!rgb) return col;
   const [r, g, b] = rgb;

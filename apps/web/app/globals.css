@@ -181,6 +181,16 @@
   .qrw{font-size:10px;color:#ffd97a;display:flex;align-items:center;gap:4px;flex:none}
   .qrw svg{width:14px;height:14px}
 
+  /* The War Lab's before-and-after: this troop now, and after the upgrade. */
+  .troopStep{display:flex;align-items:center;gap:1px;flex:none;
+    background:#18233a;border:2px solid #34486a;border-radius:11px;padding:2px 4px}
+  .troopArrow{color:#ffd97a;font-size:15px;font-weight:900;line-height:1;margin:0 1px}
+  @media (max-width:420px){
+    /* On a phone the row has to choose: the numbers and the button win, and
+       the preview keeps only the troop as it stands today. */
+    .troopStep>*:nth-child(n+2){display:none}
+  }
+
   /* daily orders */
   .dayHead{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
   .dayHead h3{font-size:11px;letter-spacing:1.8px;color:#f2e4c4}

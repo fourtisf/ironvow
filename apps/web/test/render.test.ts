@@ -1,6 +1,8 @@
 import { TYPES, type BuildingType } from '@ironvow/config';
+import type { DeployableType } from '@ironvow/types';
 import { describe, expect, it } from 'vitest';
 import { ANIMATED, drawBuildingBody, drawBuildingFx } from '../lib/render/buildings';
+import { drawUnitUncached, type DrawableUnit } from '../lib/render/units';
 import { newCamera, onScreen, structOnScreen, type Viewport } from '../lib/render/camera';
 import type { Draw } from '../lib/render/primitives';
 
@@ -145,5 +147,59 @@ describe('structures off screen are culled', () => {
     // The same point fails the anchor-only test, which is the whole reason
     // structOnScreen exists.
     expect(onScreen(cam, vp, g, g)).toBe(false);
+  });
+});
+
+describe('troop kit is cacheable, and changes with the level', () => {
+  const TROOPS: DeployableType[] = ['raider', 'archer', 'lancer', 'scaler', 'ram', 'hero'];
+
+  const unit = (type: DeployableType, level: number, over: Partial<DrawableUnit> = {}) => ({
+    type, x: 2, y: 2, mine: true, hp: 1, maxHp: 1,
+    moving: false, face: 1 as const, swing: 0, flash: 0, born: 0, level, ...over,
+  });
+
+  /*
+   * The kit a troop wears is rasterised once per (type, level, livery, facing,
+   * scale) and blitted, exactly like a building body. If anything in it ever
+   * reads the clock, the frame it happened to be rasterised on is baked into
+   * the bitmap and every troop of that kind freezes on it. A standing unit is
+   * the case to assert: with no walk and no swing there is nothing left that
+   * is allowed to differ between two clock values.
+   */
+  for (const type of TROOPS) {
+    it(`${type} stands still identically whatever the clock says`, () => {
+      const a = draw(0);
+      const b = draw(97.3);
+      drawUnitUncached(a.d, unit(type, 5));
+      drawUnitUncached(b.d, unit(type, 5));
+      expect(a.log).toEqual(b.log);
+      expect(a.log.length).toBeGreaterThan(0);
+    });
+  }
+
+  /*
+   * The point of the tiers is that an upgrade is visible. A refactor that
+   * dropped the level on its way to the art would leave every War Lab level
+   * looking the same, which is exactly the state this replaced — and nothing
+   * about the code would look wrong.
+   */
+  for (const type of TROOPS) {
+    it(`${type} looks different at each tier`, () => {
+      const at = (level: number): string[] => {
+        const { d, log } = draw(0);
+        drawUnitUncached(d, unit(type, level));
+        return log;
+      };
+      const looks = [at(1), at(4), at(6), at(9)].map((l) => l.join('\n'));
+      expect(new Set(looks).size).toBe(4);
+    });
+  }
+
+  it('draws a flashing unit rather than caching one', () => {
+    // The flash repaints every colour, so it must not become a second sprite
+    // for every troop in the game.
+    const { d, log } = draw(0);
+    drawUnitUncached(d, unit('raider', 5, { flash: 0.5 }));
+    expect(log.some((l) => l.includes('#ffd8c2'))).toBe(true);
   });
 });

@@ -257,14 +257,34 @@ export function isoBox(
   ctx.lineWidth = Math.max(1.5, 2.4 * z);
   ctx.strokeStyle = o;
 
-  // Left face, then right, then the top: painter's order for a box seen from
-  // the south-east, and the order the outlines want to overlap in.
-  ctx.fillStyle = wallFill(ctx, left, A, a);
+  /*
+   * The two faces a box actually shows, and this is the one that was wrong.
+   *
+   * ALFA: "bangunanya masih patah2 itu perbaiki".
+   *
+   * With `isoX = (gx - gy)·TW/2` and `isoY = (gx + gy)·TH/2`, the corner at
+   * `(gx, gy)` is the *north* point of the diamond, `(gx, gy + h)` the west,
+   * `(gx + w, gy + h)` the south and `(gx + w, gy)` the east. So the two faces
+   * turned toward the camera are the south-west run, west→south, and the
+   * south-east run, east→south.
+   *
+   * This drew west→south and *north→west* — one face you can see and one you
+   * never can. The whole east half of every box in the game had no wall on it:
+   * the top face floated over open ground, and you could see the terrain, or
+   * whatever stood behind, straight through the right-hand side of a Keep, a
+   * Vault or a Barracks. Nothing about the code looked wrong, because the
+   * hidden face was drawn first and the top covered most of the evidence.
+   *
+   * Painter's order is either visible face and then the top: they meet along
+   * the south corner and never overlap. The `left` colour keeps the face it
+   * was always meant for; `right` keeps the one it was already drawing.
+   */
+  ctx.fillStyle = wallFill(ctx, left, B, b);
   ctx.beginPath();
-  ctx.moveTo(a[0], a[1]); ctx.lineTo(dd[0], dd[1]); ctx.lineTo(D[0], D[1]); ctx.lineTo(A[0], A[1]);
+  ctx.moveTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.lineTo(B[0], B[1]);
   ctx.closePath(); ctx.fill(); ctx.stroke();
   const leftMat = MATERIAL[left];
-  if (leftMat) courses(ctx, leftMat, left, a, dd, A, D, z);
+  if (leftMat) courses(ctx, leftMat, left, b, c, B, Cc, z);
 
   ctx.fillStyle = wallFill(ctx, right, D, dd);
   ctx.beginPath();

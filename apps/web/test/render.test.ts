@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { ANIMATED, drawBuildingBody, drawBuildingFx } from '../lib/render/buildings';
 import { drawUnitUncached, type DrawableUnit } from '../lib/render/units';
 import { newCamera, onScreen, structOnScreen, type Viewport } from '../lib/render/camera';
-import type { Draw } from '../lib/render/primitives';
+import { isoBox, type Draw } from '../lib/render/primitives';
 
 /**
  * Guards on the two invariants the sprite cache rests on.
@@ -231,5 +231,56 @@ describe('the level badge can be turned off', () => {
     drawBuildingBody(implied.d, { type: 'cannon', gx: 4, gy: 4, level: 3 }, false);
     drawBuildingBody(explicit.d, { type: 'cannon', gx: 4, gy: 4, level: 3, pips: true }, false);
     expect(implied.log).toEqual(explicit.log);
+  });
+});
+
+/**
+ * ALFA: "bangunanya masih patah2 itu perbaiki".
+ *
+ * `isoBox` drew the wrong pair of walls. With `isoX = (gx - gy)·TW/2` and
+ * `isoY = (gx + gy)·TH/2`, the corner at `(gx, gy)` is the *north* point of the
+ * diamond and the two faces turned toward the camera are the runs west→south
+ * and east→south. It drew west→south and north→west — one you can see and one
+ * you never can — so the whole east half of every box in the game had no wall
+ * on it and you could see straight through a Keep.
+ *
+ * Pinned here because nothing about the old code looked wrong: the hidden face
+ * was drawn first and the top covered most of the evidence.
+ */
+describe('a box has walls on both sides you can see', () => {
+  it('covers its own footprint, east half included', () => {
+    const { d, log } = draw(0);
+    d.cam.z = 1;
+    d.cam.x = 0;
+    d.cam.y = 0;
+    isoBox(d, 0, 0, 2, 2, 40, '#888888', '#444444', '#666666');
+
+    // Every filled polygon this drew, as its own list of points.
+    const polys: [number, number][][] = [];
+    let cur: [number, number][] = [];
+    for (const line of log) {
+      if (line.startsWith('beginPath')) cur = [];
+      const m = /^(?:moveTo|lineTo)\(([-\d.]+),([-\d.]+)\)$/.exec(line);
+      if (m) cur.push([Number(m[1]), Number(m[2])]);
+      if (line === 'fill()' && cur.length >= 3) polys.push(cur);
+    }
+
+    /*
+     * The south corner is the box's lowest point, and it is where the two
+     * faces you can see meet — so exactly two filled shapes must reach it.
+     * Written against the geometry rather than absolute coordinates, so it
+     * does not care where the camera happens to be.
+     */
+    const bottom = Math.max(...polys.flat().map(([, y]) => y));
+    const atSouth = polys.filter((p) => p.some(([, y]) => Math.abs(y - bottom) < 0.6));
+    expect(atSouth).toHaveLength(2);
+    // And they are on opposite sides of it: one runs west, one runs east.
+    const spans = atSouth.map((p) => {
+      const xs = p.map(([x]) => x);
+      return { lo: Math.min(...xs), hi: Math.max(...xs) };
+    });
+    const southX = polys.flat().find(([, y]) => Math.abs(y - bottom) < 0.6)![0];
+    expect(spans.some((sp) => sp.lo < southX - 1)).toBe(true);
+    expect(spans.some((sp) => sp.hi > southX + 1)).toBe(true);
   });
 });

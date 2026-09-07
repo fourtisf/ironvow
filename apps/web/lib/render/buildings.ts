@@ -181,8 +181,24 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     turret(gx + s - 0.9, gy + 0.05, true);
     turret(gx + 0.05, gy + s - 0.9, false);
 
-    isoBox(d, gx + 0.72, gy + 0.72, s - 1.44, s - 1.44, wallH, C.stoneL, C.stoneD, C.stone);
-    const peak = isoRoof(d, gx + 0.58, gy + 0.58, s - 1.16, s - 1.16, wallH, wallH + 34, roofL, roofD);
+    /*
+     * The hall, and it has to reach the turrets.
+     *
+     * ALFA: "bangunanya masih patah2 itu perbaiki".
+     *
+     * It used to be inset 0.72 on a three-cell footprint — a 1.56-cell tower
+     * standing between four 0.85-cell corner towers, overlapping each of them
+     * by less than a fifth of a cell. They touched at the corners and nowhere
+     * else, so daylight came through the Keep from every side and the centre
+     * of the hold read as five separate slabs rather than a castle. At 0.40 the
+     * hall overlaps each turret by half a cell and the walls are walls.
+     */
+    const hall = 0.40;
+    isoBox(d, gx + hall, gy + hall, s - hall * 2, s - hall * 2, wallH, C.stoneL, C.stoneD, C.stone);
+    const eaves = hall - 0.14;
+    const peak = isoRoof(
+      d, gx + eaves, gy + eaves, s - eaves * 2, s - eaves * 2, wallH, wallH + 34, roofL, roofD,
+    );
     if (tier >= 2) {
       /*
        * A lantern storey riding on the roof, with a roof of its own. This is
@@ -203,15 +219,17 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     }
     if (tier >= 3) {
       // A gilded band where the roof meets the wall: the maxed Keep.
-      isoBox(d, gx + 0.54, gy + 0.54, s - 1.08, s - 1.08, 7, C.gold, C.goldD, '#b8801c', undefined, wallH - 5);
+      const band = hall - 0.18;
+      isoBox(d, gx + band, gy + band, s - band * 2, s - band * 2, 7,
+        C.gold, C.goldD, '#b8801c', undefined, wallH - 5);
     }
 
     // Merlons along the front parapet, one more per tier. Kept few and wide:
     // a dozen thin ones read as a comb laid on the roof, not as stonework.
     const merlons = 4 + tier;
     for (let i = 0; i < merlons; i++) {
-      const f = 0.72 + ((s - 1.44) * (i + 0.5)) / merlons;
-      const [mx, my] = P(gx + f, gy + s - 0.72);
+      const f = hall + ((s - hall * 2) * (i + 0.5)) / merlons;
+      const [mx, my] = P(gx + f, gy + s - hall);
       ctx.fillStyle = tier >= 3 ? C.gold : C.stoneL;
       ctx.strokeStyle = C.line;
       ctx.lineWidth = Math.max(1.2, 2 * z);
@@ -220,7 +238,7 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
       ctx.fill(); ctx.stroke();
     }
 
-    const [dx, dy] = P(gx + s / 2, gy + s - 0.72);
+    const [dx, dy] = P(gx + s / 2, gy + s - hall);
     ctx.fillStyle = '#4a3a28';
     ctx.strokeStyle = C.line;
     ctx.lineWidth = Math.max(1.2, 2 * z);

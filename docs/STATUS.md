@@ -1365,6 +1365,43 @@ worth looking at: fitted, it is a smudge. So the phone gets a detail instead —
 the Keep at the top of its levels, gilded, with the wall and the statues around
 it. One good building beats a whole base nobody can make out.
 
+## Every box in the game was missing a wall
+
+ALFA: "bangunanya masih patah2 itu perbaiki"
+
+They were right, and it was not the composition — it was `isoBox`, which draws
+every solid in the game.
+
+With `isoX = (gx - gy)·TW/2` and `isoY = (gx + gy)·TH/2`, the corner at
+`(gx, gy)` is the **north** point of the footprint diamond, `(gx, gy + h)` the
+west, `(gx + w, gy + h)` the south and `(gx + w, gy)` the east. The two faces
+turned toward the camera are therefore the run west→south and the run
+east→south. `isoBox` drew west→south — and *north→west*, which is on the far
+side and can never be seen.
+
+So the whole east half of every box in the game had no wall on it. The top face
+floated over open ground and you could see the terrain, or whatever stood
+behind, straight through the right-hand side of a Keep, a Vault, a Barracks, a
+Cannon. It is why a hold read as a pile of slabs rather than buildings.
+
+Nothing about the code looked wrong, which is why it lasted: the hidden face was
+drawn first, the top face covered most of the evidence, and the outline made the
+rest look deliberate. It was only obvious on a low wide box — the Vault, which
+came out as a lid on stilts — and once seen it is in every screenshot in this
+document.
+
+`render.test.ts` pins it now, and pins it against the geometry rather than
+against coordinates: the south corner is the box's lowest point and the place
+the two visible faces meet, so exactly two filled shapes must reach it, one
+running west of it and one running east. The old code reached it with one.
+
+**And while it was open: the Keep was hollow too.** Its hall was inset 0.72 on a
+three-cell footprint — a 1.56-cell tower standing between four 0.85-cell corner
+towers, overlapping each of them by less than a fifth of a cell. They touched at
+the corners and nowhere else, so daylight came through the middle of the Keep
+from every side. The hall is inset 0.40 now: half a cell of overlap with each
+turret, and the walls are walls.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

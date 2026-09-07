@@ -90,7 +90,13 @@ export const BASE_STORAGE = 40000;
  * below is asserted at module load and again in the economy tests.
  */
 export const START_GOLD = 6000;
-export const START_IRON = 2400;
+/*
+ * Iron is the scarcer of the two and always will be: gold comes out of the
+ * ground from the first minute, and iron needs a building the player has to
+ * decide to put up. So the opening purse carries enough of it to reach that
+ * decision comfortably rather than exactly.
+ */
+export const START_IRON = 3600;
 
 if (START_GOLD >= BASE_STORAGE || START_IRON >= BASE_STORAGE) {
   throw new Error(

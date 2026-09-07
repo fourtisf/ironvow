@@ -94,7 +94,7 @@ const QUEST_GUIDE: Record<string, { target: CoachTarget; go: CoachGo; goLabel: s
   q4:  { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train five Raiders. Training takes a moment; they wait in the Barracks.', troopType: 'raider', hint: 'Tap TRAIN on the Raider five times.' },
   q5:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Press RAID, look the hold over, press ATTACK, then tap the ground to drop troops. Half the hold broken is a win.' },
   q6:  { target: 'keep', go: 'keep', goLabel: 'SELECT KEEP', how: 'Select the Keep and press UPGRADE. A higher Keep unlocks more of everything.' },
-  q7:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place an Iron Forge. Archers and rams cost iron.', buildType: 'forge', hint: 'Pick the Iron Forge and drop it on free ground.' },
+  q7:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place an Iron Forge. It is the only thing that makes iron, and everything after this needs some. It costs gold alone.', buildType: 'forge', hint: 'Pick the Iron Forge and drop it on free ground.' },
   q8:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and lay Ramparts in a ring inside your cannon’s range. Placing one offers the next straight away.', buildType: 'wall', hint: 'Pick the Rampart. After each PLACE the next one is already in your hand.' },
   q9:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Bring a full warband and take every building down. Rams on walls, archers behind.' },
   q10: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Every win earns trophies; losses cost some. Keep raiding to climb.' },

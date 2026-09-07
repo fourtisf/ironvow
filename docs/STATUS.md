@@ -502,7 +502,7 @@ a hold left overnight was earning nothing for most of the night. Now:
 
 | | before | now |
 |---|---|---|
-| `START_GOLD` / `START_IRON` | 900 / 320 | 6,000 / 2,400 |
+| `START_GOLD` / `START_IRON` | 900 / 320 | 6,000 / 3,600 |
 | `BASE_STORAGE` | 2,500 | 40,000 |
 | `mineRate(level)` | `18 + level × 12` | `40 + level × 26` |
 | `forgeRate(level)` | `9 + level × 7` | `22 + level × 16` |
@@ -742,6 +742,54 @@ Two things had to be got right and both would have been silent:
    every troop of its kind on one frame) and that levels 1, 4, 6 and 9 really do
    draw differently — otherwise the tiers could silently stop working and
    nothing about the code would look wrong.
+
+## The order you can afford
+
+ALFA, playing the live game: 9,300 gold, **20 iron**, and a task list saying
+"Raise a Cannon". A Cannon costs 80 iron.
+
+Iron has exactly one source a player can build. Gold comes out of the ground
+from the first minute — a new hold starts with a Gold Mine — but iron needs an
+Iron Forge, and the hold does not start with one. So a player's iron only ever
+goes down until they decide to put one up.
+
+The War Orders asked for the Forge **seventh**, and for a Cannon **third**. A
+player who had spent their opening iron was therefore told, by the tutorial, to
+build something they could not pay for — and the reward for completing that
+order was iron. The way out existed (the Forge costs gold alone, and the BUILD
+sheet offers it from Keep 1) but nothing pointed at it, and the guide pointed
+somewhere else.
+
+The Forge is now the third order, before anything asks for iron at all:
+
+| | |
+|---|---|
+| 1 | Collect from the mine |
+| 2 | Build a second mine |
+| 3 | **Build an Iron Forge** — 400 gold, no iron |
+| 4 | Raise a Cannon |
+| 5 | Train 5 Raiders |
+| … | … |
+
+The ids stay attached to their own order rather than to a position, because a
+player's claimed orders are stored by id and renumbering them would hand
+someone a reward they had already taken. The list is displayed and counted in
+array order, so moving an entry is the whole change. The coach follows, since
+it maps guidance by id.
+
+Iron rewards roughly doubled across the run, and `START_IRON` went from 2,400
+to 3,600 — iron is the scarcer of the two and always will be, so the opening
+purse should reach the Forge comfortably rather than exactly. Walked in order,
+iron now never falls below the 3,600 a player starts with: the nine orders pay
+out 1,674 more than they cost.
+
+**The guard.** `packages/config/src/quests.ts` throws at module load if any
+order needs iron before the one that builds the Forge, or if the Forge itself
+ever costs iron — it is the only way out of an empty iron purse. Both are
+derived from the price tables rather than listed, because the failure comes
+from two tables disagreeing and a hand-written list would be a third thing to
+keep in step. Asserted again in `apps/api/test/economy.test.ts`, which now also
+walks the opening in iron as well as gold.
 
 ## Numbers that need sign-off
 

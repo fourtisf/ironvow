@@ -11,7 +11,9 @@ import {
   mineRate,
   stockCapOf,
   storageCapOf,
+  QUESTS,
   TROOP,
+  TYPES,
 } from '@ironvow/config';
 import { snapshotBase } from '../src/domain/raid.js';
 import { accrueProduction, collectStock, grant } from '../src/domain/production.js';
@@ -64,17 +66,48 @@ describe('starting position', () => {
     expect(stockCapOf('forge', 1)).toBeLessThanOrEqual(room);
   });
 
+  /*
+   * ALFA hit this live: 9.3K gold, 20 iron, and a task list saying "raise a
+   * Cannon" — which costs 80 iron. Iron has one buildable source and the order
+   * that puts it up was seventh.
+   */
+  it('never asks for iron before the order that produces it', () => {
+    const forgeAt = QUESTS.findIndex(
+      (q) => q.metric.kind === 'buildingCount' && q.metric.type === 'forge',
+    );
+    const ironAt = QUESTS.findIndex((q) => {
+      const m = q.metric;
+      if (m.kind === 'buildingCount') return TYPES[m.type].base.i > 0;
+      if (m.kind === 'keepLevel') return TYPES.keep.up.i > 0;
+      return false;
+    });
+    expect(forgeAt).toBeGreaterThanOrEqual(0);
+    expect(ironAt).toBeGreaterThan(forgeAt);
+  });
+
+  it('leaves the Iron Forge payable in gold alone', () => {
+    // It is the only way out of an empty iron purse.
+    expect(costOf('forge', 0, 0).i).toBe(0);
+  });
+
   it('covers the tutorial and the War Orders that follow it', () => {
     // The four coach steps cost nothing. These are the purchases the first
     // nine War Orders ask for, before a single collection or any raid loot.
-    const asked = costOf('mine', 0, 1).g          // q2, a second Gold Mine
-      + costOf('cannon', 0, 0).g                  // q3
-      + TROOP.raider.cost.g * 5                   // q4
-      + costOf('keep', 1, 0).g                    // q6
-      + costOf('forge', 0, 0).g                   // q7
+    const asked = costOf('mine', 0, 1).g          // a second Gold Mine
+      + costOf('forge', 0, 0).g                   // the Iron Forge
+      + costOf('cannon', 0, 0).g
+      + TROOP.raider.cost.g * 5
+      + costOf('keep', 1, 0).g
       + Array.from({ length: 8 }, (_, n) => costOf('wall', 0, n).g)
-        .reduce((a, b) => a + b, 0);              // q8
+        .reduce((a, b) => a + b, 0);              // eight Ramparts
     expect(asked).toBeLessThan(START_GOLD);
+
+    // And the same in iron, which is the one that ran out.
+    const iron = costOf('cannon', 0, 0).i
+      + costOf('keep', 1, 0).i
+      + Array.from({ length: 8 }, (_, n) => costOf('wall', 0, n).i)
+        .reduce((a, b) => a + b, 0);
+    expect(iron).toBeLessThan(START_IRON);
   });
 });
 

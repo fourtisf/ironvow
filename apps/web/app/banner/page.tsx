@@ -271,6 +271,57 @@ function Frame({ id, w, h, note, children }: {
   );
 }
 
+
+/**
+ * One troop, drawn as large as you like on its own transparent canvas.
+ *
+ * Same trick as the near plane: `drawUnit` places a unit relative to the
+ * camera, so the camera goes on the unit and the viewport is lied about to put
+ * it where the composition wants it.
+ */
+function Figure({ type, level, scale, w: fw, h: fh }: {
+  type: DeployableType; level: number; scale: number; w: number; h: number;
+}) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const made = world(fw, fh, canvas);
+    if (!made) return;
+    const [wd, ctx] = made;
+    wd.cam.z = scale;
+    wd.cam.tz = scale;
+    wd.cam.x = 0;
+    wd.cam.y = 0;
+    // Feet a little below the middle, so the figure sits on the line rather
+    // than floating in the middle of its own box.
+    wd.vp = { w: fw, h: fh * 1.42, dpr: 2 };
+    drawUnit({ ctx, cam: wd.cam, vp: wd.vp, t: wd.t }, {
+      type, level, x: 0, y: 0, mine: true, hp: 1, maxHp: 1,
+      moving: false, face: 1, swing: 0.35, flash: 0, born: 0,
+    });
+  }, [type, level, scale, fw, fh]);
+  return <canvas ref={ref} style={{ width: fw, height: fh, display: 'block' }} />;
+}
+
+/** Dusk, laid over the day the renderer draws. */
+const NIGHT: React.CSSProperties = {
+  position: 'absolute', inset: 0, pointerEvents: 'none',
+  mixBlendMode: 'multiply',
+  background:
+    'linear-gradient(168deg, #4b5c9e 0%, #26305e 44%, #0d1230 100%)',
+};
+
+/** And the light the hold makes for itself once the sun is off it. */
+const HEARTH: React.CSSProperties = {
+  position: 'absolute', inset: 0, pointerEvents: 'none',
+  background:
+    'radial-gradient(ellipse 26% 30% at 36% 52%, rgba(255,178,86,.26), rgba(255,178,86,0) 72%),'
+    + 'radial-gradient(ellipse 15% 18% at 24% 40%, rgba(255,158,64,.24), rgba(255,158,64,0) 72%),'
+    + 'radial-gradient(ellipse 14% 17% at 50% 64%, rgba(255,158,64,.22), rgba(255,158,64,0) 72%),'
+    + 'radial-gradient(ellipse 82% 84% at 38% 50%, rgba(0,0,0,0) 30%, rgba(4,8,22,.72) 100%)',
+};
+
 export default function BannerPage() {
 
   return (
@@ -463,6 +514,188 @@ export default function BannerPage() {
         >
           <Wordmark width={330} />
           <div style={PILL}>IRONVOW.XYZ</div>
+        </div>
+        <div style={HAIRLINE} />
+      </Frame>
+
+      {/*
+        * 5 — thread post 2: it works while you are gone.
+        *
+        * The one thing about the game that is true when nobody is looking, so
+        * the picture is the hold at dusk with its own fires on. The renderer
+        * only draws daylight; the night is a multiply over the whole frame and
+        * the warmth is put back where the braziers and the forges are.
+        */}
+      <Frame id="night" w={W} h={H} note="thread 2 — offline production">
+        <Hold shot={{ w: W, h: H, gx: 31.6, gy: 24.4, zoom: 0.7 }} />
+        <div style={NIGHT} />
+        <div style={HEARTH} />
+
+        <div style={{
+          ...PLATE,
+          position: 'absolute', right: 76, bottom: 76, width: 560, padding: '40px 44px',
+        }}
+        >
+          <div style={{
+            fontFamily: 'Arial', fontWeight: 900, fontSize: 15, letterSpacing: 4.5, color: GOLD,
+          }}
+          >
+            WHILE YOU ARE AWAY
+          </div>
+          <div style={{
+            fontFamily: 'Arial', fontWeight: 700, fontSize: 28, lineHeight: 1.35,
+            color: '#f2e4c4', marginTop: 14,
+          }}
+          >
+            Mines fill. Forges smelt.
+            <br />
+            Troops finish training.
+          </div>
+          <div style={{
+            fontFamily: 'Arial', fontWeight: 700, fontSize: 19, lineHeight: 1.5,
+            color: '#c3d4ea', marginTop: 16,
+          }}
+          >
+            Four hours of it banked while the tab is shut. Come back to a full
+            purse, not an empty one.
+          </div>
+          <div style={{ marginTop: 26 }}>
+            <span style={PILL}>IRONVOW.XYZ</span>
+          </div>
+        </div>
+        <div style={{ position: 'absolute', left: 76, top: 62 }}>
+          <Wordmark width={296} />
+        </div>
+        <div style={HAIRLINE} />
+      </Frame>
+
+      {/*
+        * 6 — thread post 4: what a level actually buys.
+        *
+        * The same Raider at one, five and nine, drawn by the same `drawUnit`
+        * the raid uses. Leather, then banded steel, then plate and a plume.
+        * A number in a menu cannot say this and a screenshot of a menu is what
+        * everybody else posts.
+        */}
+      <Frame id="levels" w={W} h={H} note="thread 4 — every level is a different soldier">
+        <Hold shot={{ w: W, h: H, gx: 28.5, gy: 28.5, zoom: 0.8 }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(9,15,25,.80)' }} />
+
+        <div style={{
+          position: 'absolute', inset: 0, padding: '58px 72px 54px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+        }}
+        >
+          <Wordmark width={300} />
+          <div style={{ width: 760, marginTop: 22 }}>
+            <Rule>NINE LEVELS · EVERY ONE A DIFFERENT SOLDIER</Rule>
+          </div>
+
+          <div style={{
+            marginTop: 30, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            gap: 30,
+          }}
+          >
+            {[1, 5, 9].map((lv, i) => (
+              <div key={lv} style={{ display: 'flex', alignItems: 'flex-end', gap: 30 }}>
+                <div style={{
+                  ...PLATE, padding: '16px 10px 14px', width: 300,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                }}
+                >
+                  {/* Wide enough for the blade: the first pass cut it off at
+                    * the edge of its own canvas. */}
+                  <Figure type="raider" level={lv} scale={2.2} w={280} h={282} />
+                  <div style={{
+                    fontFamily: 'Arial', fontWeight: 900, fontSize: 15, letterSpacing: 3.4,
+                    color: lv === 9 ? GOLD : '#8fa6c4', marginTop: 6,
+                  }}
+                  >
+                    LEVEL {lv}
+                  </div>
+                </div>
+                {i < 2 && (
+                  <div style={{
+                    fontFamily: 'Arial', fontWeight: 900, fontSize: 44, color: GOLD,
+                    paddingBottom: 128,
+                  }}
+                  >
+                    ›
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ flex: 1 }} />
+          <div style={PILL}>IRONVOW.XYZ</div>
+        </div>
+        <div style={HAIRLINE} />
+      </Frame>
+
+      {/*
+        * 7 — thread post 5: the war.
+        *
+        * Two holds, and the only difference between them is whose they are:
+        * the same renderer, the same buildings, the player's blue on the left
+        * and the enemy's red on the right. Ten a side for a day.
+        */}
+      <Frame id="war" w={W} h={H} note="thread 5 — clan war">
+        <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+          <div style={{ position: 'relative', width: W / 2, height: H, overflow: 'hidden' }}>
+            <Hold shot={{ w: W / 2, h: H, gx: 28.5, gy: 28.5, zoom: 0.55 }} />
+            <div style={LIGHT} />
+          </div>
+          <div style={{ position: 'relative', width: W / 2, height: H, overflow: 'hidden' }}>
+            <Hold shot={{ w: W / 2, h: H, gx: 28.5, gy: 28.5, zoom: 0.55, enemy: true }} />
+            <div style={LIGHT} />
+          </div>
+        </div>
+
+        <div style={{
+          position: 'absolute', left: W / 2 - 2, top: 0, bottom: 0, width: 4,
+          background: `linear-gradient(180deg, rgba(232,178,60,.2), ${GOLD} 16%, ${GOLD} 84%, rgba(232,178,60,.2))`,
+          boxShadow: '0 0 34px rgba(232,178,60,.65)',
+        }}
+        />
+
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'linear-gradient(0deg, rgba(6,14,22,.88), rgba(6,14,22,0) 340px),'
+            + 'linear-gradient(180deg, rgba(6,14,22,.86), rgba(6,14,22,.24) 210px, rgba(6,14,22,0) 320px)',
+        }}
+        />
+
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 66, textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'Arial', fontWeight: 900, fontSize: 15, letterSpacing: 5, color: GOLD,
+          }}
+          >
+            CLAN WAR
+          </div>
+          <div style={{
+            fontFamily: 'Arial', fontWeight: 700, fontSize: 30, color: '#f2e4c4', marginTop: 12,
+          }}
+          >
+            Ten a side. Two attacks each. Twenty-four hours.
+          </div>
+        </div>
+
+        <div style={{
+          position: 'absolute', left: 0, right: 0, bottom: 62,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+        }}
+        >
+          <div style={{
+            fontFamily: 'Arial', fontWeight: 700, fontSize: 20, color: '#c3d4ea',
+          }}
+          >
+            The stars are counted by the server, not by anybody's word for it.
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <Wordmark width={230} />
+            <div style={PILL}>IRONVOW.XYZ</div>
+          </div>
         </div>
         <div style={HAIRLINE} />
       </Frame>

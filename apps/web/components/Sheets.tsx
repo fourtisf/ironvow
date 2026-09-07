@@ -53,14 +53,19 @@ const VANITY: BuildingType[] = ['statue', 'brazier', 'standard'];
 
 export interface BuildSheetProps {
   player: PlayerState;
+  /** The crew, for the hire row. Null until /progression has answered. */
+  crew: CrewView | null;
   onClose: () => void;
   onPick: (type: BuildingType) => void;
+  onHireBuilder: () => void;
   /** The guide: which card to light up, and the line to say above the grid. */
   highlight?: BuildingType | null;
   hint?: string | null;
 }
 
-export function BuildSheet({ player, onClose, onPick, highlight = null, hint = null }: BuildSheetProps) {
+export function BuildSheet({
+  player, crew, onClose, onPick, onHireBuilder, highlight = null, hint = null,
+}: BuildSheetProps) {
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
   // Hidden entirely until the Keep unlocks one, rather than shown greyed out:
   // a new player has enough to read without a locked row of ornaments.
@@ -76,6 +81,42 @@ export function BuildSheet({ player, onClose, onPick, highlight = null, hint = n
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
       {hint && <div className="sheetHint">{hint}</div>}
+
+      {/*
+        * The crew, above the grid.
+        *
+        * A hold starts with two builders and can hire up to ten. It sits here
+        * rather than in a settings menu because it is the same decision as
+        * everything below it — gold, spent on the hold — and because "why can
+        * I only build one thing at a time" is a question a player asks while
+        * looking at exactly this sheet.
+        */}
+      {crew && (
+        <div className={`qrow${crew.nextCost !== null && player.gold >= crew.nextCost ? '' : ' done'}`}>
+          <div className="qi">
+            <h4>BUILDERS · {player.buildersFree} free of {crew.builders}</h4>
+            <p>
+              {crew.nextCost === null
+                ? 'Your crew is as large as it gets.'
+                : `Another builder means another job at once, for good · ${fmt(crew.nextCost)} gold`}
+            </p>
+            <div className="qbarBg">
+              <div className="qbar" style={{ width: `${(crew.builders / crew.max) * 100}%` }} />
+            </div>
+          </div>
+          {crew.nextCost === null ? (
+            <span className="qrw">MAX</span>
+          ) : (
+            <button
+              className={`btn gold${player.gold >= crew.nextCost ? '' : ' grey'}`}
+              disabled={player.gold < crew.nextCost}
+              onClick={onHireBuilder}
+            >
+              HIRE
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="grid">{BUILDABLE.map(card)}</div>
 
@@ -116,7 +157,15 @@ export function BuildSheet({ player, onClose, onPick, highlight = null, hint = n
   }
 }
 
+export interface CrewView {
+  builders: number;
+  max: number;
+  /** Null once the crew is full. */
+  nextCost: number | null;
+}
+
 export interface ProgressionView {
+  crew: CrewView;
   hero: {
     name: string; level: number; maxLevel: number; unlockKeepLevel: number;
     unlocked: boolean; upgradeCost: Cost; readyAt: string | null; respawnMinutes: number;

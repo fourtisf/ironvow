@@ -297,11 +297,8 @@ function drawCliff(d: Draw, c: [Corner, Corner, Corner, Corner]): void {
   ctx.beginPath(); ctx.moveTo(L[0], L[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(R[0], R[1]); ctx.stroke();
 }
 
-/**
- * Paint the ground. `detail` is the ground cover — off on low quality, where
- * the field is the checkerboard and the cliff and nothing more.
- */
-export function drawTerrain(d: Draw, ter: Terrain, detail = true): void {
+/** Paint the ground: the field, the apron, the cliff and the ground cover. */
+export function drawTerrain(d: Draw, ter: Terrain): void {
   const { ctx, cam, vp } = d;
   const z = cam.z;
 
@@ -324,7 +321,7 @@ export function drawTerrain(d: Draw, ter: Terrain, detail = true): void {
     fillGrass(d, C.grass, C.grassB, true);
   }
 
-  if (detail) {
+  {
     for (const g of ter.ground) blitDeco(d, g);
   }
 

@@ -33,6 +33,10 @@ model Player {
   trophies  Int      @default(0)
   keepLevel Int      @default(1)
 
+  /// How many jobs this hold can run at once. Starts at two and is hired up
+  /// to ten with gold; see STARTING_BUILDERS and builderCost in @ironvow/config.
+  builders  Int      @default(2)
+
   /// Production is lazy: this is the watermark the next read accrues from.
   lastTickAt  DateTime  @default(now())
   shieldUntil DateTime?

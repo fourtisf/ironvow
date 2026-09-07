@@ -46,7 +46,7 @@ type BattleEntity =
 
 function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
-  drawTerrain(d, w.terrain, w.quality === 'high');
+  drawTerrain(d, w.terrain);
 
   // Scouting: draw the defender's frozen base in enemy livery instead of the
   // player's own, so the layout can actually be studied before committing.
@@ -56,7 +56,7 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   }
 
   const ents: BaseEntity[] = [];
-  if (w.quality === 'high') {
+  {
     w.terrain.deco.forEach((deco, i) => {
       if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
     });
@@ -131,7 +131,7 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
     drawCollectBubble(w, d, b);
   }
-  if (w.quality === 'high') drawAtmosphere(d);
+  drawAtmosphere(d);
   drawPopups(w, d);
 }
 
@@ -160,7 +160,7 @@ function linkOf(walls: Set<number>, gx: number, gy: number): number {
 function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
   const snapshot = w.preview!;
   const ents: BattleEntity[] = [];
-  if (w.quality === 'high') {
+  {
     w.terrain.deco.forEach((deco, i) => {
       if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
     });
@@ -181,16 +181,16 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
         undefined, undefined, linkOf(walls, b.gx, b.gy));
     }
   }
-  if (w.quality === 'high') drawAtmosphere(d);
+  drawAtmosphere(d);
 }
 
 function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   const battle = w.battle!;
-  drawTerrain(d, w.terrain, w.quality === 'high');
+  drawTerrain(d, w.terrain);
 
   const ents: BattleEntity[] = [];
-  if (w.quality === 'high') {
+  {
     w.terrain.deco.forEach((deco, i) => {
       if (onScreen(w.cam, w.vp, deco.gx, deco.gy)) ents.push({ d: deco.gx + deco.gy, k: 'deco', i });
     });
@@ -254,7 +254,7 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   for (const p of battle.projs) {
     drawProjectile(d, { x: p.x, y: p.y, kind: p.kind });
   }
-  if (w.quality === 'high') drawAtmosphere(d);
+  drawAtmosphere(d);
 }
 
 /**
@@ -262,8 +262,6 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
  *
  * The body is a blit of a canvas rasterised once per (type, level, livery,
  * zoom); only banners, smoke and a cannon's barrel are still real path work.
- * On low quality the decorative half is dropped, but the barrel is not — it
- * points at what the cannon is shooting, which is information, not garnish.
  */
 function drawStruct(
   w: World, d: Draw, type: BuildingType, level: number, enemy: boolean,
@@ -271,7 +269,7 @@ function drawStruct(
 ): void {
   const [ax, ay] = w2s(w.cam, w.vp, isoX(gx, gy), isoY(gx, gy));
   blitBuilding(d, type, level, enemy, ax, ay, link);
-  if (w.quality === 'high' ? ANIMATED.has(type) : type === 'cannon') {
+  if (ANIMATED.has(type)) {
     drawBuildingFx(d, { type, gx, gy, level, aim, recoil }, enemy);
   }
 }

@@ -5,7 +5,7 @@ import { TH, TW, TYPES, ZOOM_MIN, clamp } from '@ironvow/config';
 import { generateOpponent } from '@ironvow/sim';
 import { centerOn } from '../lib/render/camera';
 import { renderFrame } from '../lib/game/render';
-import { createWorld, decayFx, resizeWorld, setQuality, showPreview, type World, type WorldEvents } from '../lib/game/world';
+import { createWorld, decayFx, resizeWorld, showPreview, type World, type WorldEvents } from '../lib/game/world';
 
 /**
  * The field behind the door.
@@ -46,12 +46,6 @@ export function AttractField() {
     if (!ctx) return;
 
     const world: World = createWorld(NOWHERE);
-    try {
-      const saved = localStorage.getItem('ironvow_quality');
-      if (saved === 'low') setQuality(world, 'low');
-    } catch {
-      // Full quality, same as the game's default.
-    }
 
     // A hold worth looking at: the generator's mid-game stage has walls,
     // defences and producers rather than the three buildings a new player has.

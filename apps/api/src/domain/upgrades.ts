@@ -1,6 +1,8 @@
 import {
   HERO_MAX_LEVEL,
+  MAX_BUILDERS,
   TROOP_MAX_LEVEL,
+  builderCost,
   countOf,
   heroUnlocked,
   heroUpgradeCost,
@@ -29,7 +31,8 @@ export type UpgradeError =
   | 'noLab'
   | 'troopAtMax'
   | 'troopAtLabCap'
-  | 'noSuchTroop';
+  | 'noSuchTroop'
+  | 'crewFull';
 
 /**
  * Upgrades carry their own verdict rather than reusing the command one.
@@ -107,4 +110,36 @@ export const UPGRADE_MESSAGE: Record<UpgradeError, string> = {
   troopAtMax: 'Already at the highest level.',
   troopAtLabCap: 'Raise the War Lab first.',
   noSuchTroop: 'No such troop.',
+  crewFull: 'Your crew is already ten builders strong.',
 };
+
+/* ------------------------------------------------------------ builders --- */
+
+export interface BuilderHirePlan {
+  from: number;
+  to: number;
+  cost: Cost;
+}
+
+export interface BuilderView extends PlayerView {
+  builders: number;
+}
+
+/**
+ * Hire the next builder.
+ *
+ * Gold only, and no Keep gate: a builder is not a building, it is how fast the
+ * hold works, and a player who has saved for one has already earned it. The
+ * ceiling is the crew size rather than the Keep, so this is the one upgrade in
+ * the game a new hold can save toward from its first hour.
+ */
+export function planBuilderHire(player: BuilderView): UpgradeVerdict<BuilderHirePlan> {
+  if (player.builders >= MAX_BUILDERS) return fail('crewFull');
+  const price = builderCost(player.builders);
+  if (price === null) return fail('crewFull');
+
+  const cost: Cost = { g: price, i: 0 };
+  if (!canAfford(player, cost)) return fail('cannotAfford');
+
+  return { ok: true, value: { from: player.builders, to: player.builders + 1, cost } };
+}

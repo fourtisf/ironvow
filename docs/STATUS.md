@@ -48,7 +48,7 @@ the other side of it benefiting. So these are a rhythm, not a wall:
 
 | | |
 |---|---|
-| Builders | 3, free, from the first minute. Never purchasable. |
+| Builders | 2 from the first minute, hired up to 10 for gold. Never purchasable with money. |
 | Ramparts | No timer at all, so a run of twenty stays one fluid action |
 | First Gold Mine | 15 seconds |
 | A mid-game upgrade | Under 90 seconds |
@@ -835,6 +835,98 @@ Verified on a real boot: a hold on 9,300 gold and 20 iron came back with 9,300
 gold — already above the floor, so untouched — and 3,600 iron. Set back to 5
 iron and booted again, it stayed at 5. `apps/api/test/backfill.test.ts` asserts
 both, and that a hold already ahead of the floor is left alone.
+
+## A crew you hire, one quality, and music that is written down
+
+Three things ALFA asked for in one sitting.
+
+### The graphics switch is gone
+
+It offered FULL or LOW and it was there for a real reason: when it was added, a
+full base ran at 10 fps against a CPU throttled to stand in for a mid-range
+phone. Since then the buildings and then the troops were both moved into the
+sprite cache, and the numbers it was protecting against are not the numbers any
+more — 28 units at full detail now cost 16.7 ms a frame unthrottled and 33.3 ms
+at 4x, which is what the *reduced* setting used to cost. A switch that trades
+away trees and banners to buy back time the renderer no longer spends is a
+worse game for nothing, so it is removed and everything runs at full.
+
+That took the branch with it. `drawTerrain` no longer takes a `detail` flag,
+`drawStruct` no longer picks between the animated half and a cannon barrel, and
+`World` has no `quality` field: one path through the renderer instead of two.
+
+### Builders are hired, not handed out
+
+A hold used to start with three builders and could never have a fourth. That is
+two problems at once: nothing to spend a windfall on in the first week, and the
+one upgrade in the genre a player actually *feels* — a third builder — was
+already spent before they arrived.
+
+Now a hold starts with **two** and hires up to **ten**, for gold. The price
+starts at 4,000 for the third and rises 85% each time, so the tenth is about
+297,000: steep enough that each one is a decision rather than a purchase made
+the moment it is affordable, and the only upgrade in the game a brand-new hold
+can save toward from its first hour. No Keep gate — a builder is not a
+building, it is how fast the hold works — and gold only, so an iron-poor hold
+can still buy its way to building faster.
+
+`BUILDERS` was a constant read at the point of use, which is exactly the shape
+of thing that cannot become per-hold without touching everything that read it:
+`buildersFree` now takes the crew size, `PlayerView` carries it, and the column
+carries a default of two. The migration gives **existing holds three**, because
+that is what they have been playing with since the first day and taking one
+away would be a balance change dressed up as a migration.
+
+The crew sits at the top of the BUILD sheet rather than in a settings menu,
+because it is the same decision as everything under it — gold, spent on the
+hold — and because "why can I only build one thing at a time" is a question a
+player asks while looking at exactly that screen.
+
+### The music was bad, and it is worth saying why
+
+"musik sangat jelek." It was, and all three faults are the ones generative game
+music usually has:
+
+1. **The melody was random.** Notes were picked from the chord each bar so that
+   "nothing ever repeats exactly". That is precisely backwards: music is
+   memorable *because* it repeats — a phrase you have heard before coming back,
+   changed a little. Random notes over a chord are noodling. Both themes are
+   now written out note by note.
+2. **The chords were not chords.** The pad voiced `SCALE[degree]` against
+   `SCALE[degree + 2]`, which is a third only when the degree happens to land
+   right; at the sixth it was an octave. Triads are built by stacking scale
+   degrees now, which is also what keeps every chord diatonic.
+3. **Everything was a bare oscillator.** A sine with an envelope is a test
+   tone. There is a reverb now — two and a half seconds of decaying noise in a
+   convolver — and the instruments are small stacks: two detuned saws through a
+   moving filter for strings, a sawtooth with vibrato that fades in for a horn,
+   two triangles through a falling bandpass for a pluck.
+
+And one that is not about notes: bars were scheduled with `setTimeout`, which
+drifts by tens of milliseconds. Timing jitter is heard as sloppiness even by
+people who cannot name what is wrong. It runs a lookahead scheduler now,
+queueing onto the audio clock 0.4 s ahead, which is sample-accurate.
+
+The score is modal, which is what makes it sound medieval rather than merely
+minor. The hold is **D Dorian** — i–VII–IV–i, Dm–C–G–Dm, the major fourth
+against a minor tonic — at 68 bpm, with no drums at all, because silence is
+what makes a base feel like somewhere you are safe. The raid is **D Aeolian**
+at 132 with war drums, i–VI–VII–i. Same tonic, one note different: the sixth.
+That single semitone is the whole difference between a village at peace and one
+under siege, and it is why both moods sound like the same place.
+
+Mood changes duck the master for a quarter of a second rather than cutting,
+because two keys and two tempos colliding on one frame is the worst sound the
+game can make and it would happen at exactly the moment a raid opens.
+
+`apps/web/test/music.test.ts` checks the parts of this that are wrong silently:
+that each melody is exactly as long as its chord loop (a tune that drifts a beat
+against its own chords plays quite happily and is wrong forever), that every
+note lands on a half beat the sequencer actually looks at, that the two modes
+differ in exactly one note, and that every chord builds a real triad. Measured
+in the browser with an analyser spliced in front of the destination: the hold
+runs at 0.05 RMS, the cut into a raid holds level rather than dropping to
+silence, and the raid peaks at 0.13 — louder and punchier, as a raid should be.
 
 ## Numbers that need sign-off
 

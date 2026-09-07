@@ -7,7 +7,6 @@ import type { Draw } from './primitives';
  * What moves over the hold that is not part of it: cloud shadows crossing the
  * field, and now and then a flight of birds. Neither has any effect on the
  * game; both are what makes a still scene look alive rather than paused.
- * High quality only.
  */
 
 /* ------------------------------------------------------------- clouds --- */

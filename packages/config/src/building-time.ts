@@ -13,8 +13,36 @@ import { costOf, type BuildingType } from './buildings.js';
  * All TUNABLE.
  */
 
-/** Builders, free, from the first minute. Never purchasable. */
-export const BUILDERS = 3;
+/**
+ * Builders.
+ *
+ * ALFA's answer to §8.4 was "free, no in-app purchases", and that still holds:
+ * nothing here is bought with money. But a hold that starts with every builder
+ * it will ever have has nothing to spend a windfall on in its first week, and
+ * a third builder arriving is one of the few upgrades in the genre a player
+ * actually feels. So a hold starts with two and can hire up to ten, for gold.
+ *
+ * The price is steep and steepening — the tenth costs about a hundred times
+ * the third — because a builder is permanent and compounding, and the point of
+ * the curve is to make each one a decision rather than a purchase you make the
+ * moment you can.
+ */
+export const STARTING_BUILDERS = 2;
+export const MAX_BUILDERS = 10;
+
+/**
+ * Gold to hire the builder after the ones already owned.
+ *
+ * `owned` is the current count, so the first call at 2 prices the third.
+ * Returns null once the crew is full, which is what the caller shows instead
+ * of a price.
+ */
+export function builderCost(owned: number): number | null {
+  if (owned >= MAX_BUILDERS) return null;
+  // 4,000 for the third, ×1.85 each after: 7,400, 13,690, 25,300, and so on to
+  // about 430,000 for the tenth.
+  return Math.round(4000 * Math.pow(1.85, Math.max(0, owned - STARTING_BUILDERS)));
+}
 
 /** Nothing takes less than this once it has a timer at all. */
 export const MIN_BUILD_SECONDS = 5;
@@ -98,8 +126,8 @@ export function buildersInUse(buildings: readonly TimedBuilding[]): number {
   return n;
 }
 
-export function buildersFree(buildings: readonly TimedBuilding[]): number {
-  return Math.max(0, BUILDERS - buildersInUse(buildings));
+export function buildersFree(buildings: readonly TimedBuilding[], total: number): number {
+  return Math.max(0, total - buildersInUse(buildings));
 }
 
 /** A building still going up produces nothing and fires nothing. */

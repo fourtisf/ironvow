@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { BUILDERS, buildSeconds, finishNowCost } from '@ironvow/config';
+import { STARTING_BUILDERS, buildSeconds, finishNowCost } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './helpers.js';
 
@@ -7,7 +7,8 @@ import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './
  * Build timers and builders.
  *
  * ALFA's answer to spec S8.4 was free, no in-app purchases, so these are a
- * rhythm rather than a wall: three builders from the first minute, ramparts
+ * rhythm rather than a wall: two builders from the first minute and more for
+ * gold, ramparts
  * with no timer at all, and nothing in the game longer than ten minutes.
  */
 
@@ -145,22 +146,28 @@ describe.skipIf(!hasDatabase)('builders', () => {
     expect(row.level).toBe(2);
     expect(row.completesAt).toBeNull();
     expect(row.upgradingTo).toBeNull();
-    expect(me.buildersFree).toBe(BUILDERS);
+    expect(me.buildersFree).toBe(STARTING_BUILDERS);
   });
 
-  it('runs out of builders at three, and ramparts need none', async () => {
+  it('runs out of builders at the crew size, and ramparts need none', async () => {
     const playerId = await makePlayer('Foreman', { keepLevel: 9, gold: 10_000_000, iron: 10_000_000 });
     const cookie = await loginAs(app, playerId);
 
-    for (const [i, spot] of ([[8, 8], [12, 8], [16, 8]] as const).entries()) {
+    // Driven by the constant rather than a literal: the crew starts at two now
+    // and is hired up from there, so a test that hard-coded three would have to
+    // be rewritten every time the opening changes.
+    const spots = [[8, 8], [12, 8], [16, 8], [20, 8], [24, 8]] as const;
+    for (let i = 0; i < STARTING_BUILDERS; i++) {
+      const spot = spots[i]!;
       const res = await app.inject({
         method: 'POST', url: '/build', headers: { cookie }, payload: { type: 'mine', gx: spot[0], gy: spot[1] },
       });
       expect(res.statusCode, `mine ${i}`).toBe(200);
     }
 
+    const oneTooMany = spots[STARTING_BUILDERS]!;
     const fourth = await app.inject({
-      method: 'POST', url: '/build', headers: { cookie }, payload: { type: 'mine', gx: 20, gy: 8 },
+      method: 'POST', url: '/build', headers: { cookie }, payload: { type: 'mine', gx: oneTooMany[0], gy: oneTooMany[1] },
     });
     expect(fourth.statusCode).toBe(409);
     expect(fourth.json().error).toBe('noBuilderFree');
@@ -205,7 +212,7 @@ describe.skipIf(!hasDatabase)('builders', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().cost).toBeGreaterThan(0);
-    expect(res.json().player.buildersFree).toBe(BUILDERS);
+    expect(res.json().player.buildersFree).toBe(STARTING_BUILDERS);
 
     const after = await db.player.findUniqueOrThrow({ where: { id: playerId } });
     expect(after.gold).toBe(before.gold - BigInt(res.json().cost));
@@ -225,7 +232,12 @@ describe.skipIf(!hasDatabase)('builders', () => {
   });
 
   it('does not unlock anything until a Keep upgrade actually completes', async () => {
-    const playerId = await makePlayer('Ambitious', { keepLevel: 1, gold: 10_000_000, iron: 10_000_000 });
+    // A big crew, because this test is about the Keep's count cap and not
+    // about builders: with the opening two, the Keep's own job would take one
+    // and the second mine would be refused for the wrong reason.
+    const playerId = await makePlayer('Ambitious', {
+      keepLevel: 1, gold: 10_000_000, iron: 10_000_000, builders: 6,
+    });
     const cookie = await loginAs(app, playerId);
     const keep = await db.building.findFirstOrThrow({ where: { playerId, type: 'keep' } });
 
@@ -233,7 +245,8 @@ describe.skipIf(!hasDatabase)('builders', () => {
     const during = (await app.inject({ method: 'GET', url: '/me', headers: { cookie } })).json();
     expect(during.keepLevel).toBe(1);
 
-    // A Keep 1 permits three mines; the fourth must still be refused.
+    // A Keep 1 permits three mines, and the hold starts with one: the third
+    // built is one too many.
     for (const gx of [8, 12]) {
       await app.inject({ method: 'POST', url: '/build', headers: { cookie }, payload: { type: 'mine', gx, gy: 8 } });
     }

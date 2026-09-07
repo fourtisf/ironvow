@@ -189,6 +189,7 @@ export const api = {
   }> => post(`/raid/${raidId}/submit`, { commands, clientChecksum, clientStars }),
 
   progression: (): Promise<{
+    crew: { builders: number; max: number; nextCost: number | null };
     hero: {
       name: string; level: number; maxLevel: number; unlockKeepLevel: number;
       unlocked: boolean; stats: { hp: number; dmg: number; cd: number; spd: number; rng: number };
@@ -201,6 +202,7 @@ export const api = {
   }> => call('/progression'),
 
   upgradeHero: (): Promise<CommandResponse & { toLevel: number }> => post('/hero/upgrade'),
+  hireBuilder: (): Promise<CommandResponse & { to: number }> => post('/builder/hire'),
   upgradeTroop: (type: TroopType): Promise<CommandResponse & { toLevel: number }> =>
     post('/troop/upgrade', { type }),
 

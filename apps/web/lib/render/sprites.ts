@@ -66,7 +66,7 @@ const bounds = new Map<string, Bounds>();
 const cache = new Map<string, Sprite>();
 let cachePixels = 0;
 
-/** Only for tests and the quality switch: drop everything and start over. */
+/** Only for the tests: drop everything and start over. */
 export function clearSpriteCache(): void {
   cache.clear();
   cachePixels = 0;

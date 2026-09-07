@@ -1,5 +1,4 @@
 import {
-  BUILDERS,
   DAILY_COUNTERS,
   QUEST_COUNTERS,
   dayIndexOf,
@@ -47,6 +46,8 @@ export interface LoadedPlayer extends PlayerView {
   buildings: (OwnedBuildingRow & { stock: number })[];
   storageCap: number;
   /** Builders not currently occupied. */
+  /** The hold's crew size, which `PlayerView` needs by that name. */
+  builders: number;
   buildersFree: number;
   buildersTotal: number;
   armyCap: number;
@@ -259,10 +260,11 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     queue: queueTypes,
     queueJobs: resolved.pending,
     storageCap: storageCapOf(owned),
+    builders: player.builders,
     buildersFree: buildersFree(buildings.map((b) => ({
       type: b.type, level: b.level, completesAt: b.completesAt, upgradingTo: b.upgradingTo,
-    }))),
-    buildersTotal: BUILDERS,
+    })), player.builders),
+    buildersTotal: player.builders,
     armyCap: armyCapOf(owned),
     armyUsed: armyUsedOf(army, queueTypes),
     counters,

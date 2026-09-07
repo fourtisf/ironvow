@@ -5,11 +5,9 @@
  *
  * Music and effects get sliders rather than switches, because the honest answer
  * for most people is neither on nor off — a game they play on a bus wants the
- * music quiet, not gone. Quality is a switch: there is no meaningful middle
+ * music quiet, not gone.
  * between drawing the trees and not.
  */
-
-export type Quality = 'high' | 'low';
 
 export type PushState = 'unsupported' | 'unavailable' | 'denied' | 'off' | 'on';
 
@@ -23,7 +21,6 @@ export interface LayoutSlot {
 export interface SettingsSheetProps {
   music: number;
   sfx: number;
-  quality: Quality;
   isGuest: boolean;
   playerName: string;
   push: PushState;
@@ -31,7 +28,6 @@ export interface SettingsSheetProps {
   busy: boolean;
   onMusic: (value: number) => void;
   onSfx: (value: number) => void;
-  onQuality: (value: Quality) => void;
   onPush: (on: boolean) => void;
   onTestPush: () => void;
   onSaveLayout: (slot: string) => void;
@@ -81,8 +77,8 @@ function Slider({
 }
 
 export function SettingsSheet({
-  music, sfx, quality, isGuest, playerName, push, layouts, busy,
-  onMusic, onSfx, onQuality, onPush, onTestPush, onSaveLayout, onApplyLayout,
+  music, sfx, isGuest, playerName, push, layouts, busy,
+  onMusic, onSfx, onPush, onTestPush, onSaveLayout, onApplyLayout,
   onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onReport, onClose,
 }: SettingsSheetProps) {
   const canPush = push !== 'unsupported' && push !== 'unavailable' && push !== 'denied';
@@ -98,23 +94,6 @@ export function SettingsSheet({
 
       <Slider label="MUSIC" hint="generated as you play, no download" value={music} onChange={onMusic} />
       <Slider label="EFFECTS" hint="coins, blows, collapses" value={sfx} onChange={onSfx} />
-
-      <div className="setRow">
-        <div className="setLabel">
-          <h4>GRAPHICS</h4>
-          <p>
-            {quality === 'high'
-              ? 'Full — trees, smoke and banners'
-              : 'Reduced — fewer moving parts, longer battery'}
-          </p>
-        </div>
-        <button
-          className={`btn${quality === 'high' ? '' : ' grey'}`}
-          onClick={() => onQuality(quality === 'high' ? 'low' : 'high')}
-        >
-          {quality === 'high' ? 'FULL' : 'LOW'}
-        </button>
-      </div>
 
       <div className="setRow">
         <div className="setLabel">

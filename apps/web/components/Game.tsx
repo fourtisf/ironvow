@@ -19,7 +19,6 @@ import {
   clearPreview,
   popup,
   setMode,
-  setQuality as applyQuality,
   showPreview,
   startPlacement,
   type World,
@@ -41,7 +40,7 @@ import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { Coach } from './Coach';
 import { HelpSheet } from './HelpSheet';
 import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
-import { SettingsSheet, type LayoutSlot, type Quality } from './Settings';
+import { SettingsSheet, type LayoutSlot } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Toast } from './Toast';
 
@@ -92,7 +91,6 @@ export function Game() {
   const [progression, setProgression] = useState<ProgressionView | null>(null);
   const [sfxLevel, setSfxLevel] = useState(1);
   const [musicLevel, setMusicLevel] = useState(0.35);
-  const [quality, setQuality] = useState<Quality>('high');
   const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
   const [push, setPush] = useState<PushState>('off');
   const [layouts, setLayouts] = useState<LayoutSlot[]>([]);
@@ -228,24 +226,11 @@ export function Game() {
     setSfxLevel(loadSoundPreference());
     setMusicLevel(loadMusicPreference());
     try {
-      const savedQuality = localStorage.getItem('ironvow_quality');
-      if (savedQuality === 'low' || savedQuality === 'high') setQuality(savedQuality);
-    } catch {
-      // Falls back to full quality.
-    }
-    try {
       setGuestNoteDismissed(localStorage.getItem('ironvow_guest_note') === 'off');
     } catch {
       // Private browsing refuses storage; the note simply reappears next visit.
     }
   }, []);
-
-  // The saved preference is read after the first paint, by which time the
-  // canvas has already been created at full quality; without this the setting
-  // only took effect when the player toggled it by hand.
-  useEffect(() => {
-    if (worldRef.current) applyQuality(worldRef.current, quality);
-  }, [quality]);
 
   const loadProgression = useCallback(async () => {
     try {
@@ -839,7 +824,6 @@ export function Game() {
         events={events}
         onReady={(w) => {
           worldRef.current = w;
-          applyQuality(w, quality);
           if (player) w.player = player;
           centerOnKeep(w);
         }}
@@ -974,9 +958,15 @@ export function Game() {
       {sheet === 'build' && player && (
         <BuildSheet
           player={player}
+          crew={progression?.crew ?? null}
           highlight={objective.buildType ?? null}
           hint={objective.buildType ? objective.hint ?? null : null}
           onClose={() => setSheet(null)}
+          onHireBuilder={() => {
+            void runCommand(() => api.hireBuilder()).then((r) => {
+              if (r) { sfx.up(); say(`A ${r.to === 3 ? 'third' : r.to === 4 ? 'fourth' : `${r.to}th`} builder joins the crew`); void loadProgression(); }
+            });
+          }}
           onPick={(type: BuildingType) => {
             if (!world) return;
             setSheet(null);
@@ -1033,7 +1023,6 @@ export function Game() {
         <SettingsSheet
           music={musicLevel}
           sfx={sfxLevel}
-          quality={quality}
           isGuest={player.isGuest}
           playerName={player.name}
           onMusic={(v) => {
@@ -1046,15 +1035,6 @@ export function Game() {
             setSfxVolume(v);
             // Play the confirmation after raising it, so the slider proves itself.
             if (v > 0) { unlockAudio(); sfx.coin(); }
-          }}
-          onQuality={(q) => {
-            setQuality(q);
-            if (worldRef.current) applyQuality(worldRef.current, q);
-            try {
-              localStorage.setItem('ironvow_quality', q);
-            } catch {
-              // Falls back to full quality next session.
-            }
           }}
           push={push}
           layouts={layouts}

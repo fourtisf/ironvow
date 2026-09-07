@@ -37,6 +37,12 @@ export interface PlayerView {
   buildings: OwnedBuildingRow[];
   army: Partial<Record<TroopType, number>>;
   queue: readonly TroopType[];
+  /**
+   * How many jobs this hold can run at once. A per-hold number now that
+   * builders are hired rather than handed out, so it has to travel with the
+   * player rather than be read from a constant at the point of use.
+   */
+  builders: number;
 }
 
 export interface OwnedBuildingRow extends PlacedBuilding {
@@ -119,7 +125,7 @@ export function planBuild(
   const seconds = buildSeconds(type, 0, owned);
   // A rampart needs no builder, so a run of them can be laid while every
   // builder is busy elsewhere.
-  if (seconds > 0 && buildersFree(player.buildings.map(timed)) === 0) return fail('noBuilderFree');
+  if (seconds > 0 && buildersFree(player.buildings.map(timed), player.builders) === 0) return fail('noBuilderFree');
 
   return pass({ type, gx, gy, cost, seconds });
 }
@@ -159,7 +165,7 @@ export function planUpgrade(player: PlayerView, buildingId: string): Verdict<Upg
   if (!canAfford(player, cost)) return fail('cannotAfford');
 
   const seconds = buildSeconds(b.type, b.level, owned);
-  if (seconds > 0 && buildersFree(player.buildings.map(timed)) === 0) return fail('noBuilderFree');
+  if (seconds > 0 && buildersFree(player.buildings.map(timed), player.builders) === 0) return fail('noBuilderFree');
 
   return pass({ buildingId, type: b.type, fromLevel: b.level, toLevel: b.level + 1, cost, seconds });
 }

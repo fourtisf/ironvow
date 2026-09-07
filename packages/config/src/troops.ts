@@ -66,7 +66,22 @@ export function isRanged(type: TroopType): boolean {
   return TROOP[type].rng > RANGED_THRESHOLD;
 }
 
-/** Warband capacity contributed by one Barracks. */
+/**
+ * Warband capacity contributed by one Muster Field.
+ *
+ * Two level-1 fields — what a new hold is given — come to sixteen slots, a
+ * little over the fourteen the opening Barracks used to hand over, so the
+ * tutorial's five Raiders still fit and then some. Ten level-9 fields come to
+ * 320, which is where the old ceiling of five level-9 Barracks stood.
+ */
+export function campSlots(level: number): number {
+  return 5 + level * 3;
+}
+
+/**
+ * What a Barracks used to contribute, kept only for the Inspector's line about
+ * an existing one. Capacity comes from the Muster Field now; see CAMP_NOTE.
+ */
 export function barracksSlots(level: number): number {
   return 8 + level * 6;
 }

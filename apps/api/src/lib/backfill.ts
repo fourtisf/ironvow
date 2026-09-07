@@ -1,5 +1,6 @@
-import { START_GOLD, START_IRON } from '@ironvow/config';
+import { START_GOLD, START_IRON, STARTING_CAMPS } from '@ironvow/config';
 import type { FastifyBaseLogger } from 'fastify';
+import { findFreeSpot } from '../domain/placement.js';
 import { prisma } from './prisma.js';
 
 /**
@@ -53,4 +54,63 @@ export async function backfillOpeningPurse(log: FastifyBaseLogger): Promise<void
     { holds: lifted, gold: START_GOLD, iron: START_IRON },
     'lifted existing holds to the current opening purse',
   );
+}
+
+const CAMPS_KEY = 'backfill:muster-fields-v1';
+
+/**
+ * Give every existing hold the Muster Fields a new one is created with.
+ *
+ * Warband capacity moved off the Barracks and onto the Muster Field
+ * (CAMP_NOTE in @ironvow/config), and a hold raised before that change owns no
+ * fields at all. Left alone, every player who has ever logged in would open the
+ * game to a warband capacity of zero, an army over its own limit, and a TRAIN
+ * button that refuses. That is not a balance change anyone would read as one;
+ * it is the game breaking.
+ *
+ * So each hold is topped up to STARTING_CAMPS, on free ground next to its own
+ * Keep. It is a floor, like the purse above: a hold that has already bought
+ * fields is left exactly as it is.
+ */
+export async function backfillMusterFields(log: FastifyBaseLogger): Promise<void> {
+  const done = await prisma.serverSetting.findUnique({ where: { key: CAMPS_KEY } });
+  if (done) return;
+
+  const holds = await prisma.player.findMany({
+    select: { id: true, buildings: { select: { id: true, type: true, gx: true, gy: true } } },
+  });
+
+  let granted = 0;
+  for (const hold of holds) {
+    const owned = hold.buildings.filter((b) => b.type === 'camp').length;
+    if (owned >= STARTING_CAMPS) continue;
+
+    // Placed off the Keep so the fields land where the player is looking,
+    // and threaded through the same free-spot search a new base is seeded
+    // with — including the ones added in this loop, or two would stack.
+    const keep = hold.buildings.find((b) => b.type === 'keep');
+    const placed = hold.buildings.map((b) => ({
+      id: b.id, type: b.type as Parameters<typeof findFreeSpot>[0], gx: b.gx, gy: b.gy,
+    }));
+    for (let i = owned; i < STARTING_CAMPS; i++) {
+      const spot = findFreeSpot('camp', keep?.gx ?? 27, (keep?.gy ?? 27) + 4, placed);
+      // A hold with no room left keeps what it has rather than failing the
+      // boot: it is one player short of a field, not a server that will not
+      // start. They can still buy one after moving something.
+      if (!spot) break;
+      const row = await prisma.building.create({
+        data: { playerId: hold.id, type: 'camp', gx: spot.gx, gy: spot.gy, level: 1 },
+        select: { id: true },
+      });
+      placed.push({ id: row.id, type: 'camp', gx: spot.gx, gy: spot.gy });
+      granted++;
+    }
+  }
+
+  await prisma.$executeRaw`
+    INSERT INTO "ServerSetting" ("key", "value", "updatedAt")
+    VALUES (${CAMPS_KEY}, ${JSON.stringify({ each: STARTING_CAMPS, fields: granted })}::jsonb, now())
+    ON CONFLICT ("key") DO NOTHING`;
+
+  log.info({ fields: granted, holds: holds.length }, 'granted existing holds their Muster Fields');
 }

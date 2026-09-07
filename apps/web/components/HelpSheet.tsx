@@ -45,7 +45,7 @@ const SECTIONS: { h: string; lines: string[] }[] = [
   {
     h: 'Your army',
     lines: [
-      'Barracks train troops and set how many your warband can hold. Train in ARMY; troops wait there until you raid.',
+      'Barracks train troops and unlock new ones. Muster Fields are the ground the warband stands on and set how many you can hold — build more of them, and upgrade them, for a bigger army.',
       'Raiders are cheap and fast. Lancers hit hard. Archers stay back and shoot over walls. Rams go for ramparts. Scalers climb them.',
       'The War Lab raises a troop type’s level for good. Your hero can be sent in once per raid and rests afterwards.',
     ],

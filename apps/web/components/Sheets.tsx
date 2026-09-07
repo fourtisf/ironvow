@@ -48,7 +48,7 @@ function CostLine({ cost, affordable }: { cost: Cost; affordable: boolean }) {
  * there was no way to. A player could reach Keep 9 being told to build
  * something the game would not sell them.
  */
-const BUILDABLE: BuildingType[] = ['mine', 'forge', 'store', 'barr', 'lab', 'cannon', 'tower', 'wall'];
+const BUILDABLE: BuildingType[] = ['mine', 'forge', 'store', 'camp', 'barr', 'lab', 'cannon', 'tower', 'wall'];
 
 /** Bought to be looked at. Shown separately, and only once one is unlocked. */
 const VANITY: BuildingType[] = ['statue', 'brazier', 'standard'];

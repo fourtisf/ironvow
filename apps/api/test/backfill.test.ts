@@ -1,6 +1,6 @@
-import { START_GOLD, START_IRON } from '@ironvow/config';
+import { START_GOLD, START_IRON, STARTING_CAMPS, TYPES } from '@ironvow/config';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { backfillOpeningPurse } from '../src/lib/backfill.js';
+import { backfillMusterFields, backfillOpeningPurse } from '../src/lib/backfill.js';
 import { db, hasDatabase, makePlayer, migrate, resetDatabase } from './helpers.js';
 
 /**
@@ -50,5 +50,68 @@ describe.skipIf(!hasDatabase)('lifting old holds to the current opening purse', 
     const after = await db.player.findUniqueOrThrow({ where: { id } });
     expect(after.gold).toBe(BigInt(5));
     expect(after.iron).toBe(BigInt(5));
+  });
+});
+
+/**
+ * Warband room moved off the Barracks and onto the Muster Field, and a hold
+ * raised before that owns no fields at all. Left alone, every player who has
+ * ever logged in would open the game to a capacity of zero and a TRAIN button
+ * that refuses — the game breaking, not a balance change.
+ */
+describe.skipIf(!hasDatabase)('granting old holds their Muster Fields', () => {
+  beforeAll(() => { migrate(); });
+
+  const fieldsOf = async (id: string) =>
+    db.building.findMany({ where: { playerId: id, type: 'camp' }, select: { gx: true, gy: true } });
+
+  it('tops a hold up to the opening two, on ground it can actually stand on', async () => {
+    await resetDatabase();
+    const id = await makePlayer('old-hold');
+    await db.building.deleteMany({ where: { playerId: id, type: 'camp' } });
+
+    await backfillMusterFields(log);
+
+    const fields = await fieldsOf(id);
+    expect(fields).toHaveLength(STARTING_CAMPS);
+    // Nothing may be granted on top of something already standing.
+    const all = await db.building.findMany({
+      where: { playerId: id }, select: { type: true, gx: true, gy: true },
+    });
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        const a = all[i]!; const b = all[j]!;
+        const as = TYPES[a.type as keyof typeof TYPES].s;
+        const bs = TYPES[b.type as keyof typeof TYPES].s;
+        const overlap = a.gx < b.gx + bs && a.gx + as > b.gx && a.gy < b.gy + bs && a.gy + as > b.gy;
+        expect(overlap).toBe(false);
+      }
+    }
+  });
+
+  it('is a floor: a hold that already bought fields keeps exactly what it has', async () => {
+    await resetDatabase();
+    const id = await makePlayer('field-owner');
+    // The fixture lays down the opening two; give it a third and check the
+    // backfill does not decide that is the wrong number.
+    await db.building.create({ data: { playerId: id, type: 'camp', gx: 20, gy: 40, level: 3 } });
+
+    await backfillMusterFields(log);
+
+    expect(await fieldsOf(id)).toHaveLength(STARTING_CAMPS + 1);
+  });
+
+  it('runs once, ever', async () => {
+    await resetDatabase();
+    const id = await makePlayer('once-fields');
+    await db.building.deleteMany({ where: { playerId: id, type: 'camp' } });
+
+    await backfillMusterFields(log);
+    expect(await fieldsOf(id)).toHaveLength(STARTING_CAMPS);
+
+    // Tear them down and boot again: the marker means no second grant.
+    await db.building.deleteMany({ where: { playerId: id, type: 'camp' } });
+    await backfillMusterFields(log);
+    expect(await fieldsOf(id)).toHaveLength(0);
   });
 });

@@ -78,6 +78,12 @@ export async function makePlayer(
           { type: 'keep', gx: mid, gy: mid, level: opts.keepLevel ?? 1 },
           { type: 'mine', gx: mid - 3, gy: mid, level: 1 },
           { type: 'barr', gx: mid + 3, gy: mid, level: 1 },
+          // The same opening layout createPlayer lays down, fields included:
+          // warband room comes from these, so a fixture without them has a
+          // capacity of zero and every training test fails for the wrong
+          // reason. See CAMP_NOTE in @ironvow/config.
+          { type: 'camp', gx: mid - 2, gy: mid + 4, level: 1 },
+          { type: 'camp', gx: mid + 3, gy: mid + 4, level: 1 },
         ],
       },
       troops: { create: TROOP_ORDER.map((type) => ({ type, count: 0 })) },

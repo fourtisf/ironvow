@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { QUESTS, START_GOLD, questById } from '@ironvow/config';
+import { QUESTS, START_GOLD, STARTING_CAMPS, campSlots, questById } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './helpers.js';
 
@@ -167,8 +167,12 @@ describe.skipIf(!hasDatabase)('guest holds', () => {
     expect(me.statusCode).toBe(200);
     const player = me.json();
     expect(player.isGuest).toBe(true);
-    // The prototype's opening layout: Keep, mine, barracks.
-    expect(player.buildings).toHaveLength(3);
+    // The opening layout: Keep, mine, Barracks, and the two Muster Fields
+    // every hold is given so the tutorial's five Raiders have room to stand.
+    expect(player.buildings).toHaveLength(3 + STARTING_CAMPS);
+    expect(player.buildings.filter((b: { type: string }) => b.type === 'camp'))
+      .toHaveLength(STARTING_CAMPS);
+    expect(player.armyCap).toBe(campSlots(1) * STARTING_CAMPS);
     expect(player.gold).toBe(START_GOLD);
   });
 

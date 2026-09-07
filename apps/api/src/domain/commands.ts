@@ -306,7 +306,7 @@ export const ERROR_MESSAGE: Record<CommandError, string> = {
   overlaps: 'That spot is blocked.',
   notInteger: 'Buildings sit on whole cells.',
   barracksTooLow: 'A higher Barracks level is needed.',
-  warbandFull: 'Warband is full — upgrade or build a Barracks.',
+  warbandFull: 'Warband is full — build or upgrade a Muster Field.',
   noSuchTroop: 'No such troop.',
   noBuilderFree: 'Every builder is busy.',
   alreadyBusy: 'A builder is already working on that.',

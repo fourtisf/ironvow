@@ -64,6 +64,19 @@ export function generateBase(stage: number): SnapshotBuilding[] {
     }
   }
 
+  /*
+   * Muster Fields. Added after the producers, so they take whatever ground is
+   * left rather than pushing a mine off the layout — and only from stage 2,
+   * because a garrison small enough to be a new player's first raid should not
+   * have an army camp on it.
+   */
+  if (stage >= 2) {
+    for (let i = 0; i < clamp(Math.floor(stage / 4) + 1, 1, 3); i++) {
+      const a = (i / 3) * 6.283 + 5.4;
+      put('camp', Math.round(mid + 1 + Math.cos(a) * 9.4), Math.round(mid + 1 + Math.sin(a) * 9.4), lv);
+    }
+  }
+
   const wr = 3.1;
   const wn = Math.min(8 + stage * 3, 44);
   for (let i = 0; i < wn; i++) {

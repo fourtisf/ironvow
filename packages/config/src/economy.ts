@@ -1,5 +1,5 @@
 import { TYPES, isVanity, type BuildingType } from './buildings.js';
-import { barracksSlots, TROOP, TROOP_ORDER, type TroopType } from './troops.js';
+import { campSlots, TROOP, TROOP_ORDER, type TroopType } from './troops.js';
 
 /*
  * What a producer makes in a minute.
@@ -145,9 +145,17 @@ export function storageCapOf(buildings: readonly OwnedBuilding[]): number {
   return cap;
 }
 
+/**
+ * Room in the warband, which comes from Muster Fields and nothing else.
+ *
+ * It used to come from the Barracks, which meant the building that decides
+ * *which* troops exist also decided *how many* — one upgrade doing two
+ * unrelated jobs, and no way to buy more room without also buying another
+ * trainer. See CAMP_NOTE in buildings.ts.
+ */
 export function armyCapOf(buildings: readonly OwnedBuilding[]): number {
   let cap = 0;
-  for (const b of buildings) if (b.type === 'barr') cap += barracksSlots(b.level);
+  for (const b of buildings) if (b.type === 'camp') cap += campSlots(b.level);
   return cap;
 }
 

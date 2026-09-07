@@ -1,6 +1,6 @@
 'use client';
 
-import { KEEP_MAX, TYPES, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD } from '@ironvow/config';
+import { KEEP_MAX, TYPES, campSlots, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD } from '@ironvow/config';
 import { useEffect, useState } from 'react';
 import { fmt, until } from '../lib/format';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
@@ -108,8 +108,8 @@ export function Inspector({
     ? `${rate(building.level)}/min · holding ${fmt(stock)}`
     : defence
       ? `${Math.round(defence(building.level).dmg)} damage · range ${defence(building.level).rng}`
-      : building.type === 'barr'
-        ? `${8 + building.level * 6} warband slots`
+      : building.type === 'camp'
+        ? `${campSlots(building.level)} warband slots`
         : building.type === 'store'
           ? `+${fmt(1400 + building.level * 1500)} storage`
           : def.blurb;

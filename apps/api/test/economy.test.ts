@@ -5,6 +5,10 @@ import {
   OFFLINE_CAP_SECONDS,
   START_GOLD,
   START_IRON,
+  KEEP_MAX,
+  MAX_CAMPS,
+  STARTING_CAMPS,
+  campSlots,
   capOf,
   costOf,
   lootCarriers,
@@ -40,6 +44,11 @@ function player(over: Partial<PlayerView> = {}): PlayerView {
       { id: 'k', type: 'keep', gx: mid, gy: mid, level: 1 },
       { id: 'm', type: 'mine', gx: mid - 3, gy: mid, level: 1 },
       { id: 'b', type: 'barr', gx: mid + 3, gy: mid, level: 1 },
+      // Warband room comes from the fields, so a fixture without them has a
+      // capacity of zero — under which every training assertion below passes
+      // for the wrong reason. See CAMP_NOTE in @ironvow/config.
+      { id: 'c1', type: 'camp', gx: mid - 2, gy: mid + 4, level: 1 },
+      { id: 'c2', type: 'camp', gx: mid + 3, gy: mid + 4, level: 1 },
     ],
     army: {},
     queue: [],
@@ -282,15 +291,69 @@ describe('training', () => {
       .toEqual({ ok: false, error: 'barracksTooLow' });
   });
 
+  it('lets a warband with room in it train', () => {
+    // The opening two fields are sixteen slots. Asserted from the other side
+    // as well, because a capacity of zero would make every refusal below pass
+    // without meaning anything.
+    const p = player({ gold: 10_000n, iron: 10_000n, army: { raider: 15 } });
+    expect(planTrain(p, 'raider').ok).toBe(true);
+  });
+
   it('refuses to overfill the warband', () => {
-    // One Barracks at level 1 is 14 slots; 14 raiders fill it exactly.
-    const p = player({ gold: 10_000n, iron: 10_000n, army: { raider: 14 } });
+    // Two level-1 Muster Fields is sixteen slots; sixteen raiders fill them.
+    const p = player({ gold: 10_000n, iron: 10_000n, army: { raider: campSlots(1) * 2 } });
     expect(planTrain(p, 'raider')).toEqual({ ok: false, error: 'warbandFull' });
   });
 
   it('counts queued troops against the warband, not just trained ones', () => {
-    const p = player({ gold: 10_000n, iron: 10_000n, army: { raider: 10 }, queue: ['raider', 'raider', 'raider', 'raider'] });
+    const p = player({
+      gold: 10_000n, iron: 10_000n, army: { raider: 12 },
+      queue: ['raider', 'raider', 'raider', 'raider'],
+    });
     expect(planTrain(p, 'raider')).toEqual({ ok: false, error: 'warbandFull' });
+  });
+});
+
+/**
+ * ALFA: "lapanganya harus di beli dan awal pemain udh dpt 2 maximal 10 bisa
+ * beli setiap beli harga naik".
+ *
+ * Every clause of that is a number somewhere, and numbers drift. These pin
+ * them to the one place they are allowed to live.
+ */
+describe('the Muster Field is bought, and the price climbs', () => {
+  it('gives a new hold two and never allows more than ten', () => {
+    expect(capOf('camp', 1)).toBe(STARTING_CAMPS);
+    expect(capOf('camp', KEEP_MAX)).toBe(MAX_CAMPS);
+    // Monotonic: raising the Keep may never take a field away.
+    for (let lv = 2; lv <= KEEP_MAX; lv++) {
+      expect(capOf('camp', lv)).toBeGreaterThanOrEqual(capOf('camp', lv - 1));
+    }
+  });
+
+  it('charges more for each one you already own', () => {
+    let last = 0;
+    for (let owned = 0; owned < MAX_CAMPS; owned++) {
+      const price = costOf('camp', 0, owned).g;
+      expect(price).toBeGreaterThan(last);
+      last = price;
+    }
+  });
+
+  it('refuses the eleventh at any Keep level', () => {
+    const fields = Array.from({ length: MAX_CAMPS }, (_, i) => ({
+      id: `f${i}`, type: 'camp' as const, gx: 4 + i * 4, gy: 4, level: 1,
+    }));
+    const p = player({ gold: 10_000_000n, iron: 10_000_000n, keepLevel: KEEP_MAX, buildings: [
+      { id: 'k', type: 'keep', gx: mid, gy: mid, level: KEEP_MAX }, ...fields,
+    ] });
+    expect(planBuild(p, 'camp', 4, 20)).toEqual({ ok: false, error: 'atCountLimit' });
+  });
+
+  it('is what carries warband room, and grows with its level', () => {
+    for (let lv = 1; lv < KEEP_MAX; lv++) {
+      expect(campSlots(lv + 1)).toBeGreaterThan(campSlots(lv));
+    }
   });
 });
 

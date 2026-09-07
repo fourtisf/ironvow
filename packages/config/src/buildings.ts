@@ -2,7 +2,7 @@ import { KEEP_MAX } from './world.js';
 import { ipow } from './math.js';
 
 export const BUILDING_TYPES = [
-  'keep', 'mine', 'forge', 'store', 'barr', 'lab', 'cannon', 'tower', 'wall',
+  'keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab', 'cannon', 'tower', 'wall',
   'statue', 'brazier', 'standard',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
@@ -80,7 +80,15 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   mine:   { n: 'Gold Mine',   s: 2, cat: 'eco',  hp: 420,  hpG: 1.24, base: { g: 150, i: 0   }, up: { g: 260, i: 40  }, upG: 1.85, countG: NEW_BUILDING_GROWTH, blurb: 'Digs gold around the clock. Tap the pouch to collect.' },
   forge:  { n: 'Iron Forge',  s: 2, cat: 'eco',  hp: 460,  hpG: 1.24, base: { g: 400, i: 0   }, up: { g: 520, i: 90  }, upG: 1.85, countG: NEW_BUILDING_GROWTH, blurb: 'Smelts iron for archers and rams. Tap the ingot to collect.' },
   store:  { n: 'Vault',       s: 2, cat: 'eco',  hp: 700,  hpG: 1.28, base: { g: 320, i: 0   }, up: { g: 480, i: 120 }, upG: 1.90, countG: NEW_BUILDING_GROWTH, blurb: 'Raises how much gold and iron you can hold at once.' },
-  barr:   { n: 'Barracks',    s: 3, cat: 'mil',  hp: 640,  hpG: 1.26, base: { g: 280, i: 60  }, up: { g: 440, i: 140 }, upG: 1.90, countG: NEW_BUILDING_GROWTH, blurb: 'Trains troops and adds room in your warband.' },
+  barr:   { n: 'Barracks',    s: 3, cat: 'mil',  hp: 640,  hpG: 1.26, base: { g: 280, i: 60  }, up: { g: 440, i: 140 }, upG: 1.90, countG: NEW_BUILDING_GROWTH, blurb: 'Trains troops, and its level is what unlocks new ones.' },
+  /*
+   * The Muster Field. See CAMP_NOTE below.
+   *
+   * Four cells square, which is large for what it costs, and deliberately: it
+   * is the only building whose point is the ground it occupies. The warband
+   * stands on it.
+   */
+  camp:   { n: 'Muster Field', s: 4, cat: 'mil',  hp: 700,  hpG: 1.24, base: { g: 300, i: 60  }, up: { g: 400, i: 120 }, upG: 1.88, countG: NEW_BUILDING_GROWTH, blurb: 'Ground for your warband to stand on. More fields, more troops.' },
   // TUNABLE. Spec S8.3 asks for a lab but does not price one.
   lab:    { n: 'War Lab',     s: 2, cat: 'mil',  hp: 520,  hpG: 1.26, base: { g: 600, i: 200 }, up: { g: 700, i: 400 }, upG: 1.95, countG: NEW_BUILDING_GROWTH, blurb: 'Makes your troops stronger, not just more numerous.' },
   cannon: { n: 'Cannon',      s: 2, cat: 'def',  hp: 560,  hpG: 1.30, base: { g: 220, i: 80  }, up: { g: 340, i: 180 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Slow, heavy shots. Wrecks anything that walks into range.' },
@@ -108,6 +116,40 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   standard: { n: 'Standard',   s: 1, cat: 'vanity', hp: 220, hpG: 1.2, base: { g: 7500,  i: 0 }, up: { g: 5600,  i: 0 }, upG: 1.80, countG: 1.62, blurb: 'Your colours on a pole. Raiders will not care. You might.' },
 };
 
+/*
+ * CAMP_NOTE — the Muster Field, and why warband room moved off the Barracks.
+ *
+ * ALFA: "lapanganya harus di beli dan awal pemain udh dpt 2 maximal 10 bisa
+ * beli setiap beli harga naik dan bisa di upgrade juga ke level 10 tambah
+ * besar dan tambah beda designya"
+ *
+ * The warband already stood on a field in front of the Barracks, but the field
+ * was scenery: it appeared because troops existed, it could not be bought,
+ * moved, upgraded or destroyed, and it cost nothing. Scenery is the one thing a
+ * base builder cannot afford to make of the army, because room for troops is
+ * one of the two things a player is actually saving up for.
+ *
+ * So the field is a building now. It is bought, priced off how many you own
+ * like everything else; it is placed and moved where you want it; it is
+ * upgraded; and it is what carries warband capacity. The Barracks keeps what it
+ * was always better at — training, and gating which troops exist at all.
+ *
+ * Two of them are given to a new hold outright. That is not generosity, it is
+ * the same number of slots the opening Barracks used to hand over: without it
+ * a new player would open the game with a warband of nothing and a tutorial
+ * telling them to train five Raiders. STARTING_CAMPS is that promise, and the
+ * assertion under it is what stops the cap table from quietly breaking it.
+ *
+ * The ceiling is ten, at Keep 9, and each one upgrades along with the Keep like
+ * everything else in the hold. Levels stop at KEEP_MAX because nothing may ever
+ * exceed the Keep — a field that could outrank it would be the only thing in
+ * the game that does.
+ */
+
+/** Fields a new hold is given, and the most any hold may ever own. */
+export const STARTING_CAMPS = 2;
+export const MAX_CAMPS = 10;
+
 /** True for something bought to be looked at. */
 export function isVanity(type: BuildingType): boolean {
   return TYPES[type].cat === 'vanity';
@@ -122,6 +164,8 @@ export const CAP: Record<Exclude<BuildingType, 'keep'>, readonly number[]> = {
   forge:  [0,  1,  2,  3,  4,   5,   6,   7,   8,   9],
   store:  [0,  1,  2,  2,  3,   3,   4,   4,   5,   6],
   barr:   [0,  1,  1,  2,  2,   3,   3,   4,   4,   5],
+  // Two to start with and ten at the end; see STARTING_CAMPS.
+  camp:   [0,  2,  3,  4,  5,   6,   7,   8,   9,  10],
   // One lab, ever, from Keep 3. Its level is what gates troop levels.
   lab:    [0,  0,  0,  1,  1,   1,   1,   1,   1,   1],
   cannon: [0,  2,  3,  4,  5,   6,   8,   9,  10,  12],
@@ -176,4 +220,29 @@ export const DEF_STAT: Partial<Record<BuildingType, (lv: number) => { rng: numbe
 
 export function isDefensive(type: BuildingType): boolean {
   return TYPES[type].cat === 'def';
+}
+
+/*
+ * The opening promise, checked at module load.
+ *
+ * A new hold is handed STARTING_CAMPS fields, and the cap table is what says
+ * whether it is allowed to keep them. If someone lowers the Keep 1 row the
+ * game would ship holds that are over their own limit from the first frame —
+ * which reads, downstream, as a build button that never enables.
+ */
+{
+  const atKeepOne = CAP.camp[1] ?? 0;
+  if (atKeepOne < STARTING_CAMPS) {
+    throw new Error(
+      `A new hold is given ${STARTING_CAMPS} Muster Fields but CAP.camp allows `
+      + `only ${atKeepOne} at Keep 1. Raise the cap row or lower STARTING_CAMPS.`,
+    );
+  }
+  const atKeepMax = CAP.camp[KEEP_MAX] ?? 0;
+  if (atKeepMax !== MAX_CAMPS) {
+    throw new Error(
+      `MAX_CAMPS is ${MAX_CAMPS} but CAP.camp tops out at ${atKeepMax}. `
+      + 'They are the same promise written twice; make them agree.',
+    );
+  }
 }

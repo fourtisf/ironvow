@@ -42,7 +42,7 @@ export interface Renderable {
 
 /** Types with a moving part. Everything else needs no per-frame work at all. */
 export const ANIMATED: ReadonlySet<BuildingType> = new Set<BuildingType>([
-  'keep', 'forge', 'barr', 'lab', 'cannon', 'brazier', 'standard',
+  'keep', 'forge', 'barr', 'camp', 'lab', 'cannon', 'brazier', 'standard',
 ]);
 
 /* ------------------------------------------------------------- tiers --- */
@@ -83,7 +83,7 @@ export function growthOf(level: number): number {
  * exactly the buildings a player most wants to read the level of.
  */
 const PIP_TIER: Record<string, number> = {
-  keep: 12, barr: 26, lab: 12, mine: 6, forge: 4, store: 2, tower: 4,
+  keep: 12, barr: 26, camp: 5, lab: 12, mine: 6, forge: 4, store: 2, tower: 4,
 };
 
 export function pipHeightOf(type: BuildingType, level: number): number {
@@ -99,6 +99,15 @@ const TIER_ROOF = ['#3f6fbe', '#3a67b0', '#33589a', '#c9924f'] as const;
 const TIER_ROOF_D = ['#2a4c88', '#264478', '#203a68', '#8a5c1c'] as const;
 const TIER_THATCH = ['#e2d3ad', '#d8c79b', '#c9b487', '#e8c88a'] as const;
 const TIER_THATCH_D = ['#8f7a52', '#867049', '#7a6440', '#a8802c'] as const;
+/**
+ * The Muster Field: bare earth, then a gravelled yard, then flagstone, then
+ * flagstone with a gilded kerb. The ground is the building, so this is the row
+ * that carries most of the upgrade.
+ */
+const TIER_YARD = ['#b4854a', '#ab8452', '#98a3ad', '#a5b0bb'] as const;
+const TIER_KERB = ['#8a6a45', '#7d6746', '#6d7883', '#c9924f'] as const;
+const TIER_CANVAS = ['#d8c79b', '#cfd8e2', '#c2ccd8', '#e8c88a'] as const;
+const TIER_CANVAS_D = ['#8f7a52', '#8d9aa8', '#7d8895', '#a8802c'] as const;
 const TIER_LAB = ['#7f6fb0', '#7566ab', '#6a5ba1', '#c9924f'] as const;
 const TIER_LAB_D = ['#4e4276', '#463c6d', '#3f3563', '#8a5c1c'] as const;
 
@@ -582,6 +591,122 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
       ctx.closePath(); ctx.fill(); ctx.stroke();
     }
 
+  } else if (b.type === 'camp') {
+    /*
+     * The Muster Field, and the only building in the hold whose point is the
+     * ground rather than the structure. The warband stands on it, so every
+     * upgrade is spent around the edge: the middle has to stay empty and low,
+     * or the army would be standing inside a tent.
+     *
+     * What a level buys, then, is the yard itself. It widens toward its own
+     * plot as it is raised — bare earth roped off at the corners, then a
+     * gravelled yard behind a paling, then flagstone inside a palisade, then
+     * flagstone with a gilded kerb and a pavilion at every corner. Read from
+     * across the base, a level-8 field is a war camp and a level-1 one is a
+     * patch of dirt someone claimed.
+     */
+    const pad = 0.34 - tier * 0.07;
+    const kerb = TIER_KERB[tier];
+    const yard = TIER_YARD[tier];
+    isoDiamond(d, gx + pad * 0.4, gy + pad * 0.4, s - pad * 0.8, s - pad * 0.8, kerb, 0);
+    isoDiamond(d, gx + pad, gy + pad, s - pad * 2, s - pad * 2, yard, 0.8);
+    if (tier >= 2) {
+      // Flagstones: two courses drawn as inset diamonds rather than a texture,
+      // because a texture at this size is noise.
+      isoDiamond(d, gx + pad + 0.5, gy + pad + 0.5, s - pad * 2 - 1, s - pad * 2 - 1,
+        'rgba(0,0,0,0)', 1, 'rgba(70,84,96,.35)');
+      isoDiamond(d, gx + pad + 1.1, gy + pad + 1.1, s - pad * 2 - 2.2, s - pad * 2 - 2.2,
+        'rgba(0,0,0,0)', 1, 'rgba(70,84,96,.28)');
+    }
+
+    /*
+     * The boundary. A rope on four posts to begin with, a rail the whole way
+     * round once there is a rail's worth of army to keep in, and a palisade of
+     * stakes at the top. Drawn as four thin boxes plus posts on the corners
+     * and at the middle of each run.
+     */
+    const postH = (13 + tier * 7) * g;
+    const railH = tier === 0 ? 0 : (7 + tier * 4) * g;
+    const t0 = pad * 0.4;
+    const t1 = s - pad * 0.4;
+    const thick = 0.13;
+    if (railH === 0) {
+      // A rope between the corner posts. Without it a level-1 field is a patch
+      // of mud with a tent on it and nothing says where it ends — and where it
+      // ends is the whole of what the building is.
+      isoDiamond(d, gx + t0 + 0.02, gy + t0 + 0.02, t1 - t0 - 0.04, t1 - t0 - 0.04,
+        'rgba(0,0,0,0)', postH * 0.72, 'rgba(58,40,22,.5)');
+    }
+    if (railH > 0) {
+      const rail: [number, number, number, number][] = [
+        [gx + t0, gy + t0, t1 - t0, thick],
+        [gx + t0, gy + t1 - thick, t1 - t0, thick],
+        [gx + t0, gy + t0, thick, t1 - t0],
+        [gx + t1 - thick, gy + t0, thick, t1 - t0],
+      ];
+      for (const [rx, ry, rw, rh] of rail) {
+        isoBox(d, rx, ry, rw, rh, railH, TIER_FRAME[tier], TIER_FRAME_D[tier], TIER_TRIM[tier]);
+      }
+    }
+    // Posts: the corners always, and the middle of each run once there is a
+    // fence between them to hold up.
+    const posts: [number, number][] = [
+      [gx + t0, gy + t0], [gx + t1 - thick, gy + t0],
+      [gx + t0, gy + t1 - thick], [gx + t1 - thick, gy + t1 - thick],
+    ];
+    if (tier >= 1) {
+      const mid = (t0 + t1) / 2 - thick / 2;
+      posts.push([gx + mid, gy + t0], [gx + mid, gy + t1 - thick],
+        [gx + t0, gy + mid], [gx + t1 - thick, gy + mid]);
+    }
+    for (const [px, py] of posts) {
+      isoBox(d, px - 0.04, py - 0.04, thick + 0.08, thick + 0.08, postH,
+        TIER_FRAME[tier], TIER_FRAME_D[tier], TIER_TRIM[tier]);
+    }
+
+    /*
+     * The tents, one more each tier, set in the corners so the middle stays
+     * clear for the warband. A box with a pyramid on it is a tent at this
+     * size; the canvas follows the tier the same way a roof does.
+     */
+    const tents: [number, number][] = [
+      [gx + pad + 0.2, gy + pad + 0.2],
+      [gx + s - pad - 0.94, gy + pad + 0.2],
+      [gx + pad + 0.2, gy + s - pad - 0.94],
+      [gx + s - pad - 0.94, gy + s - pad - 0.94],
+    ];
+    // Small on purpose. The tents sit in the corners and the middle is the
+    // parade ground; a tent big enough to look impressive on its own would
+    // leave the warband standing in someone's quarters.
+    const tentW = 0.74;
+    const wallT = (6 + tier * 2) * g;
+    const peakT = (17 + tier * 5) * g;
+    for (let i = 0; i < 1 + tier; i++) {
+      const [tx, ty] = tents[i]!;
+      isoBox(d, tx, ty, tentW, tentW, wallT, C.wood, C.woodD, '#6d4522');
+      isoRoof(d, tx - 0.08, ty - 0.08, tentW + 0.16, tentW + 0.16,
+        wallT, wallT + peakT, TIER_CANVAS[tier], TIER_CANVAS_D[tier]);
+      // A pennant pin on the peak, gilded at the top tier: something to catch
+      // the eye on a building that is otherwise all ground.
+      const [fx0, fy0] = P(tx + tentW / 2, ty + tentW / 2);
+      const peakY = fy0 - (wallT + peakT) * z;
+      ctx.strokeStyle = tier >= 3 ? C.gold : C.line;
+      ctx.lineWidth = Math.max(1.2, 2 * z);
+      ctx.beginPath(); ctx.moveTo(fx0, peakY); ctx.lineTo(fx0, peakY - 9 * z); ctx.stroke();
+    }
+
+    // The fire pit, set on the north-east run rather than in the middle: the
+    // middle is where the warband stands, and a camp fire under a Raider's
+    // feet is worse than no camp fire.
+    const [px0, py0] = P(gx + s - pad - 1.1, gy + pad + 0.55);
+    ctx.fillStyle = C.stoneD;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1, 1.6 * z);
+    ctx.beginPath(); ctx.ellipse(px0, py0, 8 * z, 4.4 * z, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#3a2a1c';
+    ctx.beginPath(); ctx.ellipse(px0, py0, 5 * z, 2.6 * z, 0, 0, 6.29); ctx.fill();
+
   } else if (b.type === 'lab') {
     // A workshop: stone base, tiled roof, and a bubbling crucible whose glow
     // pulses on the same clock as the forge, so the pair read as related.
@@ -939,6 +1064,30 @@ export function drawBuildingFx(d: Draw, b: Renderable, enemy: boolean): void {
     ctx.lineTo(K[0] + 15 * z + wave2, K[1] - 16 * z);
     ctx.lineTo(K[0], K[1] - 11 * z);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  } else if (b.type === 'camp') {
+    // The fire in the pit the body drew.
+    // Same arithmetic the body uses for the pit; a flame that floats next to
+    // its stones is worse than no flame.
+    const padF = 0.34 - tierOf(lv) * 0.07;
+    const [fx1, fy1] = P(gx + s - padF - 1.1, gy + padF + 0.55);
+    const flick = 0.62 + Math.sin(t * 6.1) * 0.16 + Math.sin(t * 9.7) * 0.08;
+    ctx.fillStyle = `rgba(255,138,42,${flick.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.ellipse(fx1, fy1 - 4 * z, 4.6 * z, (6 + flick * 3) * z, 0, 0, 6.29);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,222,132,${(flick * 0.8).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.ellipse(fx1, fy1 - 3.5 * z, 2.3 * z, (3.4 + flick * 1.8) * z, 0, 0, 6.29);
+    ctx.fill();
+    // Embers, so the camp reads as lived in rather than lit.
+    for (let i = 0; i < 3; i++) {
+      const pr = (t * 0.5 + i * 0.34) % 1;
+      ctx.fillStyle = `rgba(255,170,80,${(0.5 * (1 - pr)).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(fx1 + Math.sin(pr * 6 + i * 2) * 5 * z, fy1 - 12 * z - pr * 26 * z, 1.8 * z, 0, 6.29);
+      ctx.fill();
+    }
 
   } else if (b.type === 'lab') {
     // Same wall the body draws: a glow floating clear of the crucible is

@@ -1,5 +1,5 @@
 import { buildApp } from './app.js';
-import { backfillOpeningPurse } from './lib/backfill.js';
+import { backfillMusterFields, backfillOpeningPurse } from './lib/backfill.js';
 import { env } from './lib/env.js';
 import { prisma } from './lib/prisma.js';
 
@@ -15,6 +15,12 @@ try {
   await backfillOpeningPurse(app.log);
 } catch (err) {
   app.log.warn({ err }, 'opening-purse backfill did not run; will retry next boot');
+}
+
+try {
+  await backfillMusterFields(app.log);
+} catch (err) {
+  app.log.warn({ err }, 'muster-field backfill did not run; will retry next boot');
 }
 
 const shutdown = async (signal: string): Promise<void> => {

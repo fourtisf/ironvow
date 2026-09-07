@@ -1020,9 +1020,10 @@ tap took the queue from nothing to thirty-two in the browser.
 **And then the warband was still a number on a sheet.** Fourteen Raiders looked
 exactly like none, which is a strange thing in a game where half of what a
 player is proud of is the army. So they stand on the grass now: a parade ground
-of packed earth with a rope line and four corner posts, laid out in front of
-each Barracks, with the warband ranked up on it in the kit its War Lab paid
-for. It is derived from the roster every frame rather than remembered, so it
+of packed earth with a rope line and four corner posts, with the warband ranked
+up on it in the kit its War Lab paid for. (The ground was painted in front of
+each Barracks at this point. It is a building of its own in the next section —
+the same picture, bought and upgraded rather than conjured.) It is derived from the roster every frame rather than remembered, so it
 costs nothing to keep honest — train one and a figure appears, lose them on a
 raid and the yard empties, and what is standing there is exactly what a raid
 will field. The figures sort with the buildings by depth, so one in front of
@@ -1045,6 +1046,74 @@ Two things went wrong on the way, and both are now in
    is capped at twenty-four (past that it is a crowd, and nobody counts a
    crowd), and that a second Barracks gets half the warband rather than a
    number that went up.
+
+## The field is a building now
+
+ALFA: "lapanganya harus di beli dan awal pemain udh dpt 2 maximal 10 bisa beli
+setiap beli harga naik dan bisa di upgrade juga ke level 10 tambah besar dan
+tambah beda designya"
+
+The parade ground above was scenery. It appeared because troops existed; it
+could not be bought, moved, upgraded or destroyed, and it cost nothing. Scenery
+is the one thing a base builder cannot afford to make of the army, because room
+for troops is one of the two things a player is ever saving up for.
+
+So it is a building: the **Muster Field**, four cells square, `camp` in the
+code. It is bought at a price that climbs with how many you already own
+(`1.55^owned`, the same curve as everything else), placed and moved where you
+want it, upgraded with the Keep, and knocked down in a raid like anything else
+standing on the ground. Two come with a new hold and ten is the ceiling, which
+is the cap table's Keep 1 and Keep 9 rows, asserted against `STARTING_CAMPS` and
+`MAX_CAMPS` at module load so the two ways of writing the same promise cannot
+drift apart.
+
+**Warband room moved off the Barracks and onto the field.** It had been one
+building doing two unrelated jobs — deciding *which* troops exist and *how many*
+— which meant there was no way to buy room without also buying another trainer.
+The Barracks keeps the job it was always better at: training, and gating which
+troops unlock. Two level-1 fields is 16 slots, a little over the 14 the opening
+Barracks used to hand over, so the tutorial's five Raiders still fit and then
+some; ten level-9 fields is 320, which is exactly where the old ceiling of five
+level-9 Barracks stood.
+
+**Every hold that already exists gets its two.** A hold raised before this owns
+no fields, and left alone would have opened to a warband capacity of zero, an
+army over its own limit and a TRAIN button that refuses — the game breaking, not
+a balance change. `backfillMusterFields` tops each one up on free ground beside
+its own Keep, through the same free-spot search a new base is seeded with. Like
+the purse backfill it is a floor and it runs once: a hold that has already
+bought fields is left exactly as it is.
+
+**What a level buys is the ground.** The middle has to stay empty — the warband
+stands on it — so the upgrade is spent around the edge: bare earth roped off
+between four posts, then a gravelled yard behind a paling, then flagstone inside
+a palisade, then flagstone with a gilded kerb and a pavilion at every corner.
+The yard widens toward its own plot as it rises, one more tent appears each
+tier, and there is a fire in the pit on the north-east run. Levels stop at
+KEEP_MAX, which is 9 — nothing in a hold may outrank its Keep, and a field that
+could would be the only thing in the game that does.
+
+The troops stand on it, six to a field in two ranks of three. That is far fewer
+than a field holds, and deliberately: nine of them hid the field they were
+standing on, which is the thing the player actually bought. The rest are not
+drawn — nobody counts a crowd, and it is also what keeps ten fields from costing
+a frame a hundred sprites.
+
+Three things this broke, all now covered:
+
+1. **Every training test in the API suite was passing for the wrong reason.**
+   The fixtures laid down a Keep, a mine and a Barracks, so once capacity moved
+   the fixture's capacity was zero — and `planTrain` answers `warbandFull` at
+   zero for every input, which is what three of those tests were asserting. The
+   fixtures lay down the opening two fields now, and `economy.test.ts` asserts
+   from the other side as well (a warband with room in it trains) so a zero
+   cannot pass silently again.
+2. **The muster was laid out on the Barracks.** It follows the fields now, and
+   `muster.test.ts` pins that every figure lands inside the four cells of its
+   own field and clear of the corners the tents occupy.
+3. **A generated opponent had no camp.** Garrisons from stage 2 up carry one to
+   three, added after the producers so they take leftover ground rather than
+   pushing a mine off the layout.
 
 ## Numbers that need sign-off
 

@@ -287,7 +287,10 @@ export function barracksLevelOf(p: LoadedPlayer): number {
 
 /**
  * Create a player with the prototype's opening layout: a Keep in the middle,
- * a Gold Mine to its left and a Barracks to its right.
+ * a Gold Mine to its left, a Barracks to its right — and the two Muster Fields
+ * every hold is given, without which the warband would have nowhere to stand
+ * and the tutorial would open by asking for five Raiders it has no room for.
+ * See CAMP_NOTE and STARTING_CAMPS in @ironvow/config.
  */
 export async function createPlayer(
   name: string,
@@ -307,6 +310,9 @@ export async function createPlayer(
           { type: 'keep', gx: mid, gy: mid, level: 1 },
           { type: 'mine', gx: mid - 3, gy: mid, level: 1 },
           { type: 'barr', gx: mid + 3, gy: mid, level: 1 },
+          // Four cells square, laid out south of the hall they belong to.
+          { type: 'camp', gx: mid - 2, gy: mid + 4, level: 1 },
+          { type: 'camp', gx: mid + 3, gy: mid + 4, level: 1 },
         ],
       },
       troops: { create: TROOP_ORDER.map((type) => ({ type, count: 0 })) },

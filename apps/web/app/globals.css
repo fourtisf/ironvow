@@ -101,6 +101,10 @@
   .card .cost svg{width:13px;height:13px}
   .card .sub{font-size:8px;font-family:Arial;font-weight:900;letter-spacing:.9px;color:#8fa6c4}
   .card .cnt{position:absolute;top:5px;right:6px;font-size:8.5px;font-family:Arial;font-weight:900;color:#8fa6c4}
+  /* The troop's War Lab level, opposite the count it owns: what you have on
+     one corner, how strong it is on the other. */
+  .card .lvl{position:absolute;top:5px;left:6px;font-size:8.5px;font-family:Arial;font-weight:900;
+    color:#ffd97a;letter-spacing:.3px}
 
   /* ---------- inspector ---------- */
   #insp{position:fixed;left:9px;right:9px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:15;

@@ -71,6 +71,17 @@ export const QUESTS: readonly Quest[] = [
   { id: 'q9',  n: 'Earn 3 stars in one raid', d: 'Flatten an entire enemy hold.',                 goal: 1,   metric: { kind: 'counter', name: 'threeStars' },       reward: { g: 800,  i: 600 } },
   { id: 'q10', n: 'Reach 200 trophies',       d: 'Keep raiding to climb.',                        goal: 200, metric: { kind: 'trophies' },                         reward: { g: 1200, i: 1000 } },
   { id: 'q11', n: 'Keep to level 4',          d: 'A bigger Keep unlocks towers and rams.',        goal: 4,   metric: { kind: 'keepLevel' },                        reward: { g: 1600, i: 1400 } },
+  /*
+   * ALFA: "saya ingin armya juga bisa upgrade naik level".
+   *
+   * It already can, and that was the problem: the War Lab has been in the game
+   * since the day troop levels were added, no order has ever pointed at it, and
+   * the ARMY screen's only mention of it was a grey line saying one would be
+   * nice. A feature nobody is told about is a feature nobody has. It sits after
+   * the Keep 4 order because the Lab needs Keep 3 — an order a player cannot
+   * yet act on is worse than no order.
+   */
+  { id: 'q13', n: 'Raise a War Lab',          d: 'Troop levels: every one is +12% damage and hit points, for good.', goal: 1, metric: { kind: 'buildingCount', type: 'lab' }, reward: { g: 1400, i: 900 } },
   { id: 'q12', n: 'Win 15 raids',             d: 'Become the terror of the valley.',              goal: 15,  metric: { kind: 'counter', name: 'wins' },            reward: { g: 2500, i: 2400 } },
 ];
 

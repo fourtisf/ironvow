@@ -1043,6 +1043,15 @@ export function Game() {
               if (r) { sfx.up(); say(`Troop upgraded to level ${r.toLevel}`); void loadProgression(); }
             });
           }}
+          // Straight into placing one, rather than sending them off to find
+          // the card themselves: they are already asking for it.
+          onBuildLab={() => {
+            if (!world) return;
+            setSheet(null);
+            sfx.tap();
+            startPlacement(world, 'lab', null);
+            setModeState('place');
+          }}
         />
       )}
 

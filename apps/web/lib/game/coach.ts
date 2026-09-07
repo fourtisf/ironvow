@@ -99,6 +99,7 @@ const QUEST_GUIDE: Record<string, { target: CoachTarget; go: CoachGo; goLabel: s
   q9:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Bring a full warband and take every building down. Rams on walls, archers behind.' },
   q10: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Every win earns trophies; losses cost some. Keep raiding to climb.' },
   q11: { target: 'keep', go: 'keep', goLabel: 'SELECT KEEP', how: 'Raise the Keep to level 4. Towers and rams open up on the way.' },
+  q13: { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and raise a War Lab. Once it stands, ARMY gains a row per troop: every level is +12% damage and hit points, kept for good.', buildType: 'lab', hint: 'Pick the War Lab. Afterwards, upgrade your troops in ARMY.' },
   q12: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Fifteen wins. Scout each hold before you commit.' },
 };
 

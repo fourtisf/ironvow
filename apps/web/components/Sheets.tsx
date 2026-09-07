@@ -8,6 +8,7 @@ import {
   TROOP_UNLOCK,
   TYPES,
   bestBarracksLevel,
+  KEEP_MAX,
   capOf,
   costOf,
   countOf,
@@ -187,9 +188,37 @@ export interface ArmySheetProps {
   onUpgradeHero: () => void;
   onUpgradeTroop: (type: TroopType) => void;
   onCancelJob: (jobId: string) => void;
+  /**
+   * Takes the player to BUILD with the War Lab in hand.
+   *
+   * The row that says troops can be levelled used to be a grey sentence with
+   * nothing behind it, which is a strange thing to show somebody who has just
+   * asked how to make their army stronger.
+   */
+  onBuildLab: () => void;
   /** The guide: which troop to light up, and the line to say at the top. */
   highlight?: TroopType | null;
   hint?: string | null;
+}
+
+/**
+ * The level a troop is actually fighting at.
+ *
+ * One reading, used by the roster art and the badge over it, so the picture and
+ * the number can never disagree about what a player owns.
+ */
+function troopLevel(progression: ProgressionView | null, type: TroopType): number {
+  return progression?.lab?.troops.find((x) => x.type === type)?.level ?? 1;
+}
+
+/** The Keep level a War Lab opens at, read from the cap table rather than typed. */
+const LAB_KEEP_LEVEL = (() => {
+  for (let keep = 1; keep <= KEEP_MAX; keep++) if (capOf('lab', keep) > 0) return keep;
+  return KEEP_MAX;
+})();
+
+function labUnlocked(player: PlayerState): boolean {
+  return player.keepLevel >= LAB_KEEP_LEVEL;
 }
 
 /**
@@ -205,7 +234,7 @@ type Batch = 1 | 5 | 'max';
 
 export function ArmySheet({
   player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop, onCancelJob,
-  highlight = null, hint = null,
+  onBuildLab, highlight = null, hint = null,
 }: ArmySheetProps) {
   const [batch, setBatch] = useState<Batch>(1);
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
@@ -263,8 +292,10 @@ export function ArmySheet({
               <span className="cnt">{player.army[type] ?? 0}</span>
               {/* The roster shows the troop, at the level the War Lab has
                 * taken it to, so the army screen is a barracks rather than a
-                * price list. */}
-              <TroopArt type={type} level={progression?.lab?.troops.find((x) => x.type === type)?.level ?? 1} size={52} />
+                * price list — and says the level out loud, because a plume and
+                * a coat of paint are not a number a player can plan around. */}
+              <span className="lvl">Lv {troopLevel(progression, type)}</span>
+              <TroopArt type={type} level={troopLevel(progression, type)} size={52} />
               <div className="nm">{def.n}</div>
               <CostLine cost={def.cost} affordable={affordable} />
               <div className="sub">
@@ -402,13 +433,41 @@ export function ArmySheet({
         </>
       )}
 
+      {/*
+        * No Lab yet, which until now was a grey sentence and a dead end.
+        *
+        * It is the answer to "can my army level up", so it says what a level
+        * buys, what it takes to get one, and — when the Keep is high enough —
+        * offers to go and build it. The same shape as the hero row above,
+        * which has always done this properly.
+        */}
       {lab && lab.level === 0 && (
-        <div className="qrow" style={{ marginTop: 12 }}>
-          <div className="qi">
-            <h4>No War Lab</h4>
-            <p>Build one to make your troops stronger, not just more numerous.</p>
+        <>
+          <div className="sheetHead" style={{ marginTop: 14 }}>
+            <div>
+              <h2>WAR LAB</h2>
+              <p>Where troops gain levels: +12% hit points and damage each, for good</p>
+            </div>
           </div>
-        </div>
+          <div className="qrow">
+            <div className="troopStep">
+              <TroopArt type="raider" level={1} size={58} />
+              <span className="troopArrow">›</span>
+              <TroopArt type="raider" level={5} size={58} faded />
+            </div>
+            <div className="qi">
+              <h4>{labUnlocked(player) ? 'Not built yet' : `Raise your Keep to level ${LAB_KEEP_LEVEL}`}</h4>
+              <p>
+                {labUnlocked(player)
+                  ? 'One Lab, and every troop you own can be raised — kept for good, on every raid after.'
+                  : 'A Lab opens there. Until then your troops get more numerous, not stronger.'}
+              </p>
+            </div>
+            {labUnlocked(player) && (
+              <button className="btn gold" onClick={onBuildLab}>BUILD</button>
+            )}
+          </div>
+        </>
       )}
 
       {player.queue.length > 0 && (

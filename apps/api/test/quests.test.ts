@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { QUESTS, START_GOLD, STARTING_CAMPS, campSlots, questById } from '@ironvow/config';
+import {
+  KEEP_MAX, QUESTS, START_GOLD, START_IRON, STARTING_CAMPS, TYPES, campSlots, capOf, questById,
+} from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { db, hasDatabase, loginAs, makePlayer, migrate, resetDatabase } from './helpers.js';
 
@@ -215,5 +217,42 @@ describe.skipIf(!hasDatabase)('guest holds', () => {
     });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('emailTaken');
+  });
+});
+
+/**
+ * ALFA: "saya ingin armya juga bisa upgrade naik level".
+ *
+ * It already could. The War Lab has been in the game since troop levels were
+ * added, no War Order ever pointed at it, and the ARMY screen's only mention
+ * was a grey line saying one would be nice. A feature nobody is told about is
+ * a feature nobody has.
+ */
+describe('the War Lab has an order pointing at it', () => {
+  it('asks for a Lab, and only after the Keep can hold one', () => {
+    const lab = QUESTS.findIndex((q) => q.metric.kind === 'buildingCount' && q.metric.type === 'lab');
+    expect(lab).toBeGreaterThanOrEqual(0);
+
+    // The Lab opens at a Keep level; an order a player cannot yet act on is
+    // worse than no order, so a Keep order for at least that level has to come
+    // first. Derived from the cap table rather than a typed-in 3.
+    let opensAt = KEEP_MAX;
+    for (let keep = 1; keep <= KEEP_MAX; keep++) {
+      if (capOf('lab', keep) > 0) { opensAt = keep; break; }
+    }
+    const keepOrder = QUESTS.findIndex((q) => q.metric.kind === 'keepLevel' && q.goal >= opensAt);
+    expect(keepOrder).toBeGreaterThanOrEqual(0);
+    expect(keepOrder).toBeLessThan(lab);
+  });
+
+  it('is affordable out of what the orders before it pay', () => {
+    const lab = QUESTS.findIndex((q) => q.metric.kind === 'buildingCount' && q.metric.type === 'lab');
+    const earned = QUESTS.slice(0, lab).reduce(
+      (sum, q) => ({ g: sum.g + q.reward.g, i: sum.i + q.reward.i }),
+      { g: START_GOLD, i: START_IRON },
+    );
+    const cost = TYPES.lab.base;
+    expect(earned.g).toBeGreaterThan(cost.g);
+    expect(earned.i).toBeGreaterThan(cost.i);
   });
 });

@@ -1284,6 +1284,47 @@ tapping along the line you want, and the button cannot lay anything by itself.
 
 Twelve clicks on PLACE built twelve walls before. It builds one now.
 
+## The army could already level up
+
+ALFA: "saya ingin armya juga bisa upgrade naik level"
+
+It already could, and that is the whole story. The War Lab has been in the game
+since the day troop levels were added: one Lab, a row per troop, +12% hit points
+and damage a level, kept for good and applied by the same `statsFor` the raid
+runs on. The route is written, the cap rules are written, and
+`progression.test.ts` has been asserting since then that a troop cannot outrank
+its Lab and a Lab cannot outrank the Keep.
+
+Nobody was ever told. No War Order pointed at it. The tutorial does not mention
+it. The ARMY screen's only mention was a grey line — "No War Lab. Build one to
+make your troops stronger, not just more numerous" — with nothing behind it: no
+button, no price, and no word about the Keep level that unlocks one. A player at
+Keep 2 read that, could not act on it, and reasonably concluded their army does
+not level up.
+
+A feature nobody is told about is a feature nobody has. So:
+
+**The roster says the level out loud.** Every troop card in ARMY carries `Lv N`
+opposite its count — what you own on one corner, how strong it is on the other.
+The art already changed with the level (leather, banded steel, plate and a
+plume, gilded); a coat of paint is not a number a player can plan around.
+
+**The empty-Lab row does the job the hero row has always done.** It says what a
+level buys, shows a Raider beside a faded level-5 Raider so the point is visible
+before it is bought, and then either names the Keep level that opens a Lab or
+offers a BUILD button that goes straight into placing one. The Keep level is
+read out of the cap table rather than typed in, so it cannot drift.
+
+**And there is an order for it.** `q13`, "Raise a War Lab", sits after the Keep 4
+order — the Lab needs Keep 3, and an order a player cannot yet act on is worse
+than no order. `quests.test.ts` asserts both halves of that from the cap table
+and the reward totals: a Keep order for at least the unlock level comes first,
+and the orders before it pay for the Lab.
+
+End to end in the browser: ARMY → BUILD → the War Lab in hand → placed → five
+UPGRADE rows → three taps takes the Raider from Lv 1 to Lv 4, and the badge on
+the roster card follows.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

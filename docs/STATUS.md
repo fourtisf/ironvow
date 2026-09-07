@@ -972,6 +972,34 @@ React does not merely warn at a mismatch: it discards the tree and rebuilds it
 client-side, which is what errors #418, #423 and #425 were. The stamp is
 rendered after mount now. The first screen's console is clean.
 
+## One tap puts a building down
+
+ALFA: "dan kenapa kalo sudah naro ga auto ke build bangunannya?"
+
+Because it took two taps, a long way apart. Tapping the ground moved the ghost;
+building it needed a second tap on a bar pinned to the bottom of the screen —
+so a player who had already decided where the Cannon goes had to travel to the
+other end of the phone to say so again. The second tap was not a decision
+anybody was making.
+
+A tap is the whole gesture now. Tapping open ground puts the building there and
+starts it going up; tapping the ghost itself means "yes, here". Dragging still
+only repositions, so anyone lining a Rampart up against a wall can nudge it as
+long as they like before committing, and the bar stays for CANCEL and for
+anyone who reaches for PLACE out of habit. Moving a building works the same
+way: pick it up, tap where it goes.
+
+**A tap only ever commits a legal spot.** That check used to be visible — a
+greyed-out button over a red footprint — and with the confirmation gone it is
+the only thing between a stray tap and a Cannon dropped on the Keep. So
+`apps/web/test/placing.test.ts` now asserts it directly: open ground is
+placeable, an overlap is not, a building being moved may sit back down on its
+own cells (otherwise nudging one a single tile would be refused by its own
+footprint), and a tap in the far distance is pulled back to the nearest legal
+cell rather than starting a job off the map. That last one matters more than it
+did: the ghost is clamped inside the field, and one-tap placement means the
+clamp is now load-bearing.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

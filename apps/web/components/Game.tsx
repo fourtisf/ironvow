@@ -633,6 +633,7 @@ export function Game() {
     onPlayerChanged: () => setBattleTick((n) => n + 1),
     onBattleEnd: (commands: DeployCommand[]) => { void finishBattle(commands); },
     onPlacementChanged: () => setPlaceTick((t) => t + 1),
+    onPlacementCommit: () => { void confirmPlacement(); },
     onCameraMoved: () => { if (objectiveRef.current === 'camera') markTutorial('camera'); },
   };
 

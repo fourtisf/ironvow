@@ -33,6 +33,7 @@ const NOWHERE: WorldEvents = {
   onPlayerChanged: () => undefined,
   onBattleEnd: () => undefined,
   onPlacementChanged: () => undefined,
+  onPlacementCommit: () => undefined,
   onCameraMoved: () => undefined,
 };
 

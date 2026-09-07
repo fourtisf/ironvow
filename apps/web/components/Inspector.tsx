@@ -167,7 +167,11 @@ export function PlaceBar({ typeName, moving, ok, onCancel, onConfirm }: PlaceBar
     <div id="placeBar">
       <div className="t">
         {moving ? 'Moving ' : ''}{typeName}
-        <em>{ok ? 'Drag it, or tap the ground to jump it there.' : 'Blocked — pick another spot.'}</em>
+        <em>
+          {ok
+            ? `Tap the ground to ${moving ? 'move it there' : 'build it there'}, or drag it about first.`
+            : 'Blocked — pick another spot.'}
+        </em>
       </div>
       <button className="btn grey" onClick={onCancel}>CANCEL</button>
       <button className={`btn${ok ? '' : ' grey'}`} onClick={onConfirm} disabled={!ok}>

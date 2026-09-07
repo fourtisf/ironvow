@@ -46,6 +46,15 @@ export interface WorldEvents {
    * with DONE greyed out — over a ghost that had long since turned green.
    */
   onPlacementChanged: () => void;
+  /**
+   * The player tapped a spot the ghost can stand on.
+   *
+   * Placing used to take two taps a long way apart — one on the ground at the
+   * top of the screen, one on a bar pinned to the bottom — and the second one
+   * is not a decision anybody was making. A tap is the whole gesture now, and
+   * the bar stays for CANCEL and for anyone who reaches for it.
+   */
+  onPlacementCommit: () => void;
   /** The player panned or zoomed. The tutorial's second step listens. */
   onCameraMoved: () => void;
 }

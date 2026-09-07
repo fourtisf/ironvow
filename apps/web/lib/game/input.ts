@@ -189,7 +189,7 @@ export function attachInput(
     const wasDragging = ptr.dragging;
     ptr.dragging = false;
     ptr.grab = null;
-    if (!wasTap || wasDragging) return;
+    if (!wasTap) return;
 
     const [gx, gy] = s2g(w.cam, w.vp, ptr.sx, ptr.sy);
 
@@ -198,9 +198,20 @@ export function attachInput(
       return;
     }
     if (w.mode === 'place') {
-      movePlacementTo(w, gx, gy);
+      /*
+       * One tap puts it there and starts it going up.
+       *
+       * `wasDragging` here only means the press landed on the ghost rather
+       * than beside it — tapping the ghost is "yes, here", tapping the ground
+       * is "there", and both are the same decision. A blocked cell moves the
+       * ghost and stops, so the red footprint does the explaining instead of
+       * a toast on every stray tap.
+       */
+      if (!wasDragging) movePlacementTo(w, gx, gy);
+      if (w.placement?.ok) w.events.onPlacementCommit();
       return;
     }
+    if (wasDragging) return;
 
     void gx; void gy;
     const b = buildingAtScreen(w, ptr.sx, ptr.sy);

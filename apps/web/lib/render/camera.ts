@@ -56,8 +56,8 @@ export function s2g(cam: Camera, vp: Viewport, sx: number, sy: number): [number,
  * under the centre of the screen, so the treeline apron is always the furthest
  * anything can reach.
  */
-export function clampCam(cam: Camera, dpr = 1): void {
-  cam.z = snapZoom(cam.z, dpr);
+export function clampCam(cam: Camera, dpr = 1, floor?: number): void {
+  cam.z = snapZoom(cam.z, dpr, floor);
   const gx = (cam.x / (TW / 2) + cam.y / (TH / 2)) / 2;
   const gy = (cam.y / (TH / 2) - cam.x / (TW / 2)) / 2;
   const lo = IN0 + 1;
@@ -68,14 +68,22 @@ export function clampCam(cam: Camera, dpr = 1): void {
   cam.y = isoY(cgx, cgy);
 }
 
-export function centerOn(cam: Camera, gx: number, gy: number, z?: number, dpr = 1): void {
+/**
+ * `floor` overrides how far back the camera may sit, and only the attract
+ * screen passes one. `ZOOM_MIN` is the limit a *player* may pull back to, so a
+ * raid cannot be fought from orbit; the hold behind the sign-in card is not a
+ * raid, and at the game's own floor a maxed hold does not fit on a phone.
+ */
+export function centerOn(
+  cam: Camera, gx: number, gy: number, z?: number, dpr = 1, floor?: number,
+): void {
   if (z !== undefined) {
     cam.z = z;
     cam.tz = z;
   }
   cam.x = isoX(gx, gy);
   cam.y = isoY(gx, gy);
-  clampCam(cam, dpr);
+  clampCam(cam, dpr, floor);
 }
 
 /**
@@ -88,9 +96,9 @@ export function centerOn(cam: Camera, gx: number, gy: number, z?: number, dpr = 
  * one percent on any phone, which no one can see; it is why the zoom is not
  * eased, and why every path that sets it comes through here.
  */
-export function snapZoom(z: number, dpr: number): number {
+export function snapZoom(z: number, dpr: number, floor = ZOOM_MIN): number {
   const grain = TW * Math.max(1, dpr);
-  const lo = Math.ceil(ZOOM_MIN * grain) / grain;
+  const lo = Math.ceil(floor * grain) / grain;
   const hi = Math.floor(ZOOM_MAX * grain) / grain;
   return clamp(Math.round(z * grain) / grain, lo, hi);
 }

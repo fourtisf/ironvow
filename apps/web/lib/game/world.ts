@@ -85,6 +85,15 @@ export interface World {
    */
   showRanges: boolean;
   /**
+   * Whether a previewed base is drawn in enemy livery.
+   *
+   * True everywhere it matters — scouting shows the hold you are about to hit.
+   * The door is the exception: the hold behind the sign-in card is the one
+   * somebody is being invited to build, not one to attack, so it wears the
+   * player's own blue and gold.
+   */
+  previewEnemy: boolean;
+  /**
    * How fast a raid is watched. See `SPEEDS` — the simulation still runs every
    * tick, in order; this only decides how many of them a second of real time
    * is worth, so the commands the server replays are unchanged by it.
@@ -136,6 +145,7 @@ export function createWorld(events: WorldEvents): World {
     resize: null,
     progressionLevels: {},
     showRanges: false,
+    previewEnemy: true,
     battleSpeed: 1,
     mode: 'base',
     player: null,
@@ -209,8 +219,9 @@ export function centerOnKeep(w: World): void {
 }
 
 /** Show a defender's base, framed, without starting the fight. */
-export function showPreview(w: World, snapshot: BaseSnapshot): void {
+export function showPreview(w: World, snapshot: BaseSnapshot, enemy = true): void {
   w.preview = snapshot;
+  w.previewEnemy = enemy;
   w.selectedId = null;
   w.placement = null;
   frameBase(w.cam, w.vp, snapshot.buildings.map((b) => ({ gx: b.gx, gy: b.gy, size: TYPES[b.type].s })));

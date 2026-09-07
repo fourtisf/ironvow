@@ -430,7 +430,7 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
     if (e.k === 'deco') blitDeco(d, w.terrain.deco[e.i]!);
     else if (e.k === 'struct') {
       const b = snapshot.buildings[e.i]!;
-      drawStruct(w, d, b.type, b.level, true, b.gx, b.gy,
+      drawStruct(w, d, b.type, b.level, w.previewEnemy, b.gx, b.gy,
         undefined, undefined, linkOf(walls, b.gx, b.gy));
     }
   }

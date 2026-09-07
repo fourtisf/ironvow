@@ -1325,6 +1325,46 @@ End to end in the browser: ARMY → BUILD → the War Lab in hand → placed →
 UPGRADE rows → three taps takes the Raider from Lv 1 to Lv 4, and the badge on
 the roster card follows.
 
+## The hold behind the door
+
+ALFA: "landing page gamenya yang sudah level semua maximal"
+
+The attract screen was a generated garrison at stage four: level-three
+buildings, a thin ring of walls, drawn in enemy red because that is what the
+preview renderer had always been for. That is the first thing anybody ever sees
+of IRONVOW, and it was showing them the middle of the game rather than the end
+of it — none of the gilding, none of the pavilions, none of the art every level
+is spent on.
+
+It is a finished hold now. Every building at the Keep's own ceiling, laid out by
+hand in `showcase.ts` rather than generated, because the door is the one screen
+where composition matters more than variety: four-fold symmetry about the Keep,
+a curtain wall with four gates, defences covering it from outside, an economy
+ring, the army halls, four Muster Fields, and the statues and braziers only a
+hold with nothing left to buy ever puts up.
+
+**A showcase that breaks the game's own rules would be a lie about the game**,
+so `showcase.test.ts` checks it is a hold somebody could actually own: nothing
+overlapping, nothing off the field, no type over its Keep-9 cap, every building
+at KEEP_MAX, one of each category present, and compact enough to frame. The
+builder drops anything that would violate those rather than shipping a picture
+of an illegal base.
+
+**And it wears the player's own colours.** `renderPreview` had `enemy` hardcoded
+to true, which is right for scouting — that is a hold you are about to hit — and
+wrong here. The hold behind the sign-in card is the one somebody is being
+invited to build, so it is blue and gold.
+
+Two framings, because the two screens have nothing in common. A wide screen fits
+the whole hold beside the card; that needed a zoom floor below `ZOOM_MIN`, which
+exists so a *player* cannot fight a raid from orbit and has no business
+constraining a login screen — `centerOn` takes an optional floor now and only
+the attract screen passes one. A phone has about a hundred and fifty pixels
+above the card, and a thirty-tile hold cannot be both inside that strip and
+worth looking at: fitted, it is a smudge. So the phone gets a detail instead —
+the Keep at the top of its levels, gilded, with the wall and the statues around
+it. One good building beats a whole base nobody can make out.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

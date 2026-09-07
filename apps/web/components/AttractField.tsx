@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { TH, TW, TYPES, ZOOM_MIN, clamp } from '@ironvow/config';
-import { generateOpponent } from '@ironvow/sim';
+import { TH, TW, TYPES, clamp } from '@ironvow/config';
 import { centerOn } from '../lib/render/camera';
 import { renderFrame } from '../lib/game/render';
+import { showcaseHold } from '../lib/game/showcase';
 import { createWorld, decayFx, resizeWorld, showPreview, type World, type WorldEvents } from '../lib/game/world';
 
 /**
@@ -48,12 +48,19 @@ export function AttractField() {
 
     const world: World = createWorld(NOWHERE);
 
-    // A hold worth looking at: the generator's mid-game stage has walls,
-    // defences and producers rather than the three buildings a new player has.
-    const snapshot = generateOpponent(4, 'attract', 'IRONVOW');
+    /*
+     * A finished hold, in the player's own colours.
+     *
+     * It used to be a generated garrison at stage four — a mid-game opponent,
+     * level-three buildings, none of the art the game spends its levels on —
+     * drawn in enemy red. This is the first screen anybody ever sees, so it
+     * shows the end of the game rather than the middle of it, and the livery
+     * somebody is being invited to build rather than one to attack.
+     */
+    const snapshot = showcaseHold();
     world.resize = () => resizeWorld(world, canvas, ctx);
     world.resize();
-    showPreview(world, snapshot);
+    showPreview(world, snapshot, false);
 
     let cx = 0;
     let cy = 0;
@@ -83,11 +90,39 @@ export function AttractField() {
     }
     const spanW = ((maxX - minY) - (minX - maxY)) * (TW / 2);
     const spanH = ((maxX + maxY) - (minX + minY)) * (TH / 2);
-    const zoom = clamp(
-      Math.min((world.vp.w * 0.5) / Math.max(1, spanW), (world.vp.h * 0.5) / Math.max(1, spanH)),
-      ZOOM_MIN,
-      0.6,
-    );
+    /*
+     * Two framings, because the two screens have nothing in common.
+     *
+     * On a wide screen the whole hold fits beside the card, and that is the
+     * picture: a finished base, walls and all. The floor here is lower than
+     * anywhere in the game — `ZOOM_MIN` is how far back a *player* may pull, so
+     * a raid cannot be fought from orbit, and this is not a raid.
+     *
+     * A phone has about a hundred and fifty pixels above the card. A hold
+     * thirty tiles across cannot be both inside that strip and worth looking
+     * at: fitted, it is a smudge behind the card. So the phone gets a detail
+     * instead — the Keep at the top of its levels, gilded, with the curtain
+     * wall and the statues around it. One good building beats a whole base
+     * nobody can make out.
+     */
+    const ATTRACT_ZOOM_MIN = 0.14;
+    const wideScreen = world.vp.w >= 760;
+    const zoom = wideScreen
+      ? clamp(
+        Math.min((world.vp.w * 0.5) / Math.max(1, spanW), (world.vp.h * 0.5) / Math.max(1, spanH)),
+        ATTRACT_ZOOM_MIN,
+        0.6,
+      )
+      : 0.5;
+    // And the phone looks at the Keep rather than the middle of the whole
+    // sprawl, which on a maxed hold is a stretch of curtain wall.
+    if (!wideScreen) {
+      const keep = snapshot.buildings.find((b) => b.type === 'keep');
+      if (keep) {
+        cx = keep.gx + TYPES.keep.s / 2;
+        cy = keep.gy + TYPES.keep.s / 2;
+      }
+    }
 
     /*
      * The hold stands beside the card, not behind it.
@@ -101,8 +136,8 @@ export function AttractField() {
      */
     const offsetFor = (): [number, number] => {
       const wide = world.vp.w >= 760;
-      const leftPx = wide ? world.vp.w * 0.26 : 0;
-      const upPx = wide ? 0 : world.vp.h * 0.3;
+      const leftPx = wide ? world.vp.w * 0.23 : 0;
+      const upPx = wide ? 0 : world.vp.h * 0.29;
       const u = (2 * (leftPx / zoom)) / TW;
       const v = (2 * (upPx / zoom)) / TH;
       return [(u + v) / 2, (v - u) / 2];
@@ -133,6 +168,7 @@ export function AttractField() {
         cy + oy + Math.sin(a) * ORBIT_TILES * 0.6,
         zoom,
         world.vp.dpr,
+        ATTRACT_ZOOM_MIN,
       );
 
       decayFx(world, dt);

@@ -928,6 +928,41 @@ in the browser with an analyser spliced in front of the destination: the hold
 runs at 0.05 RMS, the cut into a raid holds level rather than dropping to
 silence, and the raid peaks at 0.13 — louder and punchier, as a raid should be.
 
+## How far a Cannon shoots
+
+A player choosing where to put a Cannon is answering exactly one question —
+what does it cover — and the game was not showing them. The Inspector printed
+"range 4.4" and left the player to imagine 4.4 of something on an isometric
+field.
+
+Defences now paint their firing envelope on the ground: bright under the one
+being placed or selected, faint under every other defence at the same time,
+because the decision is never "how far does this one reach" on its own, it is
+"where is the gap", and one ring cannot answer that. It goes down before the
+buildings, since it is paint on the ground rather than something standing on
+it.
+
+**It is the real envelope, not a circle that looks about right.** The
+simulation fires on plain Euclidean distance in grid space, and a circle in
+grid space is not a circle on this screen. With `isoX = (gx - gy)·TW/2` and
+`isoY = (gx + gy)·TH/2`, substituting `u = gx - gy` and `v = gx + gy` into
+`gx² + gy² = r²` gives `u² + v² = 2r²` — an axis-aligned ellipse with semi-axes
+`r·TW/√2` and `r·TH/√2`, wider than it is tall in the same ratio as a tile.
+`apps/web/test/range.test.ts` walks the ring at every 15° and asserts each
+point sits exactly on it, that a step further out is outside and a step in is
+inside, and that only defences have a range at all. A ring that lied would be
+worse than none: a Raider standing just inside it would walk past untouched and
+nothing about the code would look wrong.
+
+### And the three console errors on the first screen
+
+Found while checking the above. The BUILD stamp calls `toLocaleString`, which
+answers in the container's time zone during the server pass and the player's in
+the browser — Jakarta is seven hours from UTC, so the two strings never matched.
+React does not merely warn at a mismatch: it discards the tree and rebuilds it
+client-side, which is what errors #418, #423 and #425 were. The stamp is
+rendered after mount now. The first screen's console is clean.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

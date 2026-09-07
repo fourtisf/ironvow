@@ -26,6 +26,13 @@ export const CONTRACT = trim(process.env.NEXT_PUBLIC_CONTRACT);
  *
  * "16 Sep 23:40" in the viewer's own time zone. Its whole job is to answer
  * "did my deploy land?" without reading markup.
+ *
+ * Which is also why it must not be rendered on the server: `toLocaleString`
+ * gives a different answer in the container, which runs in UTC, than in the
+ * player's browser, and a server-rendered string the client disagrees with is
+ * a hydration mismatch. React does not merely warn about that — it throws the
+ * tree away and rebuilds it, which is what the three console errors on the
+ * first screen were. Call it after mount only.
  */
 export function builtAtLabel(): string {
   const raw = trim(process.env.NEXT_PUBLIC_BUILT_AT);

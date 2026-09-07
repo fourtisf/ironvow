@@ -1,4 +1,4 @@
-import { PROD, TYPES, type BuildingType } from '@ironvow/config';
+import { DEF_STAT, PROD, TH, TW, TYPES, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
@@ -44,6 +44,61 @@ type BattleEntity =
   | { d: number; k: 'struct'; i: number }
   | { d: number; k: 'unit'; i: number };
 
+/*
+ * How far a defence shoots, painted on the ground.
+ *
+ * A player choosing where to put a Cannon is answering exactly one question —
+ * what does it cover — and the game was not showing them. Worse, the answer is
+ * not obvious by eye: the simulation fires on plain Euclidean distance in grid
+ * space, and a circle in grid space is not a circle on an isometric screen.
+ *
+ * Working it through: with `isoX = (gx - gy)·TW/2` and `isoY = (gx + gy)·TH/2`,
+ * substituting `u = gx - gy` and `v = gx + gy` into `gx² + gy² = r²` gives
+ * `u² + v² = 2r²`, which lands on the screen as an axis-aligned ellipse with
+ * semi-axes `r·TW/√2` and `r·TH/√2`. So the ring below is the real firing
+ * envelope and not an approximation of one — a unit is inside it exactly when
+ * the server would shoot at it.
+ */
+export function rangeRadii(r: number, zoom: number): { rx: number; ry: number } {
+  return { rx: r * (TW / Math.SQRT2) * zoom, ry: r * (TH / Math.SQRT2) * zoom };
+}
+
+function rangeRing(
+  w: World, d: Draw, gx: number, gy: number, type: BuildingType, level: number,
+  strong: boolean,
+): void {
+  const stat = DEF_STAT[type];
+  if (!stat) return;
+  const size = TYPES[type].s;
+  const cx = gx + size / 2;
+  const cy = gy + size / 2;
+  const [sx, sy] = w2s(w.cam, w.vp, isoX(cx, cy), isoY(cx, cy));
+  const { rx, ry } = rangeRadii(stat(level).rng, w.cam.z);
+
+  const { ctx } = d;
+  ctx.save();
+  if (strong) {
+    // A wash that fades outward, so the centre of the envelope reads as the
+    // part that is actually covered rather than the whole disc looking equal.
+    const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(rx, ry));
+    grd.addColorStop(0, 'rgba(120,200,255,.16)');
+    grd.addColorStop(0.72, 'rgba(120,200,255,.09)');
+    grd.addColorStop(1, 'rgba(120,200,255,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = strong ? 'rgba(150,215,255,.85)' : 'rgba(150,215,255,.28)';
+  ctx.lineWidth = Math.max(1.2, (strong ? 2.2 : 1.4) * w.cam.z);
+  // Dashed, because a solid ring reads as a wall rather than as a reach.
+  ctx.setLineDash(strong ? [10 * w.cam.z, 7 * w.cam.z] : [5 * w.cam.z, 6 * w.cam.z]);
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   drawTerrain(d, w.terrain);
@@ -73,7 +128,37 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   }
   ents.sort((a, b) => a.d - b.d);
 
+  /*
+   * Rings go down before the buildings, because they are paint on the ground.
+   *
+   * While a defence is being placed every other defence shows a faint one too:
+   * the decision is never "how far does this one reach" on its own, it is
+   * "where is the gap", and one ring cannot answer that.
+   */
   const place = w.placement;
+  const ringFor = place && DEF_STAT[place.type] ? place.type : null;
+  const selectedBuilding = w.selectedId
+    ? w.player?.buildings.find((b) => b.id === w.selectedId) ?? null
+    : null;
+  if (ringFor || (selectedBuilding && DEF_STAT[selectedBuilding.type])) {
+    for (const b of w.player?.buildings ?? []) {
+      if (!DEF_STAT[b.type] || b.id === place?.movingId) continue;
+      if (b.id === selectedBuilding?.id) continue;
+      rangeRing(w, d, b.gx, b.gy, b.type, b.level, false);
+    }
+  }
+  if (selectedBuilding && DEF_STAT[selectedBuilding.type]) {
+    rangeRing(w, d, selectedBuilding.gx, selectedBuilding.gy,
+      selectedBuilding.type, selectedBuilding.level, true);
+  }
+  if (place && ringFor) {
+    // A building being moved keeps its own level; a fresh one is level 1.
+    const moving = place.movingId
+      ? w.player?.buildings.find((b) => b.id === place.movingId) ?? null
+      : null;
+    rangeRing(w, d, place.gx, place.gy, ringFor, moving?.level ?? 1, true);
+  }
+
   if (place) {
     const s = TYPES[place.type].s;
     isoDiamond(d, place.gx, place.gy, s, s,

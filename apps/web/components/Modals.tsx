@@ -251,7 +251,7 @@ function DoorFooter() {
         </button>
       )}
 
-      {builtAtLabel() !== '' && <p className="built">BUILD {builtAtLabel()}</p>}
+      <BuiltAt />
     </div>
   );
 }
@@ -523,4 +523,20 @@ export function ReportModal({ onSend, onClose, busy }: { onSend: (text: string) 
       </div>
     </div>
   );
+}
+
+/**
+ * The build stamp, filled in after mount.
+ *
+ * It is a local-time string, and the server renders in UTC: printing it during
+ * the server pass and again in the browser gives two different strings, which
+ * React treats as a broken hydration and recovers from by rebuilding the whole
+ * tree. Rendering nothing on the server and the real time on the first client
+ * pass costs a frame and is correct.
+ */
+function BuiltAt() {
+  const [label, setLabel] = useState('');
+  useEffect(() => { setLabel(builtAtLabel()); }, []);
+  if (label === '') return null;
+  return <p className="built">BUILD {label}</p>;
 }

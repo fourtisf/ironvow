@@ -8,7 +8,7 @@ import {
   hasClaimableQuest,
   type BuildingType,
 } from '@ironvow/config';
-import type { DeployCommand } from '@ironvow/types';
+import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type DailyView, type SeasonState } from '../lib/api';
 import {
@@ -597,7 +597,7 @@ export function Game() {
    * A battle ended. Send the deploys that were played and take the server's
    * word for the result, whatever the client just rendered.
    */
-  const finishBattle = useCallback(async (commands: DeployCommand[]) => {
+  const finishBattle = useCallback(async (commands: DeployCommand[], items: ItemCommand[] = []) => {
     const world = worldRef.current;
     if (!world || !world.raid || !world.battle) return;
     const local = world.battle.result();
@@ -635,7 +635,7 @@ export function Game() {
     }
 
     const settled = await runCommand(() =>
-      api.submitRaid(raidId, commands, local.checksum, local.stars));
+      api.submitRaid(raidId, commands, items, local.checksum, local.stars));
 
     if (settled) {
       if (settled.stars >= 1) sfx.victory(); else sfx.defeat();
@@ -663,7 +663,7 @@ export function Game() {
     onModeChange: setModeState,
     onToast: say,
     onPlayerChanged: () => setBattleTick((n) => n + 1),
-    onBattleEnd: (commands: DeployCommand[]) => { void finishBattle(commands); },
+    onBattleEnd: (commands: DeployCommand[], items: ItemCommand[]) => { void finishBattle(commands, items); },
     onPlacementChanged: () => setPlaceTick((t) => t + 1),
     onPlacementCommit: () => { void confirmPlacement(); },
     onCameraMoved: () => { if (objectiveRef.current === 'camera') markTutorial('camera'); },
@@ -936,8 +936,11 @@ export function Game() {
           heroReady={battle.heroReady()}
           heroLevel={world?.raid?.hero.level ?? player?.heroLevel ?? 1}
           troopLevels={world?.raid?.troopLevels ?? {}}
-          onSelect={(t) => { if (world) { world.selectedTroop = t; sfx.tap(); } }}
-          onEnd={() => { if (world?.battle) void finishBattle(world.battleCommands); }}
+          onSelect={(t) => { if (world) { world.selectedTroop = t; world.selectedItem = null; sfx.tap(); } }}
+          items={battle.itemsLeft()}
+          selectedItem={world?.selectedItem ?? null}
+          onItem={(i) => { if (world) { world.selectedItem = i; sfx.tap(); } }}
+          onEnd={() => { if (world?.battle) void finishBattle(world.battleCommands, world.battleItems); }}
         />
       )}
 
@@ -1062,6 +1065,11 @@ export function Game() {
           }}
           // Straight into placing one, rather than sending them off to find
           // the card themselves: they are already asking for it.
+          onBuyItem={(type) => {
+            void runCommand(() => api.buyItem(type)).then((r) => {
+              if (r) { sfx.up(); say(`Bought ${r.count} — carried into your next raid`); void loadProgression(); }
+            });
+          }}
           onBuildLab={() => {
             if (!world) return;
             setSheet(null);

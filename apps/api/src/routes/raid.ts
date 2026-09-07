@@ -6,7 +6,11 @@ import {
   seasonLeft,
   seasonReset,
   tierAt,
+  ITEM_TYPES,
   parseGarrison,
+  parsePouch,
+  type ItemType,
+  type Pouch,
   TROOP_ORDER,
   heroRespawnMinutes,
   heroUnlocked,
@@ -22,7 +26,7 @@ import {
   seedToInt32,
   simulate,
 } from '@ironvow/sim';
-import type { BaseSnapshot, BattleArmy, DeployCommand, DeployableType, HeroLoadout, TroopLevels } from '@ironvow/types';
+import type { BaseSnapshot, BattleArmy, DeployCommand, DeployableType, HeroLoadout, ItemCommand, TroopLevels } from '@ironvow/types';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { debitDefender, revengeCutoff, settleRaid, snapshotBase, trophyBand } from '../domain/raid.js';
@@ -55,8 +59,24 @@ const commandSchema = z.object({
   gy: z.number().min(-10).max(70),
 });
 
+/**
+ * A battle item used.
+ *
+ * Bounded at a number no honest pouch can reach, because the cap that matters
+ * is the frozen pouch inside the simulation and this is only here to stop a
+ * megabyte of JSON reaching it.
+ */
+const itemCommandSchema = z.object({
+  tickIndex: z.number().int().min(0).max(20_000),
+  item: z.enum(ITEM_TYPES),
+  gx: z.number().min(-10).max(70),
+  gy: z.number().min(-10).max(70),
+});
+
 const submitSchema = z.object({
   commands: z.array(commandSchema).max(400),
+  /** Absent from a client that used none, and from every client built before items. */
+  items: z.array(itemCommandSchema).max(40).optional(),
   /** Optional, for divergence telemetry only. Never used to decide anything. */
   clientChecksum: z.string().max(64).optional(),
   clientStars: z.number().int().min(0).max(3).optional(),
@@ -177,6 +197,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
               available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
             } satisfies HeroLoadout as unknown as object,
             troopLevels: me.troopLevels as unknown as object,
+            pouch: me.pouch as unknown as object,
             expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
           },
         });
@@ -226,6 +247,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
             available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
           } satisfies HeroLoadout as unknown as object,
           troopLevels: me.troopLevels as unknown as object,
+          pouch: me.pouch as unknown as object,
           expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
         },
       });
@@ -243,6 +265,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       army: result.raid.army as unknown as BattleArmy,
       hero: (result.raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
       troopLevels: (result.raid.troopLevels as unknown as TroopLevels | null) ?? {},
+      pouch: parsePouch(result.raid.pouch),
       expiresAt: result.raid.expiresAt.toISOString(),
       rerollCost: SCOUT_REROLL_COST,
       /** False for a generated hold, so the client can say so plainly. */
@@ -320,6 +343,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
             available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
           } satisfies HeroLoadout as unknown as object,
           troopLevels: me.troopLevels as unknown as object,
+          pouch: me.pouch as unknown as object,
           expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
         },
       });
@@ -338,6 +362,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       army: result.raid.army as unknown as BattleArmy,
       hero: (result.raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
       troopLevels: (result.raid.troopLevels as unknown as TroopLevels | null) ?? {},
+      pouch: parsePouch(result.raid.pouch),
       expiresAt: result.raid.expiresAt.toISOString(),
       rerollCost: SCOUT_REROLL_COST,
       isPlayer: true,
@@ -404,6 +429,10 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       const army = raid.army as unknown as BattleArmy;
       const hero = (raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false };
       const troopLevels = (raid.troopLevels as unknown as TroopLevels | null) ?? {};
+      // The frozen pouch, for the same reason as the warband: buying a Warhorn
+      // while this raid was open must not let it be spent inside this raid.
+      const pouch = parsePouch(raid.pouch);
+      const items = parsed.data.items ?? [];
 
       const sim = simulate({
         snapshot,
@@ -412,6 +441,22 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         seed: seedToInt32(raid.seed),
         hero,
         troopLevels,
+        pouch,
+        items,
+      });
+
+      /*
+       * What the pouch actually paid for this raid.
+       *
+       * Counted from the commands the simulation *accepted*, never from the
+       * list the client sent: a client that submits ten Warhorns with one in
+       * the pouch has nine rejected, and must be charged for the one.
+       */
+      const refused = new Set(sim.rejected.map((r) => r.index));
+      const usedItems: Partial<Record<ItemType, number>> = {};
+      items.forEach((cmd, i) => {
+        if (refused.has(i)) return;
+        usedItems[cmd.item] = (usedItems[cmd.item] ?? 0) + 1;
       });
 
       // A generated hold has no row to read and nothing to lose. Its loot comes
@@ -535,11 +580,29 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
+      if (Object.keys(usedItems).length > 0) {
+        const live = parsePouch(attacker.pouch);
+        const after: Pouch = {};
+        for (const t of ITEM_TYPES) {
+          const left = Math.max(0, (live[t] ?? 0) - (usedItems[t] ?? 0));
+          // Zeroes are dropped rather than stored. An empty pouch is `{}`,
+          // which is what a hold that has never bought one also has, so there
+          // is one representation of "none" instead of two.
+          if (left > 0) after[t] = left;
+        }
+        // Read from the live pouch rather than the frozen one, so two raids
+        // resolving out of order cannot restore an item the other spent.
+        await tx.player.update({
+          where: { id: attacker.id }, data: { pouch: after as unknown as object },
+        });
+      }
+
       const saved = await tx.raid.update({
         where: { id: raid.id },
         data: {
           status: 'resolved',
           commands: parsed.data.commands as unknown as object,
+          items: items.length > 0 ? (items as unknown as object) : undefined,
           stars: sim.stars,
           destroyedPct: sim.destroyedPct,
           lootGold: BigInt(settlement.loot.g),
@@ -803,6 +866,11 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       hero: (raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
       troopLevels: (raid.troopLevels as unknown as TroopLevels | null) ?? {},
       commands: raid.commands as unknown as DeployCommand[],
+      // Both halves, or the replay is not the fight: the pouch bounds what the
+      // items list is allowed to do, so a replay without it would reject the
+      // very commands the live raid accepted.
+      pouch: parsePouch(raid.pouch),
+      items: (raid.items as unknown as ItemCommand[] | null) ?? [],
       attackerName: attacker?.name ?? 'Unknown',
       stars: raid.stars,
       destroyedPct: raid.destroyedPct,

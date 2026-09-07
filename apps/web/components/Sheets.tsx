@@ -16,6 +16,7 @@ import {
   type BuildingType,
   type Cost,
   type TroopType,
+  type ItemType,
 } from '@ironvow/config';
 import { fmt, longUntil, until } from '../lib/format';
 import type { SeasonState } from '../lib/api';
@@ -180,6 +181,11 @@ export interface ProgressionView {
     level: number;
     troops: { type: TroopType; level: number; power: number; upgradeCost: Cost }[];
   };
+  /** The pouch, and what is still locked behind a higher Keep. */
+  items: {
+    type: ItemType; n: string; d: string; cost: Cost;
+    cap: number; keep: number; held: number; unlocked: boolean;
+  }[];
 }
 
 export interface ArmySheetProps {
@@ -190,6 +196,7 @@ export interface ArmySheetProps {
   onUpgradeHero: () => void;
   onUpgradeTroop: (type: TroopType) => void;
   onCancelJob: (jobId: string) => void;
+  onBuyItem: (type: ItemType) => void;
   /**
    * Takes the player to BUILD with the War Lab in hand.
    *
@@ -236,7 +243,7 @@ type Batch = 1 | 5 | 'max';
 
 export function ArmySheet({
   player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop, onCancelJob,
-  onBuildLab, highlight = null, hint = null,
+  onBuildLab, onBuyItem, highlight = null, hint = null,
 }: ArmySheetProps) {
   const [batch, setBatch] = useState<Batch>(1);
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
@@ -244,6 +251,7 @@ export function ArmySheet({
   const now = Date.now();
   const hero = progression?.hero;
   const lab = progression?.lab;
+  const items = progression?.items;
 
   return (
     <div className="sheet">
@@ -443,6 +451,54 @@ export function ArmySheet({
         * offers to go and build it. The same shape as the hero row above,
         * which has always done this properly.
         */}
+      {/*
+        * The pouch.
+        *
+        * Below the Lab because it is the same kind of thing one step further
+        * along: the Lab makes every raid stronger for good, an item makes one
+        * raid stronger once. Locked rows are shown rather than hidden, so the
+        * Keep level is something to climb towards rather than a surprise.
+        */}
+      {items && items.length > 0 && (
+        <>
+          <div className="sheetHead" style={{ marginTop: 14 }}>
+            <div>
+              <h2>THE POUCH</h2>
+              <p>Carried into a raid and spent there. Bought before you go, never during.</p>
+            </div>
+          </div>
+          {items.map((it) => {
+            const full = it.held >= it.cap;
+            const poor = player.gold < it.cost.g || player.iron < it.cost.i;
+            return (
+              <div className={`qrow${it.unlocked ? '' : ' done'}`} key={it.type}>
+                <div className="qi">
+                  <h4>{it.n.toUpperCase()} · {it.held} of {it.cap}</h4>
+                  <p>
+                    {it.unlocked
+                      ? it.d
+                      : `A Keep of level ${it.keep} carries these. ${it.d}`}
+                  </p>
+                </div>
+                <span className="qrw">
+                  {it.cost.g > 0 && <><GoldIcon /> {fmt(it.cost.g)}</>}
+                  {it.cost.i > 0 && <><IronIcon /> {fmt(it.cost.i)}</>}
+                </span>
+                {it.unlocked && (
+                  <button
+                    className={`btn${full || poor ? '' : ' gold'}`}
+                    disabled={full || poor}
+                    onClick={() => onBuyItem(it.type)}
+                  >
+                    {full ? 'FULL' : 'BUY'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+
       {lab && lab.level === 0 && (
         <>
           <div className="sheetHead" style={{ marginTop: 14 }}>

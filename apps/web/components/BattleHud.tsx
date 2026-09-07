@@ -1,6 +1,6 @@
 'use client';
 
-import { HERO_NAME, TROOP, TROOP_ORDER } from '@ironvow/config';
+import { HERO_NAME, ITEM, ITEM_TYPES, TROOP, TROOP_ORDER, type ItemType } from '@ironvow/config';
 import type { BattleArmy, DeployableType } from '@ironvow/types';
 import { mmss } from '../lib/format';
 import { SPEEDS, type BattleSpeed } from '../lib/game/eta';
@@ -38,13 +38,40 @@ export interface BattleHudProps {
    */
   troopLevels: Partial<Record<DeployableType, number>>;
   onSelect: (type: DeployableType) => void;
+  /** What is left in the pouch this raid was opened with. */
+  items: Readonly<Record<ItemType, number>>;
+  /** The item armed for the next tap, or null. */
+  selectedItem: ItemType | null;
+  onItem: (item: ItemType | null) => void;
   onEnd: () => void;
+}
+
+/**
+ * An item, drawn rather than lettered.
+ *
+ * Two shapes at a glance: a horn is a curve, a firepot is a flask. Neither
+ * needs to be read, which matters when the thing they are competing with for
+ * attention is a base falling down.
+ */
+function ItemArt({ item, size = 30 }: { item: ItemType; size?: number }) {
+  return item === 'horn' ? (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <path d="M6 20c0-7 6-12 13-12l7-3v6l-7 2c-4 1-7 3-7 7z" fill="#e0c48a" stroke="#7a5a24" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M6 20h7v5H8a2 2 0 0 1-2-2z" fill="#b08c4a" stroke="#7a5a24" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <path d="M13 5h6v6l5 9a6 6 0 0 1-5 10h-6a6 6 0 0 1-5-10l5-9z" fill="#d64f38" stroke="#6d1c0f" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M16 17c3 3 4 5 4 7a4 4 0 0 1-8 0c0-2 1-4 4-7z" fill="#ffd97a" />
+    </svg>
+  );
 }
 
 export function BattleHud({
   secondsLeft, eta, speed, destroyedPct, stars, avail, selected, heroReady, heroLevel,
-  troopLevels, onSpeed, onSelect, onEnd,
+  troopLevels, items, selectedItem, onSpeed, onSelect, onItem, onEnd,
 }: BattleHudProps) {
+  const carried = ITEM_TYPES.filter((i) => (items[i] ?? 0) > 0);
   // Shown in the player's own seconds, not the battle's: at four times over,
   // forty seconds left on the clock is ten seconds of sitting there.
   const realLeft = eta === null ? null : Math.max(0, Math.round(eta / speed));
@@ -97,6 +124,31 @@ export function BattleHud({
           </button>
         ))}
       </div>
+
+      {/*
+        * The pouch, on its own row above the warband.
+        *
+        * Only shown when something is in it — a row of empty slots on every
+        * raid would teach a new player that items are a thing they are missing
+        * rather than a thing they can buy, and the tray is already the busiest
+        * corner of a phone screen.
+        */}
+      {carried.length > 0 && (
+        <div id="btItems">
+          {carried.map((i) => (
+            <button
+              key={i}
+              className={`icard${selectedItem === i ? ' sel' : ''}`}
+              title={ITEM[i].d}
+              onClick={() => onItem(selectedItem === i ? null : i)}
+            >
+              <ItemArt item={i} />
+              <span className="n">{items[i] ?? 0}</span>
+            </button>
+          ))}
+          {selectedItem && <span className="itemHint">Tap the ground</span>}
+        </div>
+      )}
 
       <div id="btTray">
         {TROOP_ORDER.filter((t) => (avail[t] ?? 0) > 0 || selected === t).map((t) => (

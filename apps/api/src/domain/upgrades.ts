@@ -1,4 +1,9 @@
 import {
+  ITEM,
+  itemUnlocked,
+  pouchRoomFor,
+  type ItemType,
+  type Pouch,
   HERO_MAX_LEVEL,
   MAX_BUILDERS,
   TROOP_MAX_LEVEL,
@@ -32,7 +37,9 @@ export type UpgradeError =
   | 'troopAtMax'
   | 'troopAtLabCap'
   | 'noSuchTroop'
-  | 'crewFull';
+  | 'crewFull'
+  | 'itemLocked'
+  | 'pouchFull';
 
 /**
  * Upgrades carry their own verdict rather than reusing the command one.
@@ -101,6 +108,50 @@ export function planTroopUpgrade(player: LabView, type: TroopType): UpgradeVerdi
   return { ok: true, value: { type, fromLevel: current, toLevel: current + 1, cost } };
 }
 
+/* --------------------------------------------------------- battle items --- */
+
+export interface ItemBuyPlan {
+  type: ItemType;
+  /** How many were actually bought. Clamped to the pouch, never refused for it. */
+  count: number;
+  cost: Cost;
+  /** The pouch after the purchase. */
+  pouch: Pouch;
+}
+
+export interface PouchView extends PlayerView {
+  keepLevel: number;
+  pouch: Pouch;
+}
+
+/**
+ * Buy battle items.
+ *
+ * Clamped to what will fit rather than refused for it, the same way a donation
+ * is: asking for three when two fit should give you two, not an error message
+ * about arithmetic. Refused only when nothing at all would fit, or when the
+ * Keep has not reached the item yet.
+ */
+export function planItemBuy(player: PouchView, type: ItemType, want: number): UpgradeVerdict<ItemBuyPlan> {
+  if (!itemUnlocked(type, player.keepLevel)) return fail('itemLocked');
+  const room = pouchRoomFor(player.pouch, type);
+  if (room <= 0) return fail('pouchFull');
+
+  const spec = ITEM[type];
+  // The most that fits, then the most that is affordable. Both clamps, so a
+  // player with the gold for one and room for three buys one.
+  let count = Math.min(want, room);
+  while (count > 1 && !canAfford(player, { g: spec.cost.g * count, i: spec.cost.i * count })) count--;
+
+  const cost: Cost = { g: spec.cost.g * count, i: spec.cost.i * count };
+  if (!canAfford(player, cost)) return fail('cannotAfford');
+
+  return {
+    ok: true,
+    value: { type, count, cost, pouch: { ...player.pouch, [type]: (player.pouch[type] ?? 0) + count } },
+  };
+}
+
 export const UPGRADE_MESSAGE: Record<UpgradeError, string> = {
   cannotAfford: 'Not enough resources.',
   heroLocked: 'Raise your Keep to level 3 to call a hero.',
@@ -111,6 +162,8 @@ export const UPGRADE_MESSAGE: Record<UpgradeError, string> = {
   troopAtLabCap: 'Raise the War Lab first.',
   noSuchTroop: 'No such troop.',
   crewFull: 'Your crew is already ten builders strong.',
+  itemLocked: 'Raise your Keep further to carry this.',
+  pouchFull: 'Your pouch is full.',
 };
 
 /* ------------------------------------------------------------ builders --- */

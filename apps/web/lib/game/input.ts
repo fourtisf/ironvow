@@ -3,6 +3,7 @@ import { clampCam, s2g } from '../render/camera';
 import {
   buildingAtScreen,
   deployAt,
+  useItemAt,
   movePlacementTo,
   placeGhostAt,
   startPlacement,
@@ -194,7 +195,10 @@ export function attachInput(
     const [gx, gy] = s2g(w.cam, w.vp, ptr.sx, ptr.sy);
 
     if (w.mode === 'battle') {
-      deployAt(w, gx, gy);
+      // An armed item takes the tap. It disarms itself on use, so the tap after
+      // is a deploy again and there is no mode to get stuck in.
+      if (w.selectedItem) useItemAt(w, gx, gy);
+      else deployAt(w, gx, gy);
       return;
     }
     if (w.mode === 'place') {

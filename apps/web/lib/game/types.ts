@@ -1,4 +1,4 @@
-import type { BuildingType, QuestCounter, TroopType } from '@ironvow/config';
+import type { BuildingType, Pouch, QuestCounter, TroopType } from '@ironvow/config';
 import type { BaseSnapshot, BattleArmy, DeployCommand, HeroLoadout, TroopLevels } from '@ironvow/types';
 
 /** A building on the player's own base, as the server reports it. */
@@ -103,6 +103,8 @@ export interface ScoutedRaid {
   army: BattleArmy;
   hero: HeroLoadout;
   troopLevels: TroopLevels;
+  /** The pouch frozen when the raid opened. Absent on an old stored raid. */
+  pouch?: Pouch;
   expiresAt: string;
   rerollCost: number;
 }

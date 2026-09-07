@@ -1510,6 +1510,57 @@ one's **scheduled** end, not from when the worker noticed. Otherwise a worker
 that was down for three hours moves every future season three hours later,
 permanently — and that error accumulates.
 
+## Something to decide during a raid
+
+Everything else in IRONVOW is decided before the fight. The warband is trained,
+the hero is levelled, the base is scouted — and then three minutes run their
+course with nothing left to decide but where to tap. Battle items are the
+decision you make *inside* a raid, and, because there are two of them solving
+opposite problems, a decision about what to bring as well.
+
+- **Warhorn** (2,600 gold, Keep 4): a circle on the ground. Attacking troops
+  standing in it move 1.55× and hit 1.45× for eleven seconds.
+- **Firepot** (1,900 iron, Keep 5): bursts once. 1,250 damage in the circle, and
+  three times that to a rampart — a flat number that dents a Cannon does nothing
+  at all to a wall, and burning a hole in the ramparts is what a Firepot is for.
+
+Three rules make them safe to add to a deterministic simulation, and they are
+the whole design:
+
+- **An item is a command, not an effect.** The client sends "Warhorn at
+  (24.5, 31.2) on tick 900". The server replays that through the same code and
+  reaches the same fight. Nothing about what an item *did* crosses the wire, so
+  there is nothing to forge. The commands are folded into the running checksum,
+  so moving one by a grid cell changes the digest — `packages/sim/test/items.test.ts`
+  asserts that.
+- **The pouch is frozen onto the raid**, exactly like the warband and the hero.
+  Buying a Warhorn while a raid is open cannot spend it inside that raid, and a
+  replay years later still has the pouch the fight was fought with. Both halves
+  ride on the replay endpoint: without the pouch, a replay would reject the very
+  command the live raid accepted.
+- **You are charged for what the simulation accepted**, never for the list the
+  client sent. Ten Firepots submitted against one in the pouch is nine
+  rejections and one charge, and the debit is taken from the *live* pouch rather
+  than the frozen one, so two raids resolving out of order cannot restore an
+  item the other spent.
+
+A Warhorn is a circle with a lifetime rather than a mark on a unit. Nothing is
+written onto a troop that a later tick would have to remember to undo; a unit
+that walks in halfway through gets exactly what a unit that stood there from the
+start gets, from that moment on. Horns do not stack, which is the rule that
+stops "buy three and drop them on one spot" from being the only way anybody
+plays. And the aura is read on the attacking side only — a horn dropped on the
+defender's garrison must not make the attack go *worse*.
+
+One thing had to move to make the tray honest. `useItem` takes the item out of
+the pouch at the tap rather than when the tick runs, because a count that lags
+by a tick lets a player arm and spend the same last Firepot twice, watch both
+land, and then have one silently vanish when the server replays it. The tick
+that applies it skips the debit for a command the battle scheduled itself.
+
+Old raids need no migration and no version check: `items` is simply absent, so
+they replay as raids where none were used.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

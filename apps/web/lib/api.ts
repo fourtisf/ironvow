@@ -1,5 +1,5 @@
-import type { BuildingType, TroopType } from '@ironvow/config';
-import type { DeployCommand } from '@ironvow/types';
+import type { BuildingType, ItemType, TroopType } from '@ironvow/config';
+import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import type { PlayerState, ScoutedRaid } from './game/types';
 
 /**
@@ -203,6 +203,7 @@ export const api = {
   submitRaid: (
     raidId: string,
     commands: DeployCommand[],
+    items: ItemCommand[],
     clientChecksum?: string,
     clientStars?: number,
   ): Promise<CommandResponse & {
@@ -216,7 +217,7 @@ export const api = {
     rejected: { index: number; reason: string }[];
     /** A war attack: scored for the clan, no loot, no trophies. */
     war?: boolean;
-  }> => post(`/raid/${raidId}/submit`, { commands, clientChecksum, clientStars }),
+  }> => post(`/raid/${raidId}/submit`, { commands, items, clientChecksum, clientStars }),
 
   progression: (): Promise<{
     crew: { builders: number; max: number; nextCost: number | null };
@@ -229,12 +230,19 @@ export const api = {
       level: number;
       troops: { type: TroopType; level: number; power: number; upgradeCost: { g: number; i: number } }[];
     };
+    items: {
+      type: ItemType; n: string; d: string; cost: { g: number; i: number };
+      cap: number; keep: number; held: number; unlocked: boolean;
+    }[];
   }> => call('/progression'),
 
   upgradeHero: (): Promise<CommandResponse & { toLevel: number }> => post('/hero/upgrade'),
   hireBuilder: (): Promise<CommandResponse & { to: number }> => post('/builder/hire'),
   upgradeTroop: (type: TroopType): Promise<CommandResponse & { toLevel: number }> =>
     post('/troop/upgrade', { type }),
+  /** Buy battle items. The server clamps to the pouch and to the purse. */
+  buyItem: (type: ItemType, count = 1): Promise<CommandResponse & { type: ItemType; count: number }> =>
+    post('/item/buy', { type, count }),
 
   quests: (): Promise<{
     quests: {

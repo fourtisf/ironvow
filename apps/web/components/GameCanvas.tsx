@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { DeployCommand } from '@ironvow/types';
+import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import { attachInput } from '../lib/game/input';
 import { renderFrame } from '../lib/game/render';
 import {
@@ -52,7 +52,7 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
       onModeChange: (m) => eventsRef.current.onModeChange(m),
       onToast: (m) => eventsRef.current.onToast(m),
       onPlayerChanged: () => eventsRef.current.onPlayerChanged(),
-      onBattleEnd: (c: DeployCommand[]) => eventsRef.current.onBattleEnd(c),
+      onBattleEnd: (c: DeployCommand[], items: ItemCommand[]) => eventsRef.current.onBattleEnd(c, items),
       onPlacementChanged: () => eventsRef.current.onPlacementChanged(),
       onPlacementCommit: () => eventsRef.current.onPlacementCommit(),
       onCameraMoved: () => eventsRef.current.onCameraMoved(),

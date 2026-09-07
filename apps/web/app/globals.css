@@ -161,6 +161,18 @@
   .tcard canvas{width:34px;height:34px}
   .tcard .n{font-size:11px;color:#ffd97a}
 
+  /* The pouch, on its own row above the warband. Smaller than a troop card:
+     it is a thing you reach for occasionally, not the thing you are doing. */
+  #btItems{position:absolute;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom));
+    display:flex;gap:7px;justify-content:center;align-items:center;padding:0 9px}
+  .icard{width:46px;background:linear-gradient(#2c3d57,#1b2635);border:2px solid #46608a;
+    border-radius:12px;padding:4px 3px 3px;display:flex;flex-direction:column;align-items:center;gap:1px;
+    transition:transform .08s}
+  .icard.sel{border-color:#e8b23c;background:linear-gradient(#5a4620,#3a2c11);transform:translateY(-4px)}
+  .icard .n{font-size:10px;color:#ffd97a}
+  .itemHint{font-size:8.5px;font-family:Arial;font-weight:900;letter-spacing:1.1px;color:#ffd97a;
+    background:rgba(20,28,40,.82);border:2px solid #7a5a24;border-radius:10px;padding:5px 9px}
+
   /* ---------- modal ---------- */
   .ovl{position:fixed;inset:0;z-index:40;background:rgba(8,12,20,.78);
     display:flex;align-items:center;justify-content:center;padding:22px;backdrop-filter:blur(3px)}

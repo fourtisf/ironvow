@@ -1,4 +1,6 @@
 import {
+  ITEM,
+  ITEM_TYPES,
   HERO_MAX_LEVEL,
   MAX_BUILDERS,
   builderCost,
@@ -14,7 +16,7 @@ import {
 } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { UPGRADE_MESSAGE, labLevelOf, planBuilderHire, planHeroUpgrade, planTroopUpgrade } from '../domain/upgrades.js';
+import { UPGRADE_MESSAGE, labLevelOf, planBuilderHire, planHeroUpgrade, planItemBuy, planTroopUpgrade } from '../domain/upgrades.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
@@ -29,6 +31,7 @@ import { serialise } from './auth.js';
  */
 
 const troopSchema = z.object({ type: z.enum(TROOP_TYPES) });
+const itemSchema = z.object({ type: z.enum(ITEM_TYPES), count: z.number().int().min(1).max(9) });
 
 export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -57,6 +60,16 @@ export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
         // of a price.
         nextCost: builderCost(player.builders),
       },
+      items: ITEM_TYPES.map((type) => ({
+        type,
+        n: ITEM[type].n,
+        d: ITEM[type].d,
+        cost: ITEM[type].cost,
+        cap: ITEM[type].cap,
+        keep: ITEM[type].keep,
+        held: player.pouch[type] ?? 0,
+        unlocked: player.keepLevel >= ITEM[type].keep,
+      })),
       lab: {
         level: labLevel,
         troops: TROOP_TYPES.map((type) => ({
@@ -108,6 +121,41 @@ export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
         data: {
           gold: { decrement: BigInt(plan.value.cost.g) },
           builders: plan.value.to,
+        },
+      });
+      return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };
+    }, COMMAND_TX);
+
+    if (!result.ok) {
+      return reply.code(409).send({ error: result.error, message: UPGRADE_MESSAGE[result.error] });
+    }
+    return reply.send({ ...result.value, player: serialise(result.player) });
+  });
+
+  /**
+   * Buy battle items.
+   *
+   * A gold and iron sink that is spent rather than accumulated, which is what
+   * makes it a different sink from the vanity ones: the money leaves the
+   * economy every time a raid goes badly enough to need a Warhorn.
+   */
+  app.post('/item/buy', async (request, reply) => {
+    const parsed = itemSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      await lockPlayer(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!);
+
+      const plan = planItemBuy(player, parsed.data.type, parsed.data.count);
+      if (!plan.ok) return plan;
+
+      await tx.player.update({
+        where: { id: player.id },
+        data: {
+          gold: { decrement: BigInt(plan.value.cost.g) },
+          iron: { decrement: BigInt(plan.value.cost.i) },
+          pouch: plan.value.pouch as unknown as object,
         },
       });
       return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };

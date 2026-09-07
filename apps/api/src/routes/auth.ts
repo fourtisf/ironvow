@@ -361,6 +361,7 @@ export function serialise(p: Awaited<ReturnType<typeof loadPlayer>>) {
     })),
     garrison: p.garrison,
     garrisonCap: p.garrisonCap,
+    pouch: p.pouch,
     heroLevel: p.heroLevel,
     heroReadyAt: p.heroReadyAt?.toISOString() ?? null,
     troopLevels: p.troopLevels,

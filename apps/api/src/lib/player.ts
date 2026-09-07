@@ -1,4 +1,6 @@
 import {
+  parsePouch,
+  type Pouch,
   DAILY_COUNTERS,
   QUEST_COUNTERS,
   dayIndexOf,
@@ -51,6 +53,8 @@ export interface LoadedPlayer extends PlayerView {
   /** Troops the clan has given this hold, and how much room there is. */
   garrison: Garrison;
   garrisonCap: number;
+  /** Battle items bought and not yet spent. */
+  pouch: Pouch;
   shieldUntil: Date | null;
   buildings: (OwnedBuildingRow & { stock: number })[];
   storageCap: number;
@@ -275,6 +279,7 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     keepLevel,
     garrison: parseGarrison(player.garrison),
     garrisonCap: garrisonSlots(keepLevel),
+    pouch: parsePouch(player.pouch),
     shieldUntil: player.shieldUntil,
     buildings,
     army,

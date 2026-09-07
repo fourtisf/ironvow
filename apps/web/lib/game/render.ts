@@ -1,4 +1,4 @@
-import { DEF_STAT, DEPLOY_CLEARANCE, PROD, TH, TROOP, TROOP_ORDER, TW, TYPES, heroStats, type BuildingType } from '@ironvow/config';
+import { DEF_STAT, DEPLOY_CLEARANCE, HORN_SECONDS, PROD, TH, TROOP, TROOP_ORDER, TW, TYPES, heroStats, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
@@ -609,6 +609,52 @@ export function swingOf(
   return Math.max(0, Math.min(1, u.cd / period));
 }
 
+/**
+ * Battle items on the ground.
+ *
+ * Two things, painted before anything stands on them: the Warhorn circles that
+ * are still burning, read live off the simulation, and the brief flash a
+ * Firepot leaves behind. The flash is the world's, not the battle's, because a
+ * Firepot has no lasting state in the simulation at all — it burns once on one
+ * tick and is gone, and the player needs longer than a thirtieth of a second to
+ * see that it happened.
+ */
+const BURST_SECONDS = 0.55;
+
+function drawItems(w: World, d: Draw, battle: Battle): void {
+  const { ctx, cam, vp } = d;
+
+  const ring = (gx: number, gy: number, r: number, fill: string, edge: string, width: number): void => {
+    const [cx, cy] = w2s(cam, vp, isoX(gx, gy), isoY(gx, gy));
+    const { rx, ry } = rangeRadii(r, cam.z);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, Math.max(0.01, rx), Math.max(0.01, ry), 0, 0, 6.2832);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  };
+
+  for (const a of battle.auras()) {
+    // Fading as it runs out, so "how long have I got" is something you can see
+    // rather than something you have to count.
+    const life = Math.max(0, Math.min(1, a.left / HORN_SECONDS));
+    ring(a.x, a.y, a.r, `rgba(232,178,60,${0.10 + life * 0.10})`,
+      `rgba(255,217,122,${0.35 + life * 0.4})`, 2);
+  }
+
+  for (let i = w.bursts.length - 1; i >= 0; i--) {
+    const b = w.bursts[i]!;
+    const age = (w.t - b.born) / BURST_SECONDS;
+    if (age >= 1) { w.bursts.splice(i, 1); continue; }
+    if (b.item !== 'firepot') continue;
+    // Expanding and fading: the shape of something that went off.
+    ring(b.x, b.y, b.r * (0.55 + age * 0.45), `rgba(255,140,60,${(1 - age) * 0.4})`,
+      `rgba(255,217,122,${1 - age})`, 3);
+  }
+}
+
 function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   const battle = w.battle!;
@@ -618,6 +664,9 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   // Only while there are still troops to put down: once the tray is empty the
   // zone is answering a question nobody is asking any more.
   if (battle.kind === 'raid' && firstAvailableTroop(w) !== null) drawNoDeployZone(w, d, battle);
+
+  // Over the zone wash, under everything that stands on the ground.
+  drawItems(w, d, battle);
 
   const ents: BattleEntity[] = [];
   {

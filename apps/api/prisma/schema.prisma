@@ -42,6 +42,11 @@ model Player {
   /// nothing that was already earned. Reset to the post-reset total at close.
   seasonPeak Int @default(0)
 
+  /// Battle items bought and not yet spent. A JSON column for the same reason
+  /// the garrison is one: a handful of counts read and written whole, always
+  /// with the player, never queried across. See items.ts in @ironvow/config.
+  pouch Json @default("{}")
+
   /// Troops the clan has given this hold. They spawn as defenders when it is
   /// raided, and they are spent doing it — see garrison.ts in @ironvow/config.
   garrison Json @default("{}")
@@ -243,6 +248,14 @@ model Raid {
   hero        Json?
   /// War Lab levels per troop type at the moment the raid opened.
   troopLevels Json?
+
+  /// The pouch the attacker carried in. Frozen for the same reason as the
+  /// warband: buying an item mid-raid must not change what a raid already open
+  /// is allowed to spend, and a replay has to reach the same limits.
+  pouch Json?
+  /// Battle items used, in tick order. Null from a raid that used none, and
+  /// from every raid recorded before items existed.
+  items Json?
 
   /// Set for a war attack: the war, and the roster seat whose frozen base
   /// was fought. A war raid takes no loot and moves no trophies.

@@ -1,4 +1,4 @@
-import type { BuildingType, TroopType } from '@ironvow/config';
+import type { BuildingType, ItemType, Pouch, TroopType } from '@ironvow/config';
 
 /** A building as it exists on a live base. */
 export interface BuildingState {
@@ -81,6 +81,23 @@ export interface DeployCommand {
   gy: number;
 }
 
+/**
+ * One battle item used, as submitted by the client.
+ *
+ * A separate list from the deploys rather than a variant inside it, for one
+ * reason worth more than the tidiness: every raid recorded before items existed
+ * has no `items` field at all, so it replays as a raid where none were used
+ * without a migration and without a version check.
+ */
+export interface ItemCommand {
+  /** Which simulation tick it lands on. Non-decreasing across the list. */
+  tickIndex: number;
+  item: ItemType;
+  /** Where it was dropped, in grid coordinates. Fractional. */
+  gx: number;
+  gy: number;
+}
+
 /** The hero as it enters a battle. Frozen onto the raid, like the warband. */
 export interface HeroLoadout {
   level: number;
@@ -112,6 +129,10 @@ export interface SimInput {
   hero?: HeroLoadout;
   /** Omitted means every troop is at level 1. */
   troopLevels?: TroopLevels;
+  /** Items used, in tick order. Omitted means none — which is every old raid. */
+  items?: readonly ItemCommand[];
+  /** What the attacker had to spend. Frozen onto the raid like the warband. */
+  pouch?: Pouch;
 }
 
 export interface SimResult {
@@ -144,7 +165,10 @@ export interface RejectedCommand {
     /** The hero is still recovering from the last raid. */
     | 'heroUnavailable'
     /** There is only ever one hero, and it is already on the field. */
-    | 'heroAlreadyDeployed';
+    | 'heroAlreadyDeployed'
+    /** The pouch did not have one, or had none left. */
+    | 'noItemsLeft'
+    | 'unknownItem';
 }
 
 /** Recorded state for the renderer. Produced only when the caller asks for it. */
@@ -158,12 +182,15 @@ export type TimelineEvent =
   | { t: number; k: 'unitDead'; unit: number }
   | { t: number; k: 'shot'; from: 'unit' | 'struct'; src: number; x: number; y: number; tx: number; ty: number; kind: 'arrow' | 'ball' }
   | { t: number; k: 'hitStruct'; struct: number; dmg: number }
-  | { t: number; k: 'hitUnit'; unit: number; dmg: number };
+  | { t: number; k: 'hitUnit'; unit: number; dmg: number }
+  | { t: number; k: 'item'; item: ItemType; x: number; y: number; r: number };
 
 /** What the client is allowed to send when it finishes a raid. */
 export interface RaidSubmission {
   raidId: string;
   commands: DeployCommand[];
+  /** Absent from a client that used none, and from every client built before items. */
+  items?: ItemCommand[];
 }
 
 /** Public view of a player, safe to send to another player. */

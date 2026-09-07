@@ -1,4 +1,6 @@
 import {
+  ITEM,
+  type ItemType,
   MAX_DPR,
   N,
   PROD,
@@ -19,7 +21,7 @@ import { sfx } from '../sfx';
 import { PIPH } from '../render/palette';
 import { type Camera, centerOn, clampCam, s2g, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
-import type { BaseSnapshot, BattleKind, DeployableType, DeployCommand } from '@ironvow/types';
+import type { BaseSnapshot, BattleKind, DeployableType, DeployCommand, ItemCommand } from '@ironvow/types';
 import type { FloatingText, Mode, Placement, PlayerState, ScoutedRaid } from './types';
 
 /**
@@ -40,7 +42,7 @@ export interface WorldEvents {
   /** The player's own state changed locally and the HUD should re-read it. */
   onPlayerChanged: () => void;
   /** A battle reached an end condition. */
-  onBattleEnd: (commands: DeployCommand[]) => void;
+  onBattleEnd: (commands: DeployCommand[], items: ItemCommand[]) => void;
   /**
    * The ghost moved or its footprint changed colour. The placement bar is
    * React, the ghost is not, and without this the bar kept saying Blocked —
@@ -126,10 +128,30 @@ export interface World {
    */
   preview: BaseSnapshot | null;
   battleCommands: DeployCommand[];
+  /** Items used this raid, in tick order. Sent alongside the deploys. */
+  battleItems: ItemCommand[];
+  /**
+   * Where items landed, for the renderer.
+   *
+   * Kept on the world rather than read back off the battle, because a Firepot
+   * has no lasting state in the simulation at all — it burns once and is gone —
+   * and the flash the player needs to see it happen outlives the tick it
+   * happened on.
+   */
+  bursts: { x: number; y: number; r: number; item: ItemType; born: number }[];
   /** How many timeline events have been heard. */
   heard: number;
   /** What the tray has selected for the next deploy. */
   selectedTroop: DeployableType | null;
+  /**
+   * The item armed for the next tap, or null.
+   *
+   * Mutually exclusive with `selectedTroop` at the point of use rather than in
+   * state: arming an item is a deliberate act and the next tap spends it, then
+   * it disarms itself. A mode you can forget you are in is a mode that throws
+   * a Firepot at nothing.
+   */
+  selectedItem: ItemType | null;
   /** Leftover time not yet consumed by a fixed step. */
   tickAccumulator: number;
   /** Cosmetic per-structure state the simulation does not carry. */
@@ -163,8 +185,11 @@ export function createWorld(events: WorldEvents): World {
     raid: null,
     preview: null,
     battleCommands: [],
+    battleItems: [],
+    bursts: [],
     heard: 0,
     selectedTroop: null,
+    selectedItem: null,
     tickAccumulator: 0,
     fx: { aim: new Map(), recoil: new Map(), flash: new Map() },
     unitFlash: new Map(),
@@ -276,6 +301,8 @@ export function bump(w: World, buildingId: string): void {
 export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'raid'): void {
   w.raid = raid;
   w.battleCommands = [];
+  w.battleItems = [];
+  w.bursts = [];
   w.heard = 0;
   w.battle = createBattle(
     {
@@ -288,6 +315,9 @@ export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'rai
       // player has upgraded to since.
       hero: raid.hero,
       troopLevels: raid.troopLevels,
+      // The pouch the server froze when the raid opened, so the tray's counts
+      // and the server's replay agree about what there was to spend.
+      pouch: raid.pouch ?? {},
     },
     // Recorded so the client can hear the fight: the sounds below are
     // driven by the sim's own events rather than guessed from the renderer.
@@ -298,6 +328,7 @@ export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'rai
   w.unitFlash = new Map();
   w.unitBorn = new Map();
   w.selectedTroop = firstAvailableTroop(w);
+  w.selectedItem = null;
   w.selectedId = null;
   w.placement = null;
   w.preview = null;
@@ -367,7 +398,7 @@ export function stepBattle(w: World, dt: number): void {
     if (quiet) w.heard = battle.events.length;
     else hear(w, battle);
     if (ended) {
-      w.events.onBattleEnd(w.battleCommands);
+      w.events.onBattleEnd(w.battleCommands, w.battleItems);
       return;
     }
   }
@@ -492,6 +523,30 @@ export function deployAt(w: World, gx: number, gy: number): void {
   w.battleCommands.push(out.command);
   w.unitBorn.set(battle.units.length - 1, w.t);
   if (type === 'hero' || (battle.avail[type] ?? 0) <= 0) w.selectedTroop = firstAvailableTroop(w);
+  w.events.onPlayerChanged();
+}
+
+/**
+ * Use the armed item at a grid position, recording the command.
+ *
+ * Unlike a deploy, an item may land anywhere on the map, including on top of a
+ * building — that is what an item is for. It disarms itself afterwards, so the
+ * next tap is a deploy again.
+ */
+export function useItemAt(w: World, gx: number, gy: number): void {
+  const battle = w.battle;
+  const item = w.selectedItem;
+  if (!battle || battle.ended || !item) return;
+  const out = battle.useItem(item, gx, gy);
+  if (!out.ok) {
+    w.events.onToast(out.reason === 'outOfBounds' ? 'Too far out' : 'None of those left');
+    w.selectedItem = null;
+    return;
+  }
+  w.battleItems.push(out.command);
+  w.bursts.push({ x: gx, y: gy, r: ITEM[item].r, item, born: w.t });
+  w.selectedItem = null;
+  if (item === 'horn') sfx.horn(); else sfx.hit();
   w.events.onPlayerChanged();
 }
 

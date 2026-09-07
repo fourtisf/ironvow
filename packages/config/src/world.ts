@@ -44,3 +44,23 @@ export const ZOOM_MAX = 1.9;
 
 /** Client render cap. Uncapped DPR on high-density Android is the biggest frame-rate risk. */
 export const MAX_DPR = 2;
+
+/*
+ * Where a raider may put troops down.
+ *
+ * ALFA: "mengapa tidak bisa kerahkan pasukan?? kalo kaya gni lebih baik
+ * persegiin garis merah loh"
+ *
+ * Because these two numbers were invisible. A tap that lands inside a
+ * structure's footprint plus DEPLOY_CLEARANCE is refused, and the only thing
+ * the player got back was a line of text — which answers "no" without ever
+ * answering "where". The client draws the zone now, and it draws it from these,
+ * which is why they live here rather than inside the simulation: a boundary
+ * painted from a second copy of a number is a boundary that will one day be a
+ * lie.
+ */
+
+/** Deploys must land this far outside a structure's footprint. */
+export const DEPLOY_CLEARANCE = 1.6;
+/** Deploys must stay this far inside the world edge. */
+export const DEPLOY_MARGIN = 1.5;

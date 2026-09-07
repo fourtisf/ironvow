@@ -1,6 +1,8 @@
 import {
   DEFEND_TICKS,
   DEF_STAT,
+  DEPLOY_CLEARANCE,
+  DEPLOY_MARGIN,
   N,
   RAID_TICKS,
   TICK_SECONDS,
@@ -136,10 +138,6 @@ export interface SimProj {
 
 const DT = TICK_SECONDS;
 
-/** Deploys must land this far outside a structure's footprint. */
-const DEPLOY_CLEARANCE = 1.6;
-/** Deploys must stay this far inside the world edge. */
-const DEPLOY_MARGIN = 1.5;
 
 export interface SimOptions {
   /** Record a per-event timeline for the renderer. Off by default: the server never needs it. */

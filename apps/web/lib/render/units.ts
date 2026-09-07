@@ -325,7 +325,14 @@ function paintKit(ctx: CanvasRenderingContext2D, K: Kit, S: number): void {
   }
 }
 
-/** The weapon, which swings, and is therefore the only thing drawn live. */
+/**
+ * The weapon, which swings, and is therefore the only thing drawn live.
+ *
+ * `sw` is one at the instant the blow lands and falls to zero as the unit
+ * recovers — the shape of `cd / period` in the simulation. A melee weapon
+ * therefore snaps forward and drifts back, which is a strike; a bow has to read
+ * the other way round, because the arrow leaves as the string is *released*.
+ */
 function paintWeapon(ctx: CanvasRenderingContext2D, K: Kit, S: number, sw: number): void {
   const { f, P, detail, tier, hero } = K;
   const Y = (v: number): number => Yof(S, v);
@@ -364,7 +371,8 @@ function paintWeapon(ctx: CanvasRenderingContext2D, K: Kit, S: number, sw: numbe
     ctx.lineWidth = Math.max(1, 1.2 * S);
     ctx.beginPath();
     ctx.moveTo(6 * S * f + bow * Math.cos(-1.1) * f, Y(21) + bow * Math.sin(-1.1));
-    ctx.lineTo((3 - sw * 3) * S * f, Y(21));
+    // Drawn back as the cooldown runs down, loosed the moment it fires.
+    ctx.lineTo((3 - (1 - sw) * 3) * S * f, Y(21));
     ctx.lineTo(6 * S * f + bow * Math.cos(1.1) * f, Y(21) + bow * Math.sin(1.1));
     ctx.stroke();
   } else if (K.type === 'scaler') {
@@ -584,8 +592,20 @@ function paint(d: Draw, u: DrawableUnit, useCache: boolean): void {
   };
 
   if (u.type === 'ram') {
-    if (cached) blitUnitPart(d, shape('ram'), S, sx, ay, (c, s) => paintRam(c, K, s));
-    else live((c, s) => paintRam(c, K, s));
+    /*
+     * A ram has no arm to swing, so the whole engine lunges instead: the beam
+     * goes in on the blow and is hauled back between them. Done by moving the
+     * cached sprite rather than repainting it, so a siege costs no more to draw
+     * than it did when it stood there doing nothing visible at all.
+     */
+    const lunge = u.swing * 7 * S * K.f;
+    if (cached) blitUnitPart(d, shape('ram'), S, sx + lunge, ay, (c, s) => paintRam(c, K, s));
+    else {
+      ctx.save();
+      ctx.translate(sx + lunge, ay);
+      paintRam(ctx, K, S);
+      ctx.restore();
+    }
   } else {
     if (K.detail && tier >= 2) {
       if (cached) blitUnitPart(d, shape('cloak'), S, sx, ay, (c, s) => paintCloak(c, K, s));

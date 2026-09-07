@@ -156,7 +156,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       if (!opponent) {
         const seed = randomSeed();
         const stage = stageFromTrophies(me.trophies);
-        const snapshot = generateOpponent(stage, 'ai', garrisonName(seed));
+        const snapshot = generateOpponent(stage, 'ai', garrisonName(seed), seed);
 
         const raid = await tx.raid.create({
           data: {

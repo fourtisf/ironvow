@@ -1,4 +1,4 @@
-import { DEF_STAT, PROD, TH, TROOP_ORDER, TW, TYPES, type BuildingType } from '@ironvow/config';
+import { DEF_STAT, DEPLOY_CLEARANCE, PROD, TH, TROOP, TROOP_ORDER, TW, TYPES, heroStats, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
@@ -10,7 +10,8 @@ import { drawTerrain } from '../render/terrain';
 import { drawProjectile, drawUnit } from '../render/units';
 import type { DeployableType } from '@ironvow/types';
 import type { ClientBuilding } from './types';
-import type { World } from './world';
+import { firstAvailableTroop, type World } from './world';
+import type { Battle } from '@ironvow/sim';
 
 /**
  * One frame.
@@ -436,10 +437,187 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
   drawAtmosphere(d);
 }
 
+
+/*
+ * The ground a raider may not stand on.
+ *
+ * ALFA: "mengapa tidak bisa kerahkan pasukan?? kalo kaya gni lebih baik
+ * persegiin garis merah loh apakah anda paham??"
+ *
+ * The rule was always there — a deploy inside a structure's footprint plus
+ * DEPLOY_CLEARANCE is refused — and it was completely invisible. All the player
+ * got was a line of text saying no, which answers "why did that fail" and never
+ * answers "then where". Tapping around a base hunting for a legal cell is not a
+ * decision anybody is making.
+ *
+ * So the zone is painted. It is drawn from `DEPLOY_CLEARANCE` in the config,
+ * the same number the simulation refuses on, because a boundary painted from a
+ * second copy of a number is a boundary that will one day be a lie.
+ *
+ * It is the union of a circle per building rather than one rectangle round the
+ * whole hold, and that is a deliberate difference from what was asked for: a
+ * rectangle would be simpler to read, but it would also colour in a great deal
+ * of ground the server is perfectly happy to take troops on — a base with two
+ * Muster Fields at opposite corners has a lot of legal grass between them. A
+ * boundary that lies in the "you may not" direction costs the player real
+ * options, so the shape follows the rule.
+ *
+ * One path, one fill: overlapping circles filled together are their union, so
+ * the wash never doubles up where two buildings are close.
+ */
+function drawNoDeployZone(_w: World, d: Draw, battle: Battle): void {
+  const { ctx, cam, vp } = d;
+  const alive = battle.structs.filter((s) => !s.dead);
+  if (alive.length === 0) return;
+
+  interface Blob { cx: number; cy: number; rx: number; ry: number }
+  const blobs: Blob[] = alive.map((s) => {
+    const r = s.size / 2 + DEPLOY_CLEARANCE;
+    const [cx, cy] = w2s(cam, vp, isoX(s.cx, s.cy), isoY(s.cx, s.cy));
+    // A circle in grid space is an ellipse on an isometric screen; the same
+    // substitution the range rings use. See rangeRadii.
+    const { rx, ry } = rangeRadii(r, cam.z);
+    return { cx, cy, rx, ry };
+  });
+
+  const path = (c: CanvasRenderingContext2D, inset: number): void => {
+    c.beginPath();
+    for (const b of blobs) {
+      c.ellipse(b.cx, b.cy, Math.max(0.01, b.rx - inset), Math.max(0.01, b.ry - inset),
+        0, 0, 6.2832);
+    }
+  };
+
+  // One path, one fill: overlapping circles filled together are their union,
+  // so the wash never doubles up where two buildings stand close.
+  path(ctx, 0);
+  ctx.fillStyle = 'rgba(214,54,42,.2)';
+  ctx.fill();
+
+  /*
+   * The edge, which is the part ALFA actually asked for.
+   *
+   * Stroking the circles as they are draws the arcs buried inside the blob
+   * too, and a zone with lines across the middle of it reads as several zones.
+   * Clipping does not get this out either: "outside the union" is not a thing
+   * either fill rule can express once three circles overlap, and on a real base
+   * they always do — under non-zero, ground covered twice winds to -1 and comes
+   * back; under even-odd it comes back at three.
+   *
+   * So the band is built where boolean geometry actually is available: on a
+   * layer of its own, as the union minus the union shrunk by the line width,
+   * which is exactly the ring inside the boundary. It is cached on the camera,
+   * because a hand resting still on a phone is most frames.
+   */
+  const band = zoneBand(blobs, vp, Math.max(3, 4.5 * cam.z));
+  if (band) {
+    // The layer is in device pixels; this context is already scaled by the
+    // device ratio, so the source rectangle is the only one that carries it.
+    const k = vp.dpr;
+    ctx.drawImage(band.canvas,
+      band.x * k, band.y * k, band.w * k, band.h * k,
+      band.x, band.y, band.w, band.h);
+  }
+}
+
+/**
+ * The scratch layer the zone outline is cut on, kept between frames.
+ *
+ * One canvas for the life of the tab. It is only ever the size of the
+ * viewport, and it is only ever redrawn when the camera moves or a building
+ * falls — panning during a raid is the worst case and it is one clear and two
+ * fills, which is less than the base behind it costs.
+ */
+let bandCanvas: HTMLCanvasElement | null = null;
+let bandKey = '';
+let bandRect = { x: 0, y: 0, w: 0, h: 0 };
+
+interface Band { canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number }
+
+function zoneBand(
+  blobs: readonly { cx: number; cy: number; rx: number; ry: number }[],
+  vp: { w: number; h: number; dpr: number },
+  width: number,
+): Band | null {
+  if (typeof document === 'undefined') return null;
+  const key = `${vp.w}x${vp.h}x${vp.dpr}|${width.toFixed(1)}|`
+    + blobs.map((b) => `${b.cx.toFixed(1)},${b.cy.toFixed(1)},${b.rx.toFixed(1)}`).join(';');
+  if (bandCanvas && bandKey === key) return { canvas: bandCanvas, ...bandRect };
+
+  const c = bandCanvas ?? document.createElement('canvas');
+  bandCanvas = c;
+  const dw = Math.max(1, Math.round(vp.w * vp.dpr));
+  const dh = Math.max(1, Math.round(vp.h * vp.dpr));
+  if (c.width !== dw || c.height !== dh) { c.width = dw; c.height = dh; }
+  const bc = c.getContext('2d');
+  if (!bc) return null;
+
+  /*
+   * Only the ground the zone actually covers is touched.
+   *
+   * Clearing a whole phone's backing store every frame while a finger drags
+   * the map is three megapixels of work to draw an outline round a base that
+   * occupies a third of the screen. The rectangle is the union's own bounds,
+   * clipped to the viewport, and it is what gets cleared, drawn and blitted.
+   */
+  let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+  for (const b of blobs) {
+    x0 = Math.min(x0, b.cx - b.rx); x1 = Math.max(x1, b.cx + b.rx);
+    y0 = Math.min(y0, b.cy - b.ry); y1 = Math.max(y1, b.cy + b.ry);
+  }
+  const rect = {
+    x: Math.max(0, Math.floor(x0 - 2)),
+    y: Math.max(0, Math.floor(y0 - 2)),
+    w: 0,
+    h: 0,
+  };
+  rect.w = Math.min(vp.w, Math.ceil(x1 + 2)) - rect.x;
+  rect.h = Math.min(vp.h, Math.ceil(y1 + 2)) - rect.y;
+  if (rect.w <= 0 || rect.h <= 0) return null;
+
+  bc.setTransform(vp.dpr, 0, 0, vp.dpr, 0, 0);
+  bc.clearRect(rect.x, rect.y, rect.w, rect.h);
+  const fill = (inset: number): void => {
+    bc.beginPath();
+    for (const b of blobs) {
+      bc.ellipse(b.cx, b.cy, Math.max(0.01, b.rx - inset), Math.max(0.01, b.ry - inset),
+        0, 0, 6.2832);
+    }
+    bc.fill();
+  };
+  bc.fillStyle = 'rgba(255,96,74,.95)';
+  fill(0);
+  // And out again, one line width in: what is left is the boundary itself.
+  bc.globalCompositeOperation = 'destination-out';
+  bc.fillStyle = '#000';
+  fill(width);
+  bc.globalCompositeOperation = 'source-over';
+
+  bandKey = key;
+  bandRect = rect;
+  return { canvas: c, ...rect };
+}
+
+export function swingOf(
+  u: { t: DeployableType; cd: number; moving: boolean }, heroLevel: number,
+): number {
+  // A unit walking to its target is not hitting anything, and its cooldown is
+  // whatever it was left with when the last target died.
+  if (u.moving) return 0;
+  const period = u.t === 'hero' ? heroStats(heroLevel).cd : TROOP[u.t].cd;
+  if (period <= 0) return 0;
+  return Math.max(0, Math.min(1, u.cd / period));
+}
+
 function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   const battle = w.battle!;
   drawTerrain(d, w.terrain);
+
+  // Painted on the ground, so everything that stands on it is drawn over it.
+  // Only while there are still troops to put down: once the tray is empty the
+  // zone is answering a question nobody is asking any more.
+  if (battle.kind === 'raid' && firstAvailableTroop(w) !== null) drawNoDeployZone(w, d, battle);
 
   const ents: BattleEntity[] = [];
   {
@@ -484,7 +662,7 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
         maxHp: u.maxHp,
         moving: u.moving,
         face: u.face,
-        swing: w.unitSwing.get(e.i) ?? 0,
+        swing: swingOf(u, w.raid?.hero?.level ?? 1),
         flash: w.unitFlash.get(e.i) ?? 0,
         born: w.unitBorn.get(e.i) ?? 0,
       });

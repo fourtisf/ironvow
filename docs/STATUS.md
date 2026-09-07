@@ -1115,6 +1115,94 @@ Three things this broke, all now covered:
    three, added after the producers so they take leftover ground rather than
    pushing a mine off the layout.
 
+## Four things a raid was not telling anybody
+
+ALFA, over one session, from inside a raid:
+
+> "mengapa tidak bisa kerahkan pasukan?? kalo kaya gni lebih baik persegiin
+> garis merah loh apakah anda paham??"
+> "dan animasinya harus ada kalo mukul atau yang lain"
+> "dan kalo misal buka chrome lain otomatis berhnti nyerang mengapa"
+> "nextnya juga ga pindah apa2 ga ada kerajaan yang baru dan harusnya ketika
+> pilih harus beda gold dan dll juga beda"
+
+Four separate complaints, and every one of them turned out to be a thing the
+game already did and never showed, or wiring that was in place and connected to
+nothing.
+
+**The no-deploy zone was invisible.** A tap inside a structure's footprint plus
+`DEPLOY_CLEARANCE` is refused, and all the player got back was "Too close to
+their buildings" — which answers "why did that fail" and never answers "then
+where". Tapping around a base hunting for a legal cell is not a decision anybody
+is making. The zone is painted now, and painted from the same constant the
+simulation refuses on: `DEPLOY_CLEARANCE` and `DEPLOY_MARGIN` moved out of
+`simulate.ts` into the config, because a boundary drawn from a second copy of a
+number is a boundary that will one day be a lie.
+
+It is the union of a circle per building rather than one rectangle round the
+hold, and that is a deliberate difference from what was asked for: a rectangle
+reads more cleanly, but it colours in a great deal of ground the server is
+perfectly happy to take troops on — a base with two Muster Fields at opposite
+corners has a lot of legal grass between them, and a boundary that lies in the
+"you may not" direction costs the player real options.
+
+Getting one clean line round that union is the whole of the work. Stroking the
+circles draws the arcs buried inside the blob too, and a zone with lines across
+the middle of it reads as several zones. Clipping does not rescue it either:
+"outside the union" is not expressible in either fill rule once three circles
+overlap — under non-zero, ground covered twice winds to −1 and comes back;
+under even-odd it comes back at three. So the band is cut where boolean geometry
+actually exists, on a layer of its own: fill the union, then erase the union
+shrunk by the line width, and what is left is exactly the boundary. It is cached
+on the camera and only the union's own bounding rectangle is ever cleared or
+blitted, because clearing a phone's whole backing store every frame to outline a
+base that covers a third of the screen is three megapixels of work for nothing.
+
+**Two animations were wired up to nothing at all.** `unitSwing` and `unitFlash`
+were both created, decayed every frame and read by the renderer, and neither was
+ever written to. Every weapon painter in the game takes a swing and rotates on
+it; every troop in every raid stood at a wall holding its sword out horizontally
+for the whole fight, and a Raider under cannon fire looked exactly like a Raider
+standing still.
+
+The swing is derived rather than stored, because the simulation already knows:
+`cd` is the attack cooldown, reset to the weapon's full period the instant a
+blow lands. `cd / period` is one exactly when the unit strikes and falls to zero
+as it recovers — a fast strike and a slow follow-through, which is what a swing
+is, and it cannot drift out of step with the damage because it *is* the damage
+clock. The bow reads it backwards, since an arrow leaves as the string is
+released, and the ram has no arm to swing so the whole engine lunges instead —
+by moving the cached sprite, so a siege costs no more to draw than it did when
+it was doing nothing visible. The flash now follows unit hit points the same way
+it has always followed a building's.
+
+**A raid stopped the moment the window lost focus.** `requestAnimationFrame`
+does not fire in a background tab, and the delta on the way back was clamped to
+50 ms so nothing would teleport — so two minutes in another window advanced the
+battle by a twentieth of a second. The troops did not pause politely; the timer
+in the corner is the same clock, so the whole attack stood still. There are two
+clocks now and they are not the same clock: everything the eye follows keeps the
+clamped delta, and the battle takes real elapsed time. `stepBattle` paces the
+backlog at up to eight seconds of battle per frame, so two minutes away is paid
+off inside a quarter of a second of wall time, and it goes quiet while it does —
+a wall of sword-hits from ninety seconds ago is not information. Every tick still
+happens, in order, so the commands the server replays are the ones that were
+played.
+
+**Every generated garrison was the same garrison.** `generateBase` was seeded on
+the stage and nothing else, so every opponent a player at a given trophy count
+could ever be shown was one base, cell for cell, holding one purse to the coin —
+only the name over it changed. NEXT charged fifty gold to redraw the same
+picture, which is the worst thing a paid button can do. The seed is threaded
+through now and it moves more than the noise: which of three layouts the hold
+uses, how far each ring sits, how many of everything, the level of each
+individual building, and the purse, which swings by a third either way with gold
+and iron drawn separately. `seed` defaults to zero, which reproduces the one
+fixed layout the older tests were written against, and `garrisons.test.ts`
+asserts that twenty-four seeds give at least twenty-two different bases and
+twenty different purses — while every one of them still has a Keep, defences,
+producers and a wall, and no building outside levels 1 to 9.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

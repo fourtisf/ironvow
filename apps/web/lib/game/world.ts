@@ -114,7 +114,6 @@ export interface World {
   /** Cosmetic per-structure state the simulation does not carry. */
   fx: { aim: Map<number, number>; recoil: Map<number, number>; flash: Map<number, number> };
   unitFlash: Map<number, number>;
-  unitSwing: Map<number, number>;
   unitBorn: Map<number, number>;
 
   events: WorldEvents;
@@ -145,7 +144,6 @@ export function createWorld(events: WorldEvents): World {
     tickAccumulator: 0,
     fx: { aim: new Map(), recoil: new Map(), flash: new Map() },
     unitFlash: new Map(),
-    unitSwing: new Map(),
     unitBorn: new Map(),
     events,
   };
@@ -273,7 +271,6 @@ export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'rai
   w.tickAccumulator = 0;
   w.fx = { aim: new Map(), recoil: new Map(), flash: new Map() };
   w.unitFlash = new Map();
-  w.unitSwing = new Map();
   w.unitBorn = new Map();
   w.selectedTroop = firstAvailableTroop(w);
   w.selectedId = null;
@@ -307,10 +304,31 @@ export function stepBattle(w: World, dt: number): void {
   if (!battle || battle.ended) return;
 
   w.tickAccumulator += dt;
-  // Cap the catch-up so a backgrounded tab does not run the whole raid in one
-  // frame when it wakes.
-  const maxSteps = Math.ceil(TICKS_PER_SECOND * 0.5);
+
+  /*
+   * Catching up after the tab was hidden.
+   *
+   * ALFA: "dan kalo misal buka chrome lain otomatis berhnti nyerang mengapa"
+   *
+   * Because the raid ran on the frame clock, and there are no frames in a tab
+   * nobody is looking at. `requestAnimationFrame` stops entirely when a window
+   * goes to the background, and the delta on the way back was clamped to 50 ms
+   * so nothing would teleport — so two minutes away advanced the battle by a
+   * twentieth of a second. The troops did not pause politely: the raid timer in
+   * the corner is the same clock, so the whole attack simply stopped.
+   *
+   * The battle takes real elapsed time now (see `GameCanvas`), and this is what
+   * makes that safe: the backlog is paid off over several frames rather than in
+   * one, at up to eight seconds of battle per frame. Two minutes away is caught
+   * up inside a quarter of a second of wall time, which is a beat, not a hitch
+   * — and every tick still happens, in order, so the commands the server
+   * replays are the ones that were played.
+   */
+  const maxSteps = Math.ceil(TICKS_PER_SECOND * 8);
   let steps = 0;
+  // Past a normal frame's worth we are replaying the past, and a wall of
+  // sword-hits from two minutes ago is not information.
+  const quiet = w.tickAccumulator > 1;
 
   while (w.tickAccumulator >= TICK_SECONDS && steps < maxSteps) {
     w.tickAccumulator -= TICK_SECONDS;
@@ -318,7 +336,8 @@ export function stepBattle(w: World, dt: number): void {
     const before = snapshotHp(battle);
     const ended = battle.step();
     markDamage(w, battle, before);
-    hear(w, battle);
+    if (quiet) w.heard = battle.events.length;
+    else hear(w, battle);
     if (ended) {
       w.events.onBattleEnd(w.battleCommands);
       return;
@@ -326,8 +345,16 @@ export function stepBattle(w: World, dt: number): void {
   }
 }
 
-function snapshotHp(battle: Battle): number[] {
-  return battle.structs.map((s) => s.hp);
+export interface Hp {
+  structs: number[];
+  units: number[];
+}
+
+export function snapshotHp(battle: Battle): Hp {
+  return {
+    structs: battle.structs.map((s) => s.hp),
+    units: battle.units.map((u) => u.hp),
+  };
 }
 
 /**
@@ -377,17 +404,28 @@ function hear(w: World, battle: Battle): void {
  * battle. Every entity's per-frame state is now decayed in one place —
  * `decayFx` below — and nowhere else.
  */
-function markDamage(w: World, battle: Battle, before: number[]): void {
+export function markDamage(w: World, battle: Battle, before: Hp): void {
   battle.structs.forEach((s, i) => {
-    if (s.hp < (before[i] ?? s.hp)) w.fx.flash.set(i, 0.12);
+    if (s.hp < (before.structs[i] ?? s.hp)) w.fx.flash.set(i, 0.12);
+  });
+  /*
+   * And the units, which were never flashed at all.
+   *
+   * `unitFlash` was read by the renderer and decayed here, and nothing ever
+   * wrote to it — so a Raider taking cannon fire looked exactly like a Raider
+   * standing still, right up until it vanished. Being hit has to be visible or
+   * a losing raid has no story in it.
+   */
+  battle.units.forEach((u, i) => {
+    if (!u.dead && u.hp < (before.units[i] ?? u.hp)) w.unitFlash.set(i, 0.16);
   });
 }
 
 /** One place, every entity. */
 export function decayFx(w: World, dt: number): void {
-  for (const map of [w.fx.flash, w.fx.recoil, w.unitFlash, w.unitSwing]) {
+  for (const map of [w.fx.flash, w.fx.recoil, w.unitFlash]) {
     for (const [k, v] of map) {
-      const next = v - dt * (map === w.unitSwing ? 4 : map === w.fx.recoil ? 4 : 1);
+      const next = v - dt * (map === w.fx.recoil ? 4 : 1);
       if (next <= 0) map.delete(k);
       else map.set(k, next);
     }

@@ -75,15 +75,25 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
     let last = performance.now();
 
     const frame = (now: number): void => {
-      // Clamp the step so a backgrounded tab does not resume with one enormous
-      // delta and teleport everything.
-      const dt = Math.min((now - last) / 1000, 0.05);
+      /*
+       * Two clocks, and they are not the same clock.
+       *
+       * Everything the eye follows — the walk cycle, a flash, a puff of smoke —
+       * is stepped by a delta clamped to 50 ms, so coming back to a hidden tab
+       * does not teleport it. The battle is not one of those things. It runs on
+       * a timer the player can see in the corner, and clamping its delta was
+       * the reason a raid stopped dead the moment the window lost focus: two
+       * minutes away advanced it by a twentieth of a second. It gets the real
+       * elapsed time and catches up; `stepBattle` is what paces that.
+       */
+      const elapsed = (now - last) / 1000;
+      const dt = Math.min(elapsed, 0.05);
       last = now;
       world.t += dt;
       world.now = Date.now();
 
       if (world.mode === 'battle') {
-        stepBattle(world, dt);
+        stepBattle(world, elapsed);
       } else {
         predictProduction(world, dt);
       }

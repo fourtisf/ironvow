@@ -5,6 +5,7 @@ import {
   deployAt,
   movePlacementTo,
   placeGhostAt,
+  snapPlacement,
   startPlacement,
   type World,
 } from './world';
@@ -203,11 +204,12 @@ export function attachInput(
        *
        * `wasDragging` here only means the press landed on the ghost rather
        * than beside it — tapping the ghost is "yes, here", tapping the ground
-       * is "there", and both are the same decision. A blocked cell moves the
-       * ghost and stops, so the red footprint does the explaining instead of
-       * a toast on every stray tap.
+       * is "there", and both are the same decision. A tap on ground that is
+       * already taken slides to the nearest free footprint rather than doing
+       * nothing — see `snapPlacement`.
        */
       if (!wasDragging) movePlacementTo(w, gx, gy);
+      snapPlacement(w);
       if (w.placement?.ok) w.events.onPlacementCommit();
       return;
     }

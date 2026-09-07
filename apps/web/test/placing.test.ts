@@ -2,7 +2,8 @@ import { TYPES } from '@ironvow/config';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
 import {
-  createWorld, movePlacementTo, startPlacement, type World, type WorldEvents,
+  createWorld, movePlacementTo, snapPlacement, startPlacement,
+  type World, type WorldEvents,
 } from '../lib/game/world';
 
 /**
@@ -93,5 +94,68 @@ describe('a tap only commits a spot that is legal', () => {
     (events.onPlacementChanged as ReturnType<typeof vi.fn>).mockClear();
     movePlacementTo(w, 34, 34);
     expect(events.onPlacementChanged).toHaveBeenCalled();
+  });
+});
+
+/**
+ * ALFA: "saya baru ngerjain task d suruh bangun mala ga ada bangunan perbaiki
+ * ini harusnya ada tugas kita cuman mindahin ke tempat yang kita suka aja"
+ *
+ * A War Order said build a Rampart, and BUILD opened on "Blocked — pick
+ * another spot" with the ghost sitting on top of their own buildings. The ghost
+ * started four cells south of the Keep, which was open ground right up until a
+ * new hold started coming with two Muster Fields in exactly that spot.
+ */
+describe('a building is never offered on ground it cannot stand on', () => {
+  function crowded(): World {
+    const events = silent();
+    const w = createWorld(events);
+    const at = (id: string, type: 'keep' | 'camp', gx: number, gy: number): ClientBuilding => ({
+      id, type, gx, gy, level: 1, stock: 0, completesAt: null, upgradingTo: null,
+    });
+    w.player = {
+      // The opening layout: a Keep at 26,26 and the two fields the ghost used
+      // to be dropped straight on top of.
+      buildings: [
+        at('k', 'keep', 26, 26), at('c1', 'camp', 25, 30), at('c2', 'camp', 30, 30),
+      ],
+    } as unknown as PlayerState;
+    return w;
+  }
+
+  it('opens somewhere legal instead of on top of the Muster Fields', () => {
+    const w = crowded();
+    startPlacement(w, 'wall', null);
+    expect(w.placement?.ok).toBe(true);
+  });
+
+  it('slides a tap on something already built to the nearest free ground', () => {
+    const w = crowded();
+    startPlacement(w, 'wall', null);
+    // Straight onto the Keep, which is three cells square from 26,26.
+    movePlacementTo(w, 27, 27);
+    expect(w.placement?.ok).toBe(false);
+    snapPlacement(w);
+    expect(w.placement?.ok).toBe(true);
+    // Near the tap, not across the map.
+    expect(Math.abs(w.placement!.gx - 27)).toBeLessThanOrEqual(5);
+    expect(Math.abs(w.placement!.gy - 27)).toBeLessThanOrEqual(5);
+  });
+
+  it('leaves a legal spot exactly where the finger put it', () => {
+    const w = crowded();
+    startPlacement(w, 'wall', null);
+    movePlacementTo(w, 40, 40);
+    const before = `${w.placement!.gx},${w.placement!.gy}`;
+    snapPlacement(w);
+    expect(`${w.placement!.gx},${w.placement!.gy}`).toBe(before);
+  });
+
+  it('picks an existing building up where it stands, without teleporting it', () => {
+    const w = crowded();
+    startPlacement(w, 'camp', 'c1');
+    expect(w.placement?.gx).toBe(25);
+    expect(w.placement?.gy).toBe(30);
+    expect(w.placement?.ok).toBe(true);
   });
 });

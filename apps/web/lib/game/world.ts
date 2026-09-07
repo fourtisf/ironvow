@@ -14,6 +14,7 @@ import {
   type TroopType,
 } from '@ironvow/config';
 import { createBattle, type Battle } from '@ironvow/sim';
+import type { BattleSpeed } from './eta';
 import { sfx } from '../sfx';
 import { PIPH } from '../render/palette';
 import { type Camera, centerOn, clampCam, s2g, frameBase, newCamera, type Viewport } from '../render/camera';
@@ -83,6 +84,12 @@ export interface World {
    * carry one boolean would be the tail wagging the dog.
    */
   showRanges: boolean;
+  /**
+   * How fast a raid is watched. See `SPEEDS` — the simulation still runs every
+   * tick, in order; this only decides how many of them a second of real time
+   * is worth, so the commands the server replays are unchanged by it.
+   */
+  battleSpeed: BattleSpeed;
 
   mode: Mode;
   player: PlayerState | null;
@@ -129,6 +136,7 @@ export function createWorld(events: WorldEvents): World {
     resize: null,
     progressionLevels: {},
     showRanges: false,
+    battleSpeed: 1,
     mode: 'base',
     player: null,
     selectedId: null,
@@ -303,7 +311,10 @@ export function stepBattle(w: World, dt: number): void {
   const battle = w.battle;
   if (!battle || battle.ended) return;
 
-  w.tickAccumulator += dt;
+  // Watching it at two, three or four times over is the player's call, and it
+  // changes nothing the server sees: a deploy is recorded at the tick it
+  // happened on, and the ticks are all still run, in order.
+  w.tickAccumulator += dt * w.battleSpeed;
 
   /*
    * Catching up after the tab was hidden.
@@ -510,6 +521,74 @@ export function placeGhostAt(w: World, gx: number, gy: number): void {
   if (`${p.gx},${p.gy},${p.ok}` !== was) w.events.onPlacementChanged();
 }
 
+
+/*
+ * The nearest patch of ground this will actually fit on.
+ *
+ * ALFA: "saya baru ngerjain task d suruh bangun mala ga ada bangunan perbaiki
+ * ini harusnya ada tugas kita cuman mindahin ke tempat yang kita suka aja"
+ *
+ * A War Order said build a Rampart, they opened BUILD, and the game answered
+ * "Blocked — pick another spot" over a ghost sitting on top of their own
+ * buildings. The ghost started four cells south of the Keep, which was open
+ * ground until the day a new hold came with two Muster Fields in exactly that
+ * spot. So the first thing a player following an order saw was a refusal, and
+ * the only way out was to guess where the game would say yes.
+ *
+ * A building is never offered on ground it cannot stand on now. It opens on the
+ * nearest free footprint, and a tap on something already built slides it to the
+ * nearest free one instead of doing nothing — the order puts the building in
+ * your hands, and all that is left is moving it somewhere you like.
+ *
+ * The search is the same outward shell walk the server seeds a new base with,
+ * so both answer "where does this fit" the same way.
+ */
+export function nearestFreeSpot(
+  w: World, type: BuildingType, gx: number, gy: number,
+  ignoreId: string | null, maxRadius = N,
+): { gx: number; gy: number } | null {
+  const s = TYPES[type].s;
+  const ox = clamp(Math.round(gx), 2, N - 2 - s);
+  const oy = clamp(Math.round(gy), 2, N - 2 - s);
+  for (let radius = 0; radius <= maxRadius; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        // Only the shell of each square, so the walk stays outward-first and
+        // the first hit really is the nearest.
+        if (radius > 0 && Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        const cx = ox + dx;
+        const cy = oy + dy;
+        if (cx < 2 || cy < 2 || cx + s > N - 2 || cy + s > N - 2) continue;
+        if (localCellsFree(w, type, cx, cy, ignoreId)) return { gx: cx, gy: cy };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * How far a tap is allowed to slide to find room.
+ *
+ * Far enough that a tap into a crowded base lands next door, near enough that
+ * the building never appears somewhere the player was not looking.
+ */
+const SNAP_RADIUS = 5;
+
+/**
+ * Settle the ghost on legal ground, if it is close to some.
+ *
+ * Called when a tap commits. A drag still shows the footprint red wherever the
+ * finger is, because seeing what does not fit is how a player learns the shape
+ * of their own base; it is only the moment of building that is forgiving.
+ */
+export function snapPlacement(w: World): void {
+  const p = w.placement;
+  if (!p || p.ok) return;
+  const spot = nearestFreeSpot(w, p.type, p.gx, p.gy, p.movingId, SNAP_RADIUS);
+  if (!spot) return;
+  placeGhostAt(w, spot.gx, spot.gy);
+}
+
 /**
  * Start placing a new building, or pick an existing one up.
  *
@@ -522,8 +601,21 @@ export function placeGhostAt(w: World, gx: number, gy: number): void {
 export function startPlacement(w: World, type: BuildingType, movingId: string | null): void {
   const existing = movingId ? w.player?.buildings.find((b) => b.id === movingId) : undefined;
   const keep = w.player?.buildings.find((b) => b.type === 'keep');
-  const gx = existing?.gx ?? (keep ? keep.gx : 26);
-  const gy = existing?.gy ?? (keep ? keep.gy + 4 : 30);
+  const wantX = existing?.gx ?? (keep ? keep.gx : 26);
+  const wantY = existing?.gy ?? (keep ? keep.gy + 4 : 30);
+  /*
+   * A building already in hand, standing somewhere it fits.
+   *
+   * Picking one up keeps it exactly where it is — that spot is free by
+   * definition, and a move that begins by teleporting the building is not a
+   * move. A new one opens on the nearest free footprint to the same place,
+   * which is what stops an order to build from opening on "Blocked".
+   */
+  const spot = existing
+    ? { gx: wantX, gy: wantY }
+    : nearestFreeSpot(w, type, wantX, wantY, movingId) ?? { gx: wantX, gy: wantY };
+  const gx = spot.gx;
+  const gy = spot.gy;
 
   w.placement = {
     type,

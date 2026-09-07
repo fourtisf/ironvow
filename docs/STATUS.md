@@ -1203,6 +1203,60 @@ asserts that twenty-four seeds give at least twenty-two different bases and
 twenty different purses — while every one of them still has a Keep, defences,
 producers and a wall, and no building outside levels 1 to 9.
 
+## Watching a raid, and being handed a building
+
+ALFA, twice more:
+
+> "kasih estimasi waktu selesai dan ada percepat 1x 2 x sampai 4x"
+> "saya baru ngerjain task d suruh bangun mala ga ada bangunan perbaiki ini
+> harusnya ada tugas kita cuman mindahin ke tempat yang kita suka aja"
+
+**A raid you have already decided is the part of the game nobody enjoys.** The
+tray is empty, the warband is committed, and there is a clock counting down from
+two and a half minutes while four Raiders finish a wall. Worse, the clock is the
+wrong number: it says when the raid *may* end, not when it will.
+
+Two things now. A speed control — 1×, 2×, 3×, 4× — which multiplies nothing but
+how many ticks a second of real time is worth. Every tick still runs, in order,
+and a deploy is still recorded at the tick it happened on, so the commands the
+server replays are unchanged by it and a raid watched at four times over scores
+exactly what it would have at one. It is remembered between raids, because a
+player who wants four times over wants it every time.
+
+And an ENDS IN box beside the clock, once there is nothing left in the tray:
+remaining structure hit points over the damage rate of the warband still
+standing, capped by the clock. It is deliberately an estimate and labelled as
+one — it does not know how far a unit still has to walk or which of them are
+about to be shot off the field, so it reads early on a base with long gaps and
+late on one whose cannons are still up. It is shown in the player's own seconds
+rather than the battle's, which is the point of it: forty seconds on the clock
+at four times over is ten seconds of sitting there. A hero still in hand is the
+one case that needs care — the simulation only calls a raid off early when there
+is nothing left to send at all, so with one held back and nobody on the field the
+answer is the clock, not zero.
+
+**And the other one was a plain bug, of the worst kind: the game told them to do
+something and then refused to let them.** A War Order said build a Rampart, they
+opened BUILD, and the ghost arrived on "Blocked — pick another spot", sitting on
+top of their own buildings. `startPlacement` had always dropped it four cells
+south of the Keep, which was open ground right up until the day a new hold
+started coming with two Muster Fields in exactly that spot. The first thing a
+player following an order saw was a refusal, and the only way out was to guess
+where the game would say yes.
+
+A building is never offered on ground it cannot stand on now. It opens on the
+nearest free footprint — the same outward shell walk the server seeds a new base
+with, so both answer "where does this fit" the same way — and a tap on something
+already built slides to the nearest free footprint within five cells rather than
+doing nothing. A drag still shows the footprint red wherever the finger is,
+because seeing what does not fit is how a player learns the shape of their own
+base; it is only the moment of building that is forgiving. Picking an existing
+building up leaves it exactly where it stands, because a move that begins by
+teleporting the building is not a move.
+
+Which is the shape ALFA asked for: the order puts the building in your hands,
+and all that is left is moving it somewhere you like.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

@@ -139,6 +139,15 @@
   #dmgBar{height:100%;width:0;background:linear-gradient(90deg,#e8b23c,#ff7a3d);transition:width .2s}
   #starRow{display:flex;gap:3px;justify-content:center}
   #starRow svg{width:15px;height:15px}
+  /* Speed chips: pinned above the tray on the left, out of the thumb's way
+     and out of the way of the troop cards it sits over. */
+  #btSpeed{position:absolute;left:9px;bottom:calc(96px + env(safe-area-inset-bottom));
+    display:flex;gap:4px;background:rgba(20,28,40,.86);border:2px solid #3d5170;
+    border-radius:12px;padding:4px}
+  #btSpeed button{min-width:30px;padding:5px 0;border:0;border-radius:8px;background:transparent;
+    color:#8fa6c4;font-family:inherit;font-weight:900;font-size:11px;letter-spacing:.5px}
+  #btSpeed button.on{background:linear-gradient(#e8b23c,#c4881f);color:#1a1206}
+
   #btTray{position:absolute;left:0;right:0;bottom:calc(9px + env(safe-area-inset-bottom));
     display:flex;gap:8px;justify-content:center;padding:0 9px;flex-wrap:wrap}
   .tcard{width:62px;background:linear-gradient(#2c3d57,#1b2635);border:2px solid #46608a;border-radius:13px;

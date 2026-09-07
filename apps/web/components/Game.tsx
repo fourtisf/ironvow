@@ -30,6 +30,7 @@ import { fmt } from '../lib/format';
 import { loadSoundPreference, setSfxVolume, sfx, unlockAudio } from '../lib/sfx';
 import { loadMusicPreference, setMusicVolume, startMusic, stopMusic, unlockMusic } from '../lib/music';
 import { BattleHud } from './BattleHud';
+import { battleEta, loadBattleSpeed, saveBattleSpeed, type BattleSpeed } from '../lib/game/eta';
 import { AttractField } from './AttractField';
 import { GameCanvas } from './GameCanvas';
 import { Hud } from './Hud';
@@ -74,6 +75,9 @@ export function Game() {
   const [mode, setModeState] = useState<Mode>('base');
   const [sheet, setSheet] = useState<Sheet>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Mirrored in React only so the chips re-render; the world holds the value
+  // the frame loop actually reads.
+  const [battleSpeed, setBattleSpeed] = useState<BattleSpeed>(1);
   const [toast, setToast] = useState<string | null>(null);
   const [scout, setScout] = useState<ScoutedRaid | null>(null);
   const [outcome, setOutcome] = useState<(BattleOutcome & { pending: boolean }) | null>(null);
@@ -230,6 +234,7 @@ export function Game() {
   useEffect(() => {
     setSfxLevel(loadSoundPreference());
     setMusicLevel(loadMusicPreference());
+    setBattleSpeed(loadBattleSpeed());
     try {
       setGuestNoteDismissed(localStorage.getItem('ironvow_guest_note') === 'off');
     } catch {
@@ -839,6 +844,8 @@ export function Game() {
         onReady={(w) => {
           worldRef.current = w;
           if (player) w.player = player;
+          // The remembered speed has to reach the world, not just the chips.
+          w.battleSpeed = loadBattleSpeed();
           centerOnKeep(w);
         }}
         onTapBuilding={onTapBuilding}
@@ -889,6 +896,14 @@ export function Game() {
       {mode === 'battle' && battle && (
         <BattleHud
           secondsLeft={battle.secondsLeft()}
+          eta={battleEta(battle, world?.raid?.hero.level ?? 1)}
+          speed={battleSpeed}
+          onSpeed={(n) => {
+            if (world) world.battleSpeed = n;
+            saveBattleSpeed(n);
+            setBattleSpeed(n);
+            sfx.tap();
+          }}
           destroyedPct={battle.destroyedPct()}
           stars={battle.stars()}
           avail={battle.avail}

@@ -353,10 +353,18 @@ export function Game() {
     cancelPlacement(world);
     setModeState('base');
 
-    // A rampart keeps the tool loaded so a run of them can be laid in one go,
-    // exactly as in the prototype.
+    /*
+     * A Rampart keeps the tool loaded so a run of them can be laid in one go.
+     *
+     * ALFA: "palce klik2 mala jelek" — the tool used to re-arm four cells south
+     * of the Keep and then go looking for the nearest free ground, so holding
+     * down PLACE sprayed a spiral of walls across the middle of the hold. The
+     * next ghost stays exactly where the last one was laid, which means it is
+     * standing on it: red, with PLACE greyed out. Laying a run is tapping along
+     * the line you want, and the button cannot build anything on its own.
+     */
     if (!place.movingId && place.type === 'wall') {
-      startPlacement(world, 'wall', null);
+      startPlacement(world, 'wall', null, { gx: place.gx, gy: place.gy });
       setModeState('place');
     }
   }, [runCommand, say]);
@@ -979,6 +987,7 @@ export function Game() {
           typeName={TYPES[world.placement.type].n}
           moving={world.placement.movingId !== null}
           ok={world.placement.ok}
+          again={world.placement.resumed}
           onCancel={() => { cancelPlacement(world); setModeState('base'); }}
           onConfirm={() => { void confirmPlacement(); }}
         />

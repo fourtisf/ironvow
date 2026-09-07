@@ -1257,6 +1257,33 @@ teleporting the building is not a move.
 Which is the shape ALFA asked for: the order puts the building in your hands,
 and all that is left is moving it somewhere you like.
 
+### And then the fix went too far
+
+ALFA, next screenshot, ramparts sprayed in a diagonal blob across the middle of
+the hold: **"palce klik2 mala jelek"**.
+
+Two things in the change above were wrong, and both made a base look like
+nobody had planned it.
+
+**Sliding a blocked tap to the nearest gap is worse than refusing it.** It
+sounds helpful and it is not: a stray tap beside a Rampart quietly lays another
+one somewhere the finger was not pointing, and a player laying a wall along a
+line gets a scatter instead. A tap now puts a building exactly where it landed
+or nowhere at all, and the red footprint does the explaining — which is what the
+footprint is for. The opening position was the real complaint and that fix
+stays: BUILD still opens on ground the building fits on.
+
+**And PLACE could build on its own.** A Rampart keeps the tool loaded so a run
+can be laid in one go, but it re-armed four cells south of the Keep and then
+went looking for the nearest free ground — so holding the button down walked a
+spiral of walls outward from the middle of the hold, each one costing gold. The
+tool now re-arms exactly where the last one was laid, which means it re-arms
+standing on it: red, PLACE greyed out, and the bar reading "Tap where the next
+one goes" rather than "Blocked", because nothing is wrong. Laying a run is
+tapping along the line you want, and the button cannot lay anything by itself.
+
+Twelve clicks on PLACE built twelve walls before. It builds one now.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

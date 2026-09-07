@@ -5,7 +5,6 @@ import {
   deployAt,
   movePlacementTo,
   placeGhostAt,
-  snapPlacement,
   startPlacement,
   type World,
 } from './world';
@@ -204,12 +203,14 @@ export function attachInput(
        *
        * `wasDragging` here only means the press landed on the ghost rather
        * than beside it — tapping the ghost is "yes, here", tapping the ground
-       * is "there", and both are the same decision. A tap on ground that is
-       * already taken slides to the nearest free footprint rather than doing
-       * nothing — see `snapPlacement`.
+       * is "there", and both are the same decision. A tap on a cell that is
+       * already taken moves the ghost and stops, so the red footprint does the
+       * explaining: a tap must never put a building anywhere but where it
+       * landed. Sliding it to the nearest gap instead was tried, and a stray
+       * tap beside a Rampart quietly laying another one somewhere else is
+       * exactly how a base stops looking like anybody planned it.
        */
       if (!wasDragging) movePlacementTo(w, gx, gy);
-      snapPlacement(w);
       if (w.placement?.ok) w.events.onPlacementCommit();
       return;
     }

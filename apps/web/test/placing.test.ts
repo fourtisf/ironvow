@@ -2,8 +2,7 @@ import { TYPES } from '@ironvow/config';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
 import {
-  createWorld, movePlacementTo, snapPlacement, startPlacement,
-  type World, type WorldEvents,
+  createWorld, movePlacementTo, startPlacement, type World, type WorldEvents,
 } from '../lib/game/world';
 
 /**
@@ -129,26 +128,34 @@ describe('a building is never offered on ground it cannot stand on', () => {
     expect(w.placement?.ok).toBe(true);
   });
 
-  it('slides a tap on something already built to the nearest free ground', () => {
+  it('puts a building exactly where the tap landed, and nowhere else', () => {
+    /*
+     * ALFA: "palce klik2 mala jelek". Sliding a blocked tap to the nearest gap
+     * was tried and it is worse than refusing: a stray tap beside a Rampart
+     * quietly lays another one somewhere the player was not pointing, which is
+     * how a base stops looking like anybody planned it. A blocked tap moves the
+     * ghost and stops, and the red footprint does the explaining.
+     */
     const w = crowded();
     startPlacement(w, 'wall', null);
     // Straight onto the Keep, which is three cells square from 26,26.
     movePlacementTo(w, 27, 27);
     expect(w.placement?.ok).toBe(false);
-    snapPlacement(w);
-    expect(w.placement?.ok).toBe(true);
-    // Near the tap, not across the map.
-    expect(Math.abs(w.placement!.gx - 27)).toBeLessThanOrEqual(5);
-    expect(Math.abs(w.placement!.gy - 27)).toBeLessThanOrEqual(5);
+    expect(w.placement?.gx).toBe(27);
+    expect(w.placement?.gy).toBe(27);
   });
 
-  it('leaves a legal spot exactly where the finger put it', () => {
+  it('carries a run of Ramparts on from the last one laid', () => {
+    /*
+     * The tool re-arms where the wall went, which means it re-arms standing on
+     * it — red, with PLACE greyed out. Before this it re-armed four cells south
+     * of the Keep and went hunting for free ground, so holding PLACE down
+     * sprayed a spiral of walls through the middle of the hold.
+     */
     const w = crowded();
-    startPlacement(w, 'wall', null);
-    movePlacementTo(w, 40, 40);
-    const before = `${w.placement!.gx},${w.placement!.gy}`;
-    snapPlacement(w);
-    expect(`${w.placement!.gx},${w.placement!.gy}`).toBe(before);
+    startPlacement(w, 'wall', null, { gx: 40, gy: 41 });
+    expect(w.placement?.gx).toBe(40);
+    expect(w.placement?.gy).toBe(41);
   });
 
   it('picks an existing building up where it stands, without teleporting it', () => {
@@ -157,5 +164,26 @@ describe('a building is never offered on ground it cannot stand on', () => {
     expect(w.placement?.gx).toBe(25);
     expect(w.placement?.gy).toBe(30);
     expect(w.placement?.ok).toBe(true);
+  });
+});
+
+describe('the bar says which kind of "not yet" this is', () => {
+  it('marks a resumed run so the copy reads as guidance, not a refusal', () => {
+    const events = silent();
+    const w = createWorld(events);
+    w.player = { buildings: [] } as unknown as PlayerState;
+    startPlacement(w, 'wall', null, { gx: 30, gy: 30 });
+    expect(w.placement?.resumed).toBe(true);
+    // And the moment the player says where it goes, it is an ordinary
+    // placement again.
+    movePlacementTo(w, 34, 34);
+    expect(w.placement?.resumed).toBe(false);
+  });
+
+  it('is never set on an ordinary build', () => {
+    const w = createWorld(silent());
+    w.player = { buildings: [] } as unknown as PlayerState;
+    startPlacement(w, 'cannon', null);
+    expect(w.placement?.resumed).toBe(false);
   });
 });

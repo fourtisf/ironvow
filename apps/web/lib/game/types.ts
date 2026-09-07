@@ -72,6 +72,13 @@ export interface Placement {
   movingId: string | null;
   fromX: number;
   fromY: number;
+  /**
+   * The tool re-armed itself after laying one, so the ghost is standing on the
+   * thing just built. Nothing is wrong — the player has not said where the next
+   * one goes yet, and the bar says so instead of reading like a refusal. Cleared
+   * the moment the ghost moves.
+   */
+  resumed: boolean;
 }
 
 export interface FloatingText {

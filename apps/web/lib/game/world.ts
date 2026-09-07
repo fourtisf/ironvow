@@ -518,7 +518,11 @@ export function placeGhostAt(w: World, gx: number, gy: number): void {
   p.gx = clamp(Math.round(gx), 2, N - 2 - s);
   p.gy = clamp(Math.round(gy), 2, N - 2 - s);
   p.ok = localCellsFree(w, p.type, p.gx, p.gy, p.movingId);
-  if (`${p.gx},${p.gy},${p.ok}` !== was) w.events.onPlacementChanged();
+  const moved = `${p.gx},${p.gy},${p.ok}` !== was;
+  if (moved) {
+    p.resumed = false;
+    w.events.onPlacementChanged();
+  }
 }
 
 
@@ -567,29 +571,6 @@ export function nearestFreeSpot(
 }
 
 /**
- * How far a tap is allowed to slide to find room.
- *
- * Far enough that a tap into a crowded base lands next door, near enough that
- * the building never appears somewhere the player was not looking.
- */
-const SNAP_RADIUS = 5;
-
-/**
- * Settle the ghost on legal ground, if it is close to some.
- *
- * Called when a tap commits. A drag still shows the footprint red wherever the
- * finger is, because seeing what does not fit is how a player learns the shape
- * of their own base; it is only the moment of building that is forgiving.
- */
-export function snapPlacement(w: World): void {
-  const p = w.placement;
-  if (!p || p.ok) return;
-  const spot = nearestFreeSpot(w, p.type, p.gx, p.gy, p.movingId, SNAP_RADIUS);
-  if (!spot) return;
-  placeGhostAt(w, spot.gx, spot.gy);
-}
-
-/**
  * Start placing a new building, or pick an existing one up.
  *
  * Prototype bug #2: relocation lifted the building off the map and then
@@ -598,11 +579,14 @@ export function snapPlacement(w: World): void {
  * stays exactly where it is until the server confirms the new position, and
  * `movingId` is the only thing that distinguishes the two cases.
  */
-export function startPlacement(w: World, type: BuildingType, movingId: string | null): void {
+export function startPlacement(
+  w: World, type: BuildingType, movingId: string | null,
+  at?: { gx: number; gy: number },
+): void {
   const existing = movingId ? w.player?.buildings.find((b) => b.id === movingId) : undefined;
   const keep = w.player?.buildings.find((b) => b.type === 'keep');
-  const wantX = existing?.gx ?? (keep ? keep.gx : 26);
-  const wantY = existing?.gy ?? (keep ? keep.gy + 4 : 30);
+  const wantX = existing?.gx ?? at?.gx ?? (keep ? keep.gx : 26);
+  const wantY = existing?.gy ?? at?.gy ?? (keep ? keep.gy + 4 : 30);
   /*
    * A building already in hand, standing somewhere it fits.
    *
@@ -611,7 +595,14 @@ export function startPlacement(w: World, type: BuildingType, movingId: string | 
    * move. A new one opens on the nearest free footprint to the same place,
    * which is what stops an order to build from opening on "Blocked".
    */
-  const spot = existing
+  /*
+   * `at` is a run of Ramparts carrying on from the last one laid, and it is
+   * taken exactly as given even though it is now occupied by that Rampart —
+   * the ghost sits on it, red, and PLACE greys out until the player says where
+   * the next one goes. Hunting for free ground here is what turned a row of
+   * taps on PLACE into a spray of walls around the Keep.
+   */
+  const spot = existing || at
     ? { gx: wantX, gy: wantY }
     : nearestFreeSpot(w, type, wantX, wantY, movingId) ?? { gx: wantX, gy: wantY };
   const gx = spot.gx;
@@ -625,6 +616,7 @@ export function startPlacement(w: World, type: BuildingType, movingId: string | 
     movingId,
     fromX: gx,
     fromY: gy,
+    resumed: at !== undefined,
   };
   w.selectedId = null;
   setMode(w, 'place');

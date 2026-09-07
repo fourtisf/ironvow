@@ -158,11 +158,17 @@ export interface PlaceBarProps {
   typeName: string;
   moving: boolean;
   ok: boolean;
+  /**
+   * The tool re-armed itself after laying one, so the ghost is standing on the
+   * building that was just built. Nothing is wrong; the player simply has not
+   * said where the next one goes yet.
+   */
+  again: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function PlaceBar({ typeName, moving, ok, onCancel, onConfirm }: PlaceBarProps) {
+export function PlaceBar({ typeName, moving, ok, again, onCancel, onConfirm }: PlaceBarProps) {
   return (
     <div id="placeBar">
       <div className="t">
@@ -170,7 +176,9 @@ export function PlaceBar({ typeName, moving, ok, onCancel, onConfirm }: PlaceBar
         <em>
           {ok
             ? `Tap the ground to ${moving ? 'move it there' : 'build it there'}, or drag it about first.`
-            : 'Blocked — pick another spot.'}
+            : again
+              ? 'Tap where the next one goes.'
+              : 'Blocked — pick another spot.'}
         </em>
       </div>
       <button className="btn grey" onClick={onCancel}>CANCEL</button>

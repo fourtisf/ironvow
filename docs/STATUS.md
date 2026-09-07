@@ -791,6 +791,51 @@ from two tables disagreeing and a hand-written list would be a third thing to
 keep in step. Asserted again in `apps/api/test/economy.test.ts`, which now also
 walks the opening in iron as well as gold.
 
+## A constant only applies where it is read
+
+ALFA, after deploying the fix above: "sudah deploy masih aja tidak berubah."
+
+The deploy had worked — the guide in the screenshot was asking for an Iron
+Forge, which is the change. What had not changed was **his own hold's 20 iron**,
+because `START_IRON` is read once, when a hold is created. Raising it does
+nothing for anyone already playing. Twice now a deploy had gone out that was
+about giving players more, and the player who asked for it saw the same number
+as before.
+
+So `apps/api/src/lib/backfill.ts` brings every existing hold *up to* what a hold
+created today would start with, once, on boot:
+
+```sql
+UPDATE "Player"
+SET gold = GREATEST(gold, 6000), iron = GREATEST(iron, 3600)
+WHERE gold < 6000 OR iron < 3600
+```
+
+A floor, never a ceiling. It cannot take anything away and cannot grant more
+than a new player gets, which is the only version of this that is defensible: a
+player who has been here since the first week should not be worse off than one
+who signs up after a balance change.
+
+Two ordering details, both of which have a wrong answer that looks fine:
+
+- **The work happens before the marker is written.** Writing the marker first
+  would record the job as done even if the update then failed, and nobody would
+  ever be lifted. It is safe in this order only because the update is a floor
+  rather than an addition, so a second run changes nothing — which is also what
+  makes two instances booting together harmless.
+- **A failure does not stop the server.** The call is wrapped: a database still
+  coming up must not keep the API down, and since the marker is only written on
+  success the next boot simply tries again.
+
+`KEY` carries a version. When the floor moves again and every hold should be
+lifted to the new one, the version is bumped; the old row stays as a record of
+what ran and when.
+
+Verified on a real boot: a hold on 9,300 gold and 20 iron came back with 9,300
+gold — already above the floor, so untouched — and 3,600 iron. Set back to 5
+iron and booted again, it stayed at 5. `apps/api/test/backfill.test.ts` asserts
+both, and that a hold already ahead of the floor is left alone.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

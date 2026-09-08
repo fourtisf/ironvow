@@ -546,6 +546,28 @@ model SeasonResult {
   @@index([playerId, createdAt])
 }
 
+/// One counter, for one thing, on one day.
+///
+/// Deliberately tiny, and deliberately the *only* thing recorded. Almost every
+/// question worth asking after a launch is already answerable from columns the
+/// game keeps anyway: how many signed up is Player.createdAt, how many came
+/// back is Player.streakDays, how far they got is Player.claimedQuests. What no
+/// row anywhere can answer is what happened to the people who never became a
+/// player at all — how many opened the door, and how many were turned away by
+/// the access code. That is what this table is for.
+///
+/// No third party, no cookie, no identifier: a name, a day and a number.
+model Counter {
+  id    String @id @default(cuid())
+  /// UTC date, as YYYY-MM-DD. A string because it is only ever grouped on.
+  day   String
+  name  String
+  count Int    @default(0)
+
+  @@unique([day, name])
+  @@index([name])
+}
+
 /// Server-generated secrets that would otherwise have to be pasted into an
 /// environment by hand: the VAPID key pair, so browser push works on a fresh
 /// deployment without anyone generating keys.

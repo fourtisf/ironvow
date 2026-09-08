@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { safeEqual } from '../lib/auth.js';
+import { funnel } from '../lib/count.js';
 import { env } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -116,6 +117,55 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
         id: r.id, at: r.createdAt.toISOString(), player: r.playerId ? names.get(r.playerId) ?? r.playerId : null,
         body: r.body, userAgent: r.userAgent,
       })),
+    });
+  });
+
+  /**
+   * The launch funnel, one row per day, newest first.
+   *
+   * The point of it is the two numbers either side of the access code. Doors
+   * far above signups with failures alongside them says the code is the wall;
+   * doors far above signups with no failures says people looked and left. Those
+   * demand opposite responses, and without the counters they look identical.
+   *
+   * Everything after the gate is read from columns the game already keeps, so
+   * there is nothing here to drift out of step with the game itself.
+   */
+  const funnelSchema = z.object({
+    days: z.coerce.number().int().min(1).max(90).default(14),
+  });
+
+  app.get('/ops/funnel', async (request, reply) => {
+    if (!authorise(request, reply)) return reply;
+
+    const parsed = funnelSchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const days = await funnel(parsed.data.days);
+    const sum = (pick: (d: (typeof days)[number]) => number): number =>
+      days.reduce((a, d) => a + pick(d), 0);
+
+    return reply.send({
+      days: parsed.data.days,
+      rows: days,
+      /*
+       * Totals over the same window, so the headline figures do not have to be
+       * added up by eye — and a rate rather than a count, because a hundred
+       * refusals against a thousand doors is a busy launch and a hundred
+       * against a hundred and five is a locked one.
+       */
+      totals: {
+        door: sum((d) => d.door),
+        doorNew: sum((d) => d.doorNew),
+        gateOk: sum((d) => d.gateOk),
+        gateFail: sum((d) => d.gateFail),
+        signups: sum((d) => d.signups),
+        built: sum((d) => d.built),
+        raided: sum((d) => d.raided),
+        won: sum((d) => d.won),
+        returned: sum((d) => d.returned),
+      },
+      at: new Date().toISOString(),
     });
   });
 

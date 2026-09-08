@@ -1,9 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { bump } from '../lib/count.js';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../lib/env.js';
-import { consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
+import { SESSION_COOKIE, consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
 import { MailOff, mailIsOff, sendLoginLink } from '../lib/mail.js';
 import { createPlayer, loadPlayer } from '../lib/player.js';
 import { inviteCodeFor, inviterFor, welcomeBonus } from '../domain/invites.js';
@@ -93,8 +94,19 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   /* ------------------------------------------------------------- the door --- */
 
   /** Whether a code is needed at all, so the client knows to ask for one. */
-  app.get('/auth/gate', async (_request, reply) =>
-    reply.send({ required: Boolean(env().ACCESS_CODE) }));
+  /*
+   * Every client asks this once on load, before it knows anything about
+   * itself — which makes it the only honest count of how many people opened
+   * the game at all, including everyone who then bounced off the code.
+   */
+  app.get('/auth/gate', async (request, reply) => {
+    bump('door');
+    // Counted apart, because a returning player loading the game is not an
+    // arrival, and lumping the two together makes the conversion rate sag as
+    // the game gets more players rather than fewer.
+    if (!request.cookies[SESSION_COOKIE]) bump('door_new');
+    return reply.send({ required: Boolean(env().ACCESS_CODE) });
+  });
 
   /**
    * Try a code. Answers only yes or no, and slowly: a four-digit code has ten
@@ -106,7 +118,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   }, async (request, reply) => {
     // An invitation is a key to the same door, so the check has to try both
     // or the card would refuse a code the sign-up would then accept.
-    if (!(await openDoor(request.body))) return reply.code(403).send({ error: 'badAccessCode' });
+    if (!(await openDoor(request.body))) {
+      // The number that separates "nobody wants this" from "nobody could get
+      // in". Those are the same graph and opposite problems.
+      bump('gate_fail');
+      return reply.code(403).send({ error: 'badAccessCode' });
+    }
+    bump('gate_ok');
     return reply.send({ ok: true });
   });
 

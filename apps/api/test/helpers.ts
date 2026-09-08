@@ -50,10 +50,11 @@ export const db = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL
 
 export async function resetDatabase(): Promise<void> {
   await db.$executeRawUnsafe(
-    // Clan is listed explicitly: unlike everything else here it does not hang
-    // off a Player, so truncating players leaves the clans behind and the next
-    // test fails on a name that is still taken.
-    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "ClanWar", "Feedback", "ServerSetting", "Season", "Clan", "Player" RESTART IDENTITY CASCADE',
+    // Clan and Counter are listed explicitly: unlike everything else here they
+    // do not hang off a Player, so truncating players leaves them behind — the
+    // next test fails on a clan name that is still taken, or reads a funnel
+    // carrying the previous test's doors.
+    'TRUNCATE "Divergence", "Session", "LoginLink", "Raid", "TrainJob", "Troop", "Building", "ClanWar", "Feedback", "ServerSetting", "Season", "Counter", "Clan", "Player" RESTART IDENTITY CASCADE',
   );
 }
 

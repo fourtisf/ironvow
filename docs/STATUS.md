@@ -1981,6 +1981,56 @@ carries the bomb it is about to drop instead, with a lit fuse. And the first
 wingspan was narrow enough that the near wing hid behind the arm, so the unit
 came out one-winged.
 
+## Launching blind
+
+The launch thread points public traffic at a door, and until now nothing on the
+other side of it counted. The two failures that would follow look identical from
+the outside: nobody wanted the game, and nobody could get through the access
+code. Both produce a flat signup graph, and they need opposite responses.
+
+`apps/api/src/lib/count.ts` records the smallest thing that separates them.
+There is one table — a name, a UTC day and a number — and four names in it:
+`door` (the game was opened), `door_new` (opened by someone with no session),
+`gate_ok` and `gate_fail`. `bump()` is an upsert, so two arrivals in the same
+millisecond resolve to one row and two increments, and it is never awaited by a
+request handler: a counter that can 500 the door is far worse than a counter
+that misses a tick.
+
+Nothing else is recorded, because nothing else needs to be. Signups are
+`Player.createdAt`. Whether a player built, raided or won is `collected`,
+`raids` and `wins`, which the War Order code already increments server-side and
+which no client can move. Whether they came back is `streakDays` and `dayKey`.
+Recording any of that a second time is how two numbers that are meant to agree
+stop agreeing. `GET /ops/funnel` reads them into one row per day, behind the
+same bearer token as the rest of `/ops`.
+
+The milestone columns are counted against the day the player **signed up**, not
+the day they hit the milestone, so a row reads "of the people who arrived on
+this day, this many ever got as far as a raid". That is the question worth
+asking. It is also the reason the numbers do not add up across a row: they are
+one cohort seen at four depths, not four groups.
+
+Three things this got wrong on the way, all of them silent:
+
+1. **`dayKey` is an integer day index, not a date.** Comparing it against a
+   `YYYY-MM-DD` is true for every player alive, and the endpoint would have
+   reported a hundred per cent retention forever — a number nobody questions
+   because nobody wants to.
+2. **Zero is the `dayKey` a row carries until its first settle**, so a player
+   who signed up and never played would have read as one who came back. It
+   means "has not played yet" and must not count.
+3. **`door` on its own gets worse as the game gets better.** A returning player
+   loading the game is not an arrival, so the conversion rate would sag as the
+   player base grew. `door_new` is the count with no session cookie, and it is
+   the one that belongs next to signups.
+
+Retention is `streakDays > 1` **or** a last-played day later than the signup
+day. The second half is not redundant: missing a day resets the streak to one,
+so a player who came back after a gap is invisible to the first test — and every
+retention figure would fall as the week went on.
+
+No third party, no cookie, no identifier, nothing that leaves the server.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

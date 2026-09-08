@@ -2,7 +2,7 @@ import { KEEP_MAX } from './world.js';
 import { ipow } from './math.js';
 
 export const BUILDING_TYPES = [
-  'keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab', 'cannon', 'tower', 'mortar', 'wall',
+  'keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab', 'cannon', 'tower', 'mortar', 'airdef', 'wall',
   'spike', 'snare',
   'statue', 'brazier', 'standard',
 ] as const;
@@ -99,6 +99,25 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   lab:    { n: 'Laboratory',     s: 2, cat: 'mil',  hp: 520,  hpG: 1.26, base: { g: 600, i: 200 }, up: { g: 700, i: 400 }, upG: 1.95, countG: NEW_BUILDING_GROWTH, blurb: 'Makes your troops stronger, not just more numerous.' },
   cannon: { n: 'Cannon',      s: 2, cat: 'def',  hp: 560,  hpG: 1.30, base: { g: 220, i: 80  }, up: { g: 340, i: 180 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Slow, heavy shots. Wrecks anything that walks into range.' },
   tower:  { n: 'Archer Tower', s: 2, cat: 'def',  hp: 400,  hpG: 1.27, base: { g: 180, i: 120 }, up: { g: 280, i: 220 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Fast arrows with long reach. Melts light troops.' },
+  /*
+   * AIR_NOTE — TUNABLE, and not in the build document.
+   *
+   * The Air Defence is the only building in the game that can be *completely
+   * wasted*, and that is the whole reason it exists.
+   *
+   * Every other defence answers everything: a Cannon shoots whatever walks
+   * into it, and there is no attack it is the wrong choice against. So a
+   * layout only ever had one question — where — and never "against what". An
+   * Air Defence hits nothing on the ground. Build one against an enemy who
+   * never brings a Bomber and you paid four thousand gold for a wall with a
+   * spike on it. Skip it against one who does, and a wall you spent the whole
+   * game raising is worth nothing, because a Bomber flies straight over it.
+   *
+   * Long, hard-hitting and slow to turn: it should reliably kill the Bomber it
+   * can see and never be a second Archer Tower.
+   */
+  airdef: { n: 'Air Defence', s: 2, cat: 'def',  hp: 520, hpG: 1.28, base: { g: 620, i: 380 }, up: { g: 540, i: 400 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Shoots down flyers, and only flyers. Useless against anything on foot.' },
+
   /*
    * MORTAR_NOTE — TUNABLE, and not in the build document.
    *
@@ -211,6 +230,9 @@ export const CAP: Record<Exclude<BuildingType, 'keep'>, readonly number[]> = {
   // Late, few, and expensive. A Mortar is meant to be the piece a layout is
   // built around, not another thing to line the perimeter with.
   mortar: [0,  0,  0,  0,  1,   1,   2,   2,   3,   4],
+  // Opens with the Bomber's own Barracks level, so nobody meets a flyer before
+  // they could have built the answer to one.
+  airdef: [0,  0,  0,  0,  0,   1,   2,   2,   3,   4],
   // Few, and late enough that a player has a layout worth defending before
   // they get to hide anything in it.
   spike:  [0,  0,  0,  0,  2,   3,   4,   5,   6,   8],
@@ -280,10 +302,24 @@ export const MORTAR_MIN = 3.4;
 /** Everything within this of where the shell lands takes the full hit. */
 export const MORTAR_SPLASH = 1.7;
 
+/**
+ * What a defence is able to shoot at.
+ *
+ * Before the air layer every gun shot everything, so this did not exist and a
+ * layout had one question in it: where. `air` is what adds the second — the
+ * Cannon and the Mortar point along the ground and cannot reach up, the Archer
+ * Tower is the generalist that covers both and is therefore never wrong and
+ * never decisive, and the Air Defence is the specialist that is either the
+ * best building on the base or a complete waste of a cell.
+ */
+export type DefenceTarget = 'ground' | 'air' | 'both';
+
 export interface DefenceStat {
   rng: number;
   dmg: number;
   cd: number;
+  /** Omitted means ground only, which is what every gun did before flyers. */
+  hits?: DefenceTarget;
   /** Cannot fire at anything closer than this. Absent means no dead zone. */
   min?: number;
   /** Damages everything within this of where the shot lands. Absent means one target. */
@@ -291,8 +327,17 @@ export interface DefenceStat {
 }
 
 export const DEF_STAT: Partial<Record<BuildingType, (lv: number) => DefenceStat>> = {
-  cannon: (lv) => ({ rng: 4.4, dmg: 30 + lv * 11, cd: 1.05 }),
-  tower:  (lv) => ({ rng: 6.2, dmg: 11 + lv * 4.4, cd: 0.42 }),
+  cannon: (lv) => ({ rng: 4.4, dmg: 30 + lv * 11, cd: 1.05, hits: 'ground' }),
+  tower:  (lv) => ({ rng: 6.2, dmg: 11 + lv * 4.4, cd: 0.42, hits: 'both' }),
+  /*
+   * Long and heavy, and it hits nothing on foot.
+   *
+   * Reach beyond an Archer Tower's, because it has to cover ground a Bomber
+   * will drift across rather than a lane something walks down, and damage high
+   * enough that one of these reliably finishes a Bomber inside its own range —
+   * a defence that only *slows* the thing it exists for is not an answer.
+   */
+  airdef: (lv) => ({ rng: 7.4, dmg: 46 + lv * 18, cd: 0.9, hits: 'air' }),
   /*
    * Slow, far, and it hurts. The cooldown is the balance: three seconds is long
    * enough that walking a spread-out warband through a Mortar's field is
@@ -305,6 +350,17 @@ export const DEF_STAT: Partial<Record<BuildingType, (lv: number) => DefenceStat>
 
 export function isDefensive(type: BuildingType): boolean {
   return TYPES[type].cat === 'def';
+}
+
+/** What this defence can shoot at. Ground only unless it says otherwise. */
+export function defenceHits(type: BuildingType, level = 1): DefenceTarget {
+  return DEF_STAT[type]?.(level).hits ?? 'ground';
+}
+
+/** True when this gun can reach something in the air. */
+export function coversAir(type: BuildingType): boolean {
+  const h = defenceHits(type);
+  return h === 'air' || h === 'both';
 }
 
 /*

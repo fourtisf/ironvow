@@ -26,7 +26,7 @@ function snap(buildings: BaseSnapshot['buildings']): BaseSnapshot {
   };
 }
 
-const EMPTY = { raider: 0, archer: 0, lancer: 0, ram: 0, scaler: 0 };
+const EMPTY = { raider: 0, archer: 0, lancer: 0, ram: 0, scaler: 0, bomber: 0 };
 
 function report(buildings: BaseSnapshot['buildings'], commands: DeployCommand[], raiders = 8) {
   return buildReport({
@@ -134,6 +134,46 @@ describe('what never fired', () => {
       1,
     );
     expect(r.idle).toHaveLength(0);
+  });
+});
+
+describe('the base had nothing that shoots up', () => {
+  /*
+   * The one line in the report a defender cannot reach by watching. A Bomber
+   * crossing a rampart looks like any troop crossing a rampart; that every gun
+   * on the base was pointing at the ground the whole time is invisible unless
+   * somebody says it.
+   */
+  const bombed = (defences: BaseSnapshot['buildings']) => buildReport({
+    snapshot: snap([{ id: 'k', type: 'keep', gx: mid - 1, gy: mid - 1, level: 3 }, ...defences]),
+    commands: [{ tickIndex: 0, troopType: 'bomber', gx: mid + 12, gy: mid }],
+    items: [], pouch: {},
+    army: { ...EMPTY, bomber: 1 },
+    seed: 5, hero: { level: 1, available: false }, troopLevels: {},
+  });
+
+  it('says so when they came by air and nothing could reach them', () => {
+    expect(bombed([{ id: 'c', type: 'cannon', gx: mid + 4, gy: mid, level: 5 }]).airBlind).toBe(true);
+  });
+
+  it('says nothing when an Archer Tower was already covering it', () => {
+    expect(bombed([{ id: 't', type: 'tower', gx: mid + 4, gy: mid, level: 5 }]).airBlind).toBe(false);
+  });
+
+  it('says nothing when an Air Defence was up', () => {
+    expect(bombed([{ id: 'a', type: 'airdef', gx: mid + 4, gy: mid, level: 5 }]).airBlind).toBe(false);
+  });
+
+  it('never says it about a raid that came on foot', () => {
+    // A base with no air cover that was never attacked from the air has no
+    // problem to report, and saying otherwise would send them shopping.
+    const r = report(
+      [{ id: 'k', type: 'keep', gx: mid - 1, gy: mid - 1, level: 3 },
+        { id: 'c', type: 'cannon', gx: mid + 4, gy: mid, level: 5 }],
+      [{ tickIndex: 0, troopType: 'raider', gx: mid + 12, gy: mid }],
+      1,
+    );
+    expect(r.airBlind).toBe(false);
   });
 });
 

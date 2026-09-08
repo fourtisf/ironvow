@@ -21,6 +21,8 @@ import {
   TYPES,
   clamp,
   climbs,
+  flies,
+  hitsAir,
   dist,
   facingOf,
   heroStats,
@@ -83,6 +85,10 @@ export interface UnitStats {
   ranged: boolean;
   /** Ramparts do not stop this unit. */
   climb: boolean;
+  /** Flies: no rampart stops it, no trap catches it, most guns cannot reach it. */
+  fly: boolean;
+  /** Can shoot at something that flies. */
+  air: boolean;
 }
 
 export function statsFor(
@@ -97,7 +103,8 @@ export function statsFor(
     // and every raid recorded before relics gets exactly the numbers it always
     // had.
     const h = heroWith(heroStats(heroLevel), relics, carried);
-    return { ...h, pref: 'any', ranged: false, climb: false };
+    // The hero walks, and swings at what is in front of it.
+    return { ...h, pref: 'any', ranged: false, climb: false, fly: false, air: false };
   }
   const def = TROOP[type];
   const power = troopPower(troopLevels[type] ?? 1);
@@ -110,6 +117,8 @@ export function statsFor(
     pref: def.pref,
     ranged: isRanged(type),
     climb: climbs(type),
+    fly: flies(type),
+    air: hitsAir(type),
   };
 }
 
@@ -146,6 +155,8 @@ export interface SimUnit {
   dead: boolean;
   face: 1 | -1;
   moving: boolean;
+  /** Flying. Read by the defences, the traps and the renderer. */
+  fly: boolean;
 }
 
 /**
@@ -391,6 +402,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       dead: false,
       face: 1,
       moving: false,
+      fly: d.fly,
     };
     units.push(u);
     if (wantTimeline) events.push({ t: tick, k: 'spawn', unit: u.i, type: t, x, y, side });
@@ -574,6 +586,10 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       let hit = false;
       for (const u of units) {
         if (u.dead || u.side !== mySide) continue;
+        // A trap is a hole in the ground. Nothing flying over it treads on the
+        // tripwire, and nothing flying over it is caught by the net either —
+        // which is the other half of why a base needs guns that point up.
+        if (u.fly) continue;
         if (dist(u.x, u.y, tr.x, tr.y) <= tr.r) { hit = true; break; }
       }
       if (!hit) continue;
@@ -597,7 +613,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       } else {
         const dmg = trapDamage(tr.t, tr.lv);
         for (const u of units) {
-          if (u.dead || u.side !== mySide) continue;
+          if (u.dead || u.side !== mySide || u.fly) continue;
           if (dist(u.x, u.y, tr.x, tr.y) <= tr.blast) hurtUnit(u, dmg, tick);
         }
       }
@@ -613,7 +629,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
    * difference between a trap and a win button.
    */
   const snareAt = (u: SimUnit, tick: number): number => {
-    if (u.side !== mySide) return 1;
+    if (u.side !== mySide || u.fly) return 1;
     let worst = 1;
     for (const sn of snares) {
       if (tick >= sn.until) continue;
@@ -662,7 +678,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       // To a climber a rampart is scenery, not a target. Both halves are
       // needed: without this it would walk past the wall and then turn round
       // and attack it, because a wall is the nearest thing there is.
-      if (stats.climb && s.t === 'wall') continue;
+      if ((stats.climb || stats.fly) && s.t === 'wall') continue;
       if (pref === 'def' && !isDefensive(s.t)) continue;
       if (pref === 'wall' && s.t !== 'wall' && best >= 0) continue;
       const d = dist(u.x, u.y, s.cx, s.cy);
@@ -686,10 +702,22 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   };
 
   const pickEnemyUnit = (u: SimUnit): number => {
+    /*
+     * A defending unit only picks a fight it can reach.
+     *
+     * A donated Lancer swinging a lance at something forty feet up would be a
+     * defender permanently locked onto a target it can never hurt, and the
+     * Bomber would demolish the base while the whole garrison watched. Archers
+     * shoot up; nothing else in the warband does — which is what makes an
+     * Archer worth donating to a clanmate and a Lancer worth donating for
+     * something else.
+     */
+    const canReach = statsFor(u.t, troopLevels, heroLevel, heroRelics, heroCarried).air;
     let best = -1;
     let bd = 1e9;
     for (const o of units) {
       if (o.dead || o.side === u.side) continue;
+      if (o.fly && !canReach) continue;
       const d = dist(u.x, u.y, o.x, o.y);
       if (d < bd) {
         bd = d;
@@ -838,7 +866,10 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
         // A rampart physically stops you: walk into its cell and it becomes
         // your problem. Unless you climb, in which case it is scenery.
         const key = Math.floor(p.x) + ',' + Math.floor(p.y);
-        if (!d.climb && wallSet.has(key) && tgt.t !== 'wall') {
+        // A Climber steps over a rampart; a Bomber never meets one. The wall
+        // is the single biggest thing a defender spends gold on across the
+        // whole game, and being irrelevant to it is what a flyer is buying.
+        if (!d.climb && !d.fly && wallSet.has(key) && tgt.t !== 'wall') {
           const wall = structs.find(
             (s) => !s.dead && s.t === 'wall' && s.gx === Math.floor(p.x) && s.gy === Math.floor(p.y),
           );
@@ -859,13 +890,26 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       if (!stat) continue;
       const st = stat(s.lv);
       const floor = st.min ?? 0;
+      /*
+       * What this gun can point at.
+       *
+       * The single rule the whole air layer rests on. A Cannon and a Mortar are
+       * ground weapons and a Bomber drifts over them untouched; an Archer Tower
+       * covers both and is therefore the safe building that is never wrong and
+       * never decisive; an Air Defence hits only the air, and is either the
+       * best thing on the base or a wasted cell.
+       */
+      const hits = st.hits ?? 'ground';
+      const canHit = (u: SimUnit): boolean =>
+        hits === 'both' || (hits === 'air' ? u.fly : !u.fly);
+
       let best = -1;
       let bd = 1e9;
 
       if (st.splash === undefined) {
-        // The nearest attacker in range. Cannon and Arrow Tower.
+        // The nearest attacker in range. Cannon, Archer Tower, Air Defence.
         for (const u of units) {
-          if (u.dead || u.side !== 'atk') continue;
+          if (u.dead || u.side !== 'atk' || !canHit(u)) continue;
           const d = dist(s.cx, s.cy, u.x, u.y);
           if (d < floor || d > st.rng) continue;
           if (d < bd) { bd = d; best = u.i; }
@@ -886,12 +930,12 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
          */
         let bc = -1;
         for (const u of units) {
-          if (u.dead || u.side !== 'atk') continue;
+          if (u.dead || u.side !== 'atk' || !canHit(u)) continue;
           const d = dist(s.cx, s.cy, u.x, u.y);
           if (d < floor || d > st.rng) continue;
           let n = 0;
           for (const o of units) {
-            if (o.dead || o.side !== 'atk') continue;
+            if (o.dead || o.side !== 'atk' || !canHit(o)) continue;
             if (dist(u.x, u.y, o.x, o.y) <= st.splash) n++;
           }
           if (n > bc || (n === bc && d < bd)) { bc = n; bd = d; best = u.i; }

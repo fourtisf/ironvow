@@ -794,6 +794,7 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
         swing: swingOf(u, w.raid?.hero?.level ?? 1),
         flash: w.unitFlash.get(e.i) ?? 0,
         born: w.unitBorn.get(e.i) ?? 0,
+        fly: u.fly,
       });
     } else {
       const s = battle.structs[e.i]!;

@@ -21,9 +21,9 @@ import { C } from '../../lib/render/palette';
 
 const LEVELS = [1, 3, 6, 9];
 const SHOWN: BuildingType[] = [
-  'mine', 'forge', 'store', 'keep', 'barr', 'camp', 'lab', 'cannon', 'tower', 'mortar', 'spike', 'snare', 'wall',
+  'mine', 'forge', 'store', 'keep', 'barr', 'camp', 'lab', 'cannon', 'tower', 'mortar', 'airdef', 'spike', 'snare', 'wall',
 ];
-const TROOPS: DeployableType[] = ['raider', 'archer', 'lancer', 'scaler', 'ram', 'hero'];
+const TROOPS: DeployableType[] = ['raider', 'archer', 'lancer', 'scaler', 'ram', 'bomber', 'hero'];
 
 const CELL = 300;
 const ROW = 420;

@@ -153,6 +153,8 @@ export interface BreachView {
   fell: (BreachRow & { at: number })[];
   idle: BreachRow[];
   traps: (BreachRow & { sprung: boolean; at: number | null })[];
+  /** They came by air and the base had nothing that shoots up. */
+  airBlind: boolean;
   seconds: number;
   stars: number;
   destroyedPct: number;

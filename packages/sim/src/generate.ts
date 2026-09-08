@@ -121,6 +121,16 @@ export function generateBase(stage: number, seed = 0): SnapshotBuilding[] {
    * their first Spike Trap only when a real defender catches them with one.
    * Out past the ramparts, where troops mass before they break in.
    */
+  /*
+   * Air Defences, out where the perimeter is rather than tucked in the middle.
+   *
+   * A gun that only reaches up covers what passes *over* it, so one in the
+   * centre of a base covers the centre and nothing else — a Bomber picks off
+   * the outer ring untouched and never enters its circle. A generated hold
+   * should teach the placement by being laid out correctly.
+   */
+  if (stage >= 6) ring('airdef', about(Math.floor(stage / 4), 1, 3), L.def + 1.2, 4.7);
+
   if (stage >= 5) ring('spike', about(Math.floor(stage / 3), 1, 5), L.wall + 1.6, 1.3);
   if (stage >= 6) ring('snare', about(Math.floor(stage / 4), 1, 4), L.wall + 2.4, 3.9);
   ring('mine', about(2 + Math.floor(stage / 3), 2, 6), L.mine, 2.1);

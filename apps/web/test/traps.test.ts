@@ -35,7 +35,7 @@ function raiding(kind: 'raid' | 'defend' = 'raid'): World {
   w.vp = { w: 800, h: 600, dpr: 1 };
   beginBattle(w, {
     raidId: 'r1', seed: 5, snapshot: holdWithTraps(),
-    army: { raider: 6, archer: 0, lancer: 0, ram: 0, scaler: 0 },
+    army: { raider: 6, archer: 0, lancer: 0, ram: 0, scaler: 0, bomber: 0 },
     hero: { level: 1, available: false }, troopLevels: {},
     expiresAt: new Date(Date.now() + 600_000).toISOString(), rerollCost: 0,
   }, kind);

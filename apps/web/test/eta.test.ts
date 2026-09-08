@@ -12,7 +12,7 @@ import { SPEEDS, battleEta, isBattleSpeed } from '../lib/game/eta';
  * will.
  */
 
-const ARMY = { raider: 6, archer: 0, lancer: 0, ram: 0, scaler: 0 };
+const ARMY = { raider: 6, archer: 0, lancer: 0, ram: 0, scaler: 0, bomber: 0 };
 
 function raid(army = ARMY) {
   return createBattle({

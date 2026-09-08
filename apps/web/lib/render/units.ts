@@ -42,6 +42,14 @@ export interface DrawableUnit {
   /** Spawn time, so units of the same type do not march in lockstep. */
   born: number;
   /**
+   * Flying: drawn lifted off the ground, with its shadow left behind on it.
+   *
+   * Without this a Bomber crossing a rampart looks exactly like a Climber
+   * walking over one, and the player has no way to see why their Cannons are
+   * not firing.
+   */
+  fly?: boolean;
+  /**
    * War Lab level for this troop, or the hero's rank. Drives the tier.
    *
    * Cosmetic only — the strength it stands for was applied by the simulation
@@ -113,6 +121,59 @@ const Yof = (S: number, v: number): number => -v * S;
 /* ------------------------------------------------------------ pieces --- */
 
 /** A cloak from tier 2, behind everything: the tier that changes the outline. */
+/**
+ * The Bomber's wings.
+ *
+ * Drawn behind everything, and drawn *wide* — the silhouette is the only thing
+ * that has to survive a full warband at play zoom, and the one fact a player
+ * must read off this unit in half a second is "the Cannons cannot touch that".
+ * A lifted body alone does not say it; a pair of wings either side does.
+ *
+ * Beating is not animated here. This is a cached part, and a painter that read
+ * the clock would bake whatever frame it was first rasterised on into every
+ * Bomber in the game for good. The hover in `paint` moves the whole sprite
+ * instead, which costs nothing.
+ */
+function paintWings(ctx: CanvasRenderingContext2D, K: Kit, S: number): void {
+  const { P, tier } = K;
+  const Y = (v: number): number => Yof(S, v);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = C.line;
+  ctx.lineWidth = Math.max(1.4, 2 * S);
+
+  // Wide enough that both wings clear the body and whatever it is holding: at
+  // the first span the near one was hidden behind the arm and the unit read as
+  // one-winged.
+  const span = (21 + tier * 2.4) * S;
+  const rise = (13 + tier) * S;
+  for (const dir of [-1, 1]) {
+    ctx.fillStyle = P(tier >= 3 ? '#c9924f' : tier >= 1 ? '#9aa7b4' : '#c8b58a');
+    ctx.beginPath();
+    ctx.moveTo(0, Y(24));
+    ctx.quadraticCurveTo(span * 0.5 * dir, Y(24) - rise, span * dir, Y(20));
+    ctx.quadraticCurveTo(span * 0.6 * dir, Y(16), 0, Y(18));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Ribs, one more each tier, so a level 9 Bomber reads as a bigger machine
+    // rather than the same one repainted.
+    if (K.detail) {
+      ctx.strokeStyle = P('rgba(20,28,40,.45)');
+      ctx.lineWidth = Math.max(1, 1.2 * S);
+      for (let i = 1; i <= 1 + tier; i++) {
+        const k = i / (2 + tier);
+        ctx.beginPath();
+        ctx.moveTo(0, Y(21));
+        ctx.lineTo(span * k * dir, Y(20.4) - rise * (1 - k) * 0.7);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = Math.max(1.4, 2 * S);
+    }
+  }
+}
+
 function paintCloak(ctx: CanvasRenderingContext2D, K: Kit, S: number): void {
   const { f, P } = K;
   const Y = (v: number): number => Yof(S, v);
@@ -223,6 +284,8 @@ function paintKit(ctx: CanvasRenderingContext2D, K: Kit, S: number): void {
     : K.type === 'archer' ? '#3f7a44'
     // A hood rather than a helm: nothing that climbs a wall wears steel.
     : K.type === 'scaler' ? '#6d4a8f'
+    // Leather and brass, for the one that never touches the ground.
+    : K.type === 'bomber' ? '#8a6a2c'
     : '#9aa7b4';
   ctx.fillStyle = P(helm);
   ctx.beginPath(); ctx.arc(0, Y(29.5), 5.8 * S, Math.PI * 1.03, Math.PI * 2.02); ctx.fill(); ctx.stroke();
@@ -296,6 +359,17 @@ function paintKit(ctx: CanvasRenderingContext2D, K: Kit, S: number): void {
       roundRect(ctx, (-2 + i * 1.5) * S, -9 * S, 1.2 * S, 4 * S, 0.6 * S); ctx.fill();
     }
     ctx.restore();
+  } else if (K.type === 'bomber') {
+    // The load, slung under it. What the thing is for, readable while it is
+    // still crossing the field with nothing happening.
+    ctx.fillStyle = P('#39434f');
+    ctx.beginPath();
+    ctx.ellipse(-7 * S * f, Y(14), (5 + tier * 0.4) * S, (5.6 + tier * 0.4) * S, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = P(tier >= 2 ? C.gold : '#b06a2c');
+    ctx.beginPath();
+    ctx.ellipse(-7 * S * f, Y(19.5), 1.6 * S, 2.2 * S, 0, 0, 6.29);
+    ctx.fill();
   } else if (K.type === 'scaler') {
     // A coil of rope at the hip, so it reads as a climber standing still too.
     ctx.fillStyle = P('#d8c9a8');
@@ -361,6 +435,37 @@ function paintWeapon(ctx: CanvasRenderingContext2D, K: Kit, S: number, sw: numbe
     ctx.fillStyle = P(tier >= 3 ? C.gold : tier >= 1 ? K.trim : C.woodD);
     roundRect(ctx, -4.5 * S, -(2.4 + tier * 0.4) * S, 5 * S, (4.8 + tier * 0.8) * S, 2 * S);
     ctx.fill(); ctx.stroke();
+    ctx.restore();
+  } else if (K.type === 'bomber') {
+    /*
+     * No polearm.
+     *
+     * The default branch below is the lance, and a Bomber carrying one read as
+     * a Lancer with a coat on — the weapon is the loudest thing on a troop at
+     * play zoom, so borrowing another unit's makes it another unit. What it
+     * holds instead is the bomb it is about to drop, swung out and released on
+     * the blow, and a lit fuse that is visible while it is still crossing the
+     * field.
+     */
+    ctx.save();
+    ctx.translate(8 * S * f, Y(19));
+    // Held back, then thrown: the arm goes out as `sw` decays.
+    ctx.rotate((0.5 - sw * 1.3) * f);
+    ctx.fillStyle = P('#39434f');
+    ctx.beginPath();
+    ctx.ellipse((5 + tier) * S, 0, (4.4 + tier * 0.5) * S, (4.8 + tier * 0.5) * S, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+    // The fuse, and its spark. The one warm thing on the unit.
+    ctx.strokeStyle = P(C.woodD);
+    ctx.lineWidth = Math.max(1.2, 1.6 * S);
+    ctx.beginPath();
+    ctx.moveTo((5 + tier) * S, -(4 + tier * 0.5) * S);
+    ctx.quadraticCurveTo((7 + tier) * S, -(9 + tier) * S, (10 + tier) * S, -(8 + tier) * S);
+    ctx.stroke();
+    ctx.fillStyle = P(tier >= 2 ? '#ffd97a' : '#ff9e40');
+    ctx.beginPath();
+    ctx.arc((10 + tier) * S, -(8 + tier) * S, (1.6 + tier * 0.3) * S, 0, 6.29);
+    ctx.fill();
     ctx.restore();
   } else if (K.type === 'archer') {
     const bow = (8 + tier * 1.1) * S;
@@ -556,15 +661,41 @@ function paint(d: Draw, u: DrawableUnit, useCache: boolean): void {
     detail: S > 1.15,
   };
 
+  /*
+   * Height, for the things that have it.
+   *
+   * A flyer's shadow and ring stay on the ground where it actually is — the
+   * simulation has it at (x, y) and every range check is made from there — and
+   * only the body is lifted. Draw the ring in the air with it and the unit
+   * reads as standing on an invisible floor, which is worse than no lift at
+   * all. The shadow is smaller and softer than a walker's for the same reason
+   * a real one is: it is further from what casts it.
+   */
+  const flying = u.fly === true;
+  const LIFT = flying ? 26 * S : 0;
+
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.fillStyle = 'rgba(20,40,18,.3)';
-  ctx.beginPath(); ctx.ellipse(sx, sy + 1.5 * z, 8.5 * S, 4 * S, 0, 0, 6.29); ctx.fill();
+  ctx.fillStyle = flying ? 'rgba(20,40,18,.18)' : 'rgba(20,40,18,.3)';
+  const shR = flying ? 0.62 : 1;
+  ctx.beginPath();
+  ctx.ellipse(sx, sy + 1.5 * z, 8.5 * S * shR, 4 * S * shR, 0, 0, 6.29);
+  ctx.fill();
   ctx.strokeStyle = teamL;
   ctx.lineWidth = Math.max(1.5, 1.5 * S);
-  ctx.beginPath(); ctx.ellipse(sx, sy + 1.5 * z, 8 * S, 3.6 * S, 0, 0, 6.29); ctx.stroke();
+  ctx.globalAlpha = flying ? 0.55 : 1;
+  ctx.beginPath();
+  ctx.ellipse(sx, sy + 1.5 * z, 8 * S * shR, 3.6 * S * shR, 0, 0, 6.29);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 
-  const ay = sy - bob;
+  /*
+   * A slow hover, so a Bomber holding station over a building is not a
+   * cut-out pinned to the sky. Driven off `born` like the walk cycle, so two
+   * of them are never in lockstep.
+   */
+  const hover = flying ? Math.sin(t * 2.4 + u.born * 5) * 2.2 * S : 0;
+  const ay = sy - bob - LIFT - hover;
   /*
    * A flashing unit is drawn live.
    *
@@ -607,6 +738,12 @@ function paint(d: Draw, u: DrawableUnit, useCache: boolean): void {
       ctx.restore();
     }
   } else {
+    // Behind the cloak and the body, because a wing in front of the chest
+    // reads as a shield.
+    if (u.type === 'bomber') {
+      if (cached) blitUnitPart(d, shape('wings'), S, sx, ay, (c, s) => paintWings(c, K, s));
+      else live((c, s) => paintWings(c, K, s));
+    }
     if (K.detail && tier >= 2) {
       if (cached) blitUnitPart(d, shape('cloak'), S, sx, ay, (c, s) => paintCloak(c, K, s));
       else live((c, s) => paintCloak(c, K, s));

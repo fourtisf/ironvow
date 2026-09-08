@@ -68,7 +68,9 @@ describe.skipIf(!hasDatabase)('raiding', () => {
     // Scouting shows the real layout, which is the whole point of the feature.
     expect(scout.snapshot.buildings.length).toBeGreaterThan(0);
     expect(scout.snapshot.pool.g).toBeGreaterThan(0);
-    expect(scout.army).toEqual({ raider: 12, archer: 4, lancer: 0, ram: 0, scaler: 0 });
+    // Every type, including the ones untrained: armyOf fills from TROOP_ORDER
+    // so a troop added to the game is a zero here rather than a missing key.
+    expect(scout.army).toEqual({ raider: 12, archer: 4, lancer: 0, ram: 0, scaler: 0, bomber: 0 });
 
     const commands = siege(scout.army);
     const local = simulate({

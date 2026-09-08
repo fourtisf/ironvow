@@ -89,7 +89,7 @@ export function growthOf(level: number): number {
  * exactly the buildings a player most wants to read the level of.
  */
 const PIP_TIER: Record<string, number> = {
-  keep: 12, barr: 26, camp: 5, lab: 12, mine: 6, forge: 4, store: 2, tower: 4, mortar: 4,
+  keep: 12, barr: 26, camp: 5, lab: 12, mine: 6, forge: 4, store: 2, tower: 4, mortar: 4, airdef: 5,
 };
 
 export function pipHeightOf(type: BuildingType, level: number): number {
@@ -875,6 +875,55 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
       ctx.moveTo(px + 9 * z, top + 2 * z);
       ctx.lineTo(px + 9 * z, top - (10 + tier * 2) * z);
       ctx.stroke();
+    }
+
+  } else if (b.type === 'airdef') {
+    /*
+     * Four barrels on a raised swivel, angled up.
+     *
+     * The angle is the whole silhouette. Every other gun on a base points
+     * along the ground, so a gun pointing at the sky is the one thing that can
+     * say "this one is for the flyers" from across the field — and a player
+     * scouting a base has to be able to count these at a glance, because
+     * whether to bring Bombers is the decision the whole layer rests on.
+     */
+    isoBox(d, gx + 0.1, gy + 0.1, s - 0.2, s - 0.2, 12, C.stone, C.stoneD, '#77848f');
+    const mount = 26 + lv * 1.6;
+    isoBox(d, gx + 0.5, gy + 0.5, s - 1.0, s - 1.0, mount, C.stoneL, C.stoneD, C.stone);
+
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const top = py - mount * z;
+
+    // The turntable it sits on, so the barrels do not float.
+    ctx.fillStyle = '#3f4a56';
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+    ctx.beginPath();
+    ctx.ellipse(px, top + 2 * z, 11 * z, 5.2 * z, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+
+    // The barrels: a tight fan, raked upward. One more pair each tier.
+    const n = 2 + tier;
+    for (let i = 0; i < n; i++) {
+      const spread = (i - (n - 1) / 2) * 4.6 * z;
+      const len = (22 + lv * 1.4) * z;
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = Math.max(2.4, (4.4 + tier * 0.5) * z);
+      ctx.beginPath();
+      ctx.moveTo(px + spread, top);
+      ctx.lineTo(px + spread * 1.5, top - len);
+      ctx.stroke();
+      ctx.strokeStyle = tier >= 3 ? '#c9924f' : '#8d9aa8';
+      ctx.lineWidth = Math.max(1.4, (2.6 + tier * 0.4) * z);
+      ctx.beginPath();
+      ctx.moveTo(px + spread, top);
+      ctx.lineTo(px + spread * 1.5, top - len);
+      ctx.stroke();
+      // The muzzle, dark, so the barrels read as tubes rather than as poles.
+      ctx.fillStyle = '#141c27';
+      ctx.beginPath();
+      ctx.ellipse(px + spread * 1.5, top - len, 2 * z, 1.2 * z, 0, 0, 6.29);
+      ctx.fill();
     }
 
   } else if (b.type === 'mortar') {

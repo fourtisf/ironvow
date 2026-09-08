@@ -64,7 +64,7 @@ function CostLine({ cost, affordable }: { cost: Cost; affordable: boolean }) {
  * was never added here: it would simply be unbuildable, with no error anywhere.
  */
 export const BUILDABLE: BuildingType[] = [
-  'mine', 'forge', 'store', 'camp', 'barr', 'lab', 'cannon', 'tower', 'mortar', 'wall',
+  'mine', 'forge', 'store', 'camp', 'barr', 'lab', 'cannon', 'tower', 'mortar', 'airdef', 'wall',
   'spike', 'snare',
 ];
 
@@ -741,6 +741,25 @@ export function BreachSheet({ report, onClose }: { report: BreachView; onClose: 
           </p>
         </div>
       </div>
+
+      {/*
+        * The air line comes first, above the guns that never fired, because it
+        * is the one problem on this sheet a defender could not have seen for
+        * themselves — and because a base with no cover at all loses to the
+        * next Bomber too, whatever else they fix.
+        */}
+      {report.airBlind && (
+        <div className="qrow" style={{ borderColor: '#d64f38' }}>
+          <div className="qi">
+            <h4>THEY CAME BY AIR</h4>
+            <p>
+              Nothing on your base shoots up. Cannons and Mortars cannot reach a
+              flyer, and walls and traps do not touch one. Build an Air Defence,
+              or an Archer Tower, on the side they came from.
+            </p>
+          </div>
+        </div>
+      )}
 
       {report.idle.length > 0 ? (
         <>

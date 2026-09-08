@@ -1,4 +1,7 @@
-import { DEF_STAT, N, TICK_SECONDS, TYPES, isTrap, type BuildingType, type Pouch } from '@ironvow/config';
+import {
+  DEF_STAT, N, TICK_SECONDS, TROOP_TYPES, TYPES, coversAir, flies, isTrap,
+  type BuildingType, type Pouch,
+} from '@ironvow/config';
 import type { BaseSnapshot, BattleArmy, DeployCommand, HeroLoadout, ItemCommand, TroopLevels } from '@ironvow/types';
 import { simulate } from '@ironvow/sim';
 
@@ -29,6 +32,15 @@ export interface BreachReport {
   idle: { type: BuildingType; level: number }[];
   /** Traps, and whether they were ever found. */
   traps: { type: BuildingType; level: number; sprung: boolean; at: number | null }[];
+  /**
+   * The base had nothing that shoots up, and they came by air anyway.
+   *
+   * The one thing in the report a defender cannot work out from watching. A
+   * Bomber crossing a rampart looks like a troop crossing a rampart; that every
+   * gun on the base was pointing at the ground the whole time is invisible
+   * unless somebody says it.
+   */
+  airBlind: boolean;
   /** How long the raid actually lasted, in seconds. */
   seconds: number;
 }
@@ -139,7 +151,13 @@ export function buildReport(input: ReportInput): BreachReport {
     if (!fired.has(i)) idle.push({ type: b.type, level: b.level });
   });
 
+  // Counted from the frozen snapshot and the frozen army, so it says what was
+  // true of the base at the moment it was attacked.
+  const cover = standing.some((b) => coversAir(b.type));
+  const byAir = TROOP_TYPES.some((t) => flies(t) && (input.army[t] ?? 0) > 0);
+
   return {
+    airBlind: byAir && !cover,
     side: concentration < 0.35 ? 'everywhere' : compass(dx, dy),
     concentration,
     // Five is enough to see the order of a breach without listing the hold.

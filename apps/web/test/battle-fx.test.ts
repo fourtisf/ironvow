@@ -118,7 +118,7 @@ describe('a raid keeps running while the window is in the background', () => {
     });
     w.battle = createBattle({
       snapshot: generateOpponent(4, 'ai', 'Test', 3),
-      commands: [], army: { raider: 6, archer: 0, lancer: 0, ram: 0, scaler: 0 }, seed: 7,
+      commands: [], army: { raider: 6, archer: 0, lancer: 0, ram: 0, scaler: 0, bomber: 0 }, seed: 7,
     });
     return w;
   }

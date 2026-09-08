@@ -1906,6 +1906,81 @@ replacement no clearer than what it replaced; it reads `LOCKED` now. And
 `Archer Tower`, two words where `Arrow Tower` had been shorter, collided with
 the count badge in the corner of its card until the name got room to wrap.
 
+## The air layer
+
+Asked again what the game was missing, the honest answer was that laying out a
+base still had only one question in it: **where**. Every gun shot everything.
+There was no attack a Cannon was the wrong answer to, so no corner of a layout
+was ever a choice between two buildings — only between a building and nothing.
+
+The air layer adds the second question: **against what**.
+
+- **Bomber** (Barracks 5, six warband slots — the same as a Ram). Slow, tough
+  and expensive. It flies, so no rampart stops it and it goes to its target in a
+  straight line over everything in between. It prefers ordinary buildings rather
+  than defences on purpose: a flyer that beelined for the guns would answer the
+  layout question for the player, and the point is that *where the Air Defence
+  sits* decides the raid.
+- **Air Defence** (Town Hall 6). Longer reach than an Archer Tower and heavy
+  enough to finish a Bomber inside its own range — a defence that merely slows
+  the thing it exists for is not an answer.
+
+### The one building in the game that can be completely wasted
+
+That is the whole reason it exists. Build an Air Defence against somebody who
+never brings a Bomber and you have paid a thousand gold for a wall with a spike
+on it. Skip it against somebody who does, and the wall you spent the entire game
+raising is worth nothing, because a Bomber flies straight over it.
+
+Every gun now declares what it can point at:
+
+| | ground | air |
+| --- | --- | --- |
+| Cannon | ✓ | |
+| Mortar | ✓ | |
+| Archer Tower | ✓ | ✓ |
+| Air Defence | | ✓ |
+
+The Archer Tower being the generalist is deliberate: it is the building that is
+never wrong and never decisive, which is what makes the other three decisions.
+
+### What a flyer is buying, precisely
+
+- **Ramparts are irrelevant to it.** Walls are the single biggest thing a
+  defender spends gold on across the whole game.
+- **Traps do not touch it.** A Spike Trap is a hole in the ground; nothing
+  flying over the tripwire treads on it, and a Net Trap cannot snare one either.
+- **Most of the base cannot reach it.** Only two buildings out of four.
+
+And the counterweight: an Archer is the one troop in the warband that shoots up,
+so a clan's donated Archers are worth something against a Bomber and their
+donated Lancers are not. Without that rule a defending Lancer would lock onto a
+target forty feet up and stand there swinging while the base came down.
+
+### The breach report says the thing watching cannot
+
+A Bomber crossing a rampart looks exactly like a Climber going over one. That
+every gun on the base was pointing at the ground the whole time is invisible
+unless somebody says it, so the report now opens with **THEY CAME BY AIR** when
+the attack included a flyer and the base had nothing that could reach it.
+
+### Drawing it
+
+A flyer is drawn lifted, with its shadow and its ring left on the ground where
+the unit actually is — the simulation has it at `(x, y)` and every range check
+is made from there, so lifting the ring too would draw a unit standing on an
+invisible floor and a player judging whether a Bomber is inside an Air Defence
+would be reading the wrong spot. The hover moves the cached sprite rather than
+repainting it, exactly as the Ram's lunge does; a painter that read the clock
+would bake one frame into every Bomber in the game for good.
+
+Two things the art pass turned up. The default weapon painter is the lance, so
+the first Bomber read as a Lancer in a coat — the weapon is the loudest thing on
+a troop at play zoom, and borrowing another unit's makes it that unit. It
+carries the bomb it is about to drop instead, with a lit fuse. And the first
+wingspan was narrow enough that the near wing hid behind the arm, so the unit
+came out one-winged.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

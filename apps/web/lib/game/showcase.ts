@@ -104,6 +104,11 @@ const PLAN: Plan[] = [
   // hold should be laid out the way a good one is.
   ...quad('mortar', 20, 22),
 
+  // Air Defences on the outside corners, where a flyer crosses the boundary
+  // rather than where it ends up: a gun that points up only covers what passes
+  // over it, so putting them in the middle covers the middle and nothing else.
+  ...quad('airdef', 20, 17),
+
   // Traps on the approaches, outside everything. A hold that hides them in the
   // middle has hidden them where nobody walks.
   ...quad('spike', 17, 23),

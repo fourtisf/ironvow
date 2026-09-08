@@ -25,7 +25,7 @@ function raiding(pouch: Record<string, number> = { horn: 1, firepot: 1 }): World
     raidId: 'r1',
     seed: 5,
     snapshot: generateOpponent(3),
-    army: { raider: 4, archer: 0, lancer: 0, ram: 0, scaler: 0 },
+    army: { raider: 4, archer: 0, lancer: 0, ram: 0, scaler: 0, bomber: 0 },
     hero: { level: 1, available: false },
     troopLevels: {},
     pouch,

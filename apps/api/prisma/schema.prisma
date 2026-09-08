@@ -108,6 +108,14 @@ model Player {
   /// Consecutive days the player has opened the game. Raises the daily reward.
   streakDays    Int      @default(0)
 
+  /// The last What's New note this player has read, by its number.
+  ///
+  /// A new hold is created already caught up — see NEWS_LATEST — because the
+  /// alternative is greeting somebody's first minute with seven notes about
+  /// things they have never seen. Zero therefore means an account that predates
+  /// this column, which is exactly the player the panel is for.
+  newsSeen      Int      @default(0)
+
   buildings  Building[]
   clanSeat   ClanMember?
   clanAsks   ClanRequest[]

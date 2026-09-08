@@ -404,6 +404,20 @@
   #helpSheet .helpSec li{font-size:10px;font-family:Arial;font-weight:700;color:#c3d4ea;line-height:1.5;padding:6px 9px;
     background:#22304a;border:2px solid #3d5170;border-radius:10px;margin-bottom:5px}
 
+  /* What's new. The date sits under the heading rather than beside it: at
+     phone width a title and a date on one line pushes the title to two. */
+  #newsSheet .newsItem{margin-bottom:14px}
+  #newsSheet .newsItem h3{font-size:10.5px;letter-spacing:1.6px;color:#e8b23c}
+  #newsSheet .newsItem .when{display:block;font-size:8.5px;letter-spacing:1px;
+    color:#6f86a8;margin:3px 0 6px}
+  #newsSheet .newsItem ul{list-style:none}
+  #newsSheet .newsItem li{font-size:10px;font-family:Arial;font-weight:700;color:#c3d4ea;line-height:1.5;
+    padding:6px 9px;background:#22304a;border:2px solid #3d5170;border-radius:10px;margin-bottom:5px}
+  /* `.big` is scoped to .modal, so a sheet button needs its own width. The
+     dismiss is the only thing to do on this panel and should read that way. */
+  #newsSheet > .btn{display:block;width:100%;padding:12px;font-size:12px;letter-spacing:1.8px;
+    border-radius:14px;margin-top:2px}
+
   /* ---------- wide screens ---------- */
   /* A phone layout stretched across a desktop put a full-width inspector
      under 1900 px of nothing. Above tablet width the inspector and the

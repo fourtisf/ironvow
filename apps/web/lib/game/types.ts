@@ -60,6 +60,8 @@ export interface PlayerState {
   /** ISO timestamp, or null when the hero is ready. */
   heroReadyAt: string | null;
   troopLevels: Record<TroopType, number>;
+  /** The last What's New note read. Zero on a hold raised before the panel. */
+  newsSeen: number;
   serverTime: string;
 }
 

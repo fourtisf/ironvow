@@ -6,6 +6,7 @@ import {
   parsePouch,
   type Pouch,
   DAILY_COUNTERS,
+  NEWS_LATEST,
   QUEST_COUNTERS,
   dayIndexOf,
   type DailyCounter,
@@ -64,6 +65,8 @@ export interface LoadedPlayer extends PlayerView {
   relics: RelicLevels;
   carried: RelicLoadout;
   shieldUntil: Date | null;
+  /** The last What's New note read, by number. */
+  newsSeen: number;
   buildings: (OwnedBuildingRow & { stock: number })[];
   storageCap: number;
   /** Builders not currently occupied. */
@@ -299,6 +302,7 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     // than quietly granting a bonus nobody paid for.
     carried: parseLoadout(player.carried, relicLevels),
     shieldUntil: player.shieldUntil,
+    newsSeen: player.newsSeen,
     buildings,
     army,
     queue: queueTypes,
@@ -349,6 +353,9 @@ export async function createPlayer(
       isGuest,
       gold: BigInt(START_GOLD),
       iron: BigInt(START_IRON),
+      // Caught up from the start: a first minute is no place for seven notes
+      // about features the player has not met yet.
+      newsSeen: NEWS_LATEST,
       buildings: {
         create: [
           { type: 'keep', gx: mid, gy: mid, level: 1 },

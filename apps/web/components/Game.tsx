@@ -2,6 +2,7 @@
 
 import {
   HERO_UNLOCK_KEEP_LEVEL,
+  NEWS_LATEST,
   RELIC,
   PROD,
   TROOP_ORDER,
@@ -41,6 +42,7 @@ import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { Coach } from './Coach';
 import { HelpSheet } from './HelpSheet';
+import { NewsSheet, hasNews } from './NewsSheet';
 import { ArmySheet, BreachSheet, BuildSheet, LadderSheet, LogSheet, ProfileSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
@@ -95,6 +97,15 @@ export function Game() {
   const [claimSent, setClaimSent] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [guestNoteDismissed, setGuestNoteDismissed] = useState(false);
+  /**
+   * What's New: 'unread' is the panel a returning player is shown by itself,
+   * 'all' is the whole run they asked for from settings. Kept out of `sheet`
+   * because the first one opens itself, and a sheet that opens itself would
+   * shut whatever the player had open.
+   */
+  const [news, setNews] = useState<'unread' | 'all' | null>(null);
+  /** Shown once a session, however many times the base reloads underneath it. */
+  const [newsShown, setNewsShown] = useState(false);
   const [progression, setProgression] = useState<ProgressionView | null>(null);
   const [sfxLevel, setSfxLevel] = useState(1);
   const [musicLevel, setMusicLevel] = useState(0.35);
@@ -304,6 +315,21 @@ export function Game() {
   }, [signedIn, mode, musicLevel]);
 
   useEffect(() => () => stopMusic(), []);
+
+  /* --- what changed while they were away ---
+   *
+   * Opens itself once, and only over a quiet base: not during a raid, not on
+   * top of the scouting screen, and not over the outcome of a battle they are
+   * still reading. A new hold is created already caught up, so this is only
+   * ever the returning player it is written for.
+   */
+  useEffect(() => {
+    if (!player || newsShown) return;
+    if (mode !== 'base' || sheet !== null || scout || outcome) return;
+    if (!hasNews(player.newsSeen)) return;
+    setNewsShown(true);
+    setNews('unread');
+  }, [player, newsShown, mode, sheet, scout, outcome]);
 
   /* --- keep the battle HUD ticking while a raid runs --- */
   useEffect(() => {
@@ -993,6 +1019,26 @@ export function Game() {
         />
       )}
 
+      {news !== null && player && (
+        <NewsSheet
+          seen={player.newsSeen}
+          onlyUnread={news === 'unread'}
+          onClose={() => {
+            sfx.tap();
+            const wasUnread = news === 'unread';
+            setNews(null);
+            if (!wasUnread || player.newsSeen >= NEWS_LATEST) return;
+            /*
+             * The number this build knows about, not "the latest": a tab left
+             * open across a deploy would otherwise mark a note read that it
+             * never had the text of.
+             */
+            setPlayer({ ...player, newsSeen: NEWS_LATEST });
+            void api.markNews(NEWS_LATEST).catch(() => undefined);
+          }}
+        />
+      )}
+
       {sheet === 'help' && player && (
         <HelpSheet
           onClose={() => setSheet(null)}
@@ -1195,6 +1241,7 @@ export function Game() {
               ));
           }}
           onHelp={() => setSheet('help')}
+          onNews={() => { setSheet(null); setNews('all'); }}
           onReport={() => { setSheet(null); setReportOpen(true); }}
           onDeleteAccount={() => {
             setConfirm({

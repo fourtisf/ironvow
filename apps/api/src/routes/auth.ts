@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { NEWS_LATEST } from '@ironvow/config';
 import { bump } from '../lib/count.js';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../lib/env.js';
@@ -336,6 +337,27 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
+   * Mark the What's New panel read.
+   *
+   * Takes the note number the client just showed rather than "the latest",
+   * because the two are not the same thing: a client on an older build knows
+   * nothing about a note published since it loaded, and answering "latest"
+   * would silently swallow it. Never moves backwards, so an old tab closing
+   * cannot un-read a note.
+   */
+  app.post('/me/news', { preHandler: requireAuth }, async (request, reply) => {
+    const parsed = z.object({ no: z.number().int().min(0).max(NEWS_LATEST) }).safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const updated = await prisma.player.update({
+      where: { id: request.playerId! },
+      data: { newsSeen: { set: parsed.data.no } },
+      select: { newsSeen: true },
+    });
+    return reply.send({ newsSeen: updated.newsSeen });
+  });
+
+  /**
    * This player's own invitation code.
    *
    * Made on first read rather than at sign-up: every hold raised before
@@ -388,6 +410,7 @@ export function serialise(p: Awaited<ReturnType<typeof loadPlayer>>) {
     troopLevels: p.troopLevels,
     counters: p.counters,
     claimedQuests: p.claimedQuests,
+    newsSeen: p.newsSeen,
     serverTime: new Date().toISOString(),
   };
 

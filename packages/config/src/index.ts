@@ -24,3 +24,4 @@ export * from './items.js';
 export * from './seasons.js';
 export * from './relics.js';
 export * from './traps.js';
+export * from './news.js';

@@ -39,6 +39,7 @@ export interface SettingsSheetProps {
   onLogout: () => void;
   onDeleteAccount: () => void;
   onHelp: () => void;
+  onNews: () => void;
   onReport: () => void;
   onClose: () => void;
 }
@@ -81,7 +82,7 @@ function Slider({
 export function SettingsSheet({
   music, sfx, isGuest, playerName, invite, push, layouts, busy,
   onMusic, onSfx, onPush, onTestPush, onSaveLayout, onApplyLayout,
-  onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onReport, onClose,
+  onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onNews, onReport, onClose,
 }: SettingsSheetProps) {
   const canPush = push !== 'unsupported' && push !== 'unavailable' && push !== 'denied';
   return (
@@ -211,6 +212,14 @@ export function SettingsSheet({
           <p>The rules, and the tutorial again if you want it.</p>
         </div>
         <button className="btn grey" onClick={onHelp}>OPEN</button>
+      </div>
+
+      <div className="setRow">
+        <div className="setLabel">
+          <h4>WHAT&rsquo;S NEW</h4>
+          <p>Everything that has changed, newest first.</p>
+        </div>
+        <button className="btn grey" onClick={onNews}>READ</button>
       </div>
 
       <div className="setRow">

@@ -2031,6 +2031,57 @@ retention figure would fall as the week went on.
 
 No third party, no cookie, no identifier, nothing that leaves the server.
 
+## Nobody was told anything
+
+The other half of launching blind. The game changed every few days through this
+stretch — seasons, battle items, the Mortar, traps, the breach report, relics,
+profiles, the rename, the air layer — and a player who stepped away for a week
+came back to buildings they had never seen, in a list they had already learned,
+with nothing anywhere saying what any of it was for.
+
+`packages/config/src/news.ts` holds the notes, and `NewsSheet.tsx` shows them.
+Notes live in config rather than a table because they are content, not state:
+they ship with the build that introduced them, they are identical for every
+player, and a note that can be edited after the fact is a note that can end up
+disagreeing with the game it describes. `Player.newsSeen` is the only stored
+part — the number of the last note read.
+
+Ordering is a number on each note, not the date and not the array index. The
+date cannot order two notes published on one day; the index of a note changes
+every time an older one is added above it, and the index is exactly what players
+have stored as "the last one I read".
+
+Two ways in, and the difference is the point:
+
+- **Unread notes open themselves**, once, over a quiet base — not during a raid,
+  not over the scouting screen, not on top of a battle outcome still being read.
+  That is the returning player the panel is written for.
+- **The whole run sits in settings**, because a panel that can only ever be seen
+  once is a panel that gets dismissed by accident.
+
+A hold created from now on starts caught up (`newsSeen = NEWS_LATEST`), so a
+first minute is never spent reading seven notes about features it has not met.
+Zero is what every row that predates the column carries, and that player sees
+everything — which is the whole intent.
+
+The client sends the note number it displayed rather than "mark everything
+read". A tab left open across a deploy only knows the notes its own bundle
+shipped with, and answering "latest" would quietly swallow one it never had the
+text of.
+
+Two things this turned up. `plain-words.test.ts` now sweeps the notes and the
+HOW TO PLAY sections as well as the config names, and the rename note is the one
+deliberate exemption — it has to print the words it retired or it cannot tell
+anybody what became of them. And the HOW TO PLAY sheet had quietly gone a month
+out of date: no flyers, no traps, no Mortar, no relics, no seasons, no items,
+and an "Arrow Tower" that has been called an Archer Tower since the rename. A
+What's New panel that hands the player to a stale rulebook is half a feature.
+
+There was also a badge marking unread notes in the settings view. It could not
+be reached — the panel opens itself first, so by the time settings is available
+the player is always caught up — so it was deleted rather than shipped as
+decoration.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

@@ -9,7 +9,8 @@ export interface HelpSheetProps {
   onReplayTutorial: () => void;
 }
 
-const SECTIONS: { h: string; lines: string[] }[] = [
+/** Exported so `plain-words.test.ts` can sweep it: this is text players read. */
+export const SECTIONS: { h: string; lines: string[] }[] = [
   {
     h: 'Your base',
     lines: [
@@ -37,8 +38,10 @@ const SECTIONS: { h: string; lines: string[] }[] = [
   {
     h: 'Defending',
     lines: [
-      'Cannons fire slow, heavy shots at anything in range. Arrow Towers fire fast and far and melt light troops.',
+      'Cannons fire slow, heavy shots at anything on foot. Archer Towers fire fast and far, and are one of only two things you can build that shoot upward.',
+      'The Mortar drops a shell into the thickest part of a crowd, and cannot hit anything standing close to it. Air Defence shoots flyers and nothing else.',
       'Walls block the path. Attackers must stop and break them, ideally inside a cannon’s range.',
+      'Spike Traps and Net Traps are hidden. Somebody scouting your base cannot see them, and finds out by walking over one.',
       'After you are raided you get a shield for a while, during which nobody can hit you. Raiding out drops it.',
     ],
   },
@@ -47,6 +50,7 @@ const SECTIONS: { h: string; lines: string[] }[] = [
     lines: [
       'Barracks train troops and unlock new ones. Army Camps set how many troops you can have — build more of them, and upgrade them, for a bigger army.',
       'Raiders are cheap and fast. Lancers hit hard. Archers stay back and shoot over walls. Rams go for walls. Climbers climb over them.',
+      'The Bomber flies. Walls do not stop it and traps do not catch it, but Air Defence tears it apart.',
       'The Laboratory upgrades a troop type for good. Your hero can be sent in once per raid and rests afterwards.',
     ],
   },
@@ -71,6 +75,23 @@ const SECTIONS: { h: string; lines: string[] }[] = [
     h: 'Clans',
     lines: [
       'Start or join a clan in CLAN. Chat with the members and climb the clan leaderboard together.',
+      'Ask your clan for troops and they can fill your camps. Whatever they send defends your base while you are away.',
+      'Clan wars pay relic shards, which is most of where relics come from.',
+    ],
+  },
+  {
+    h: 'Seasons',
+    lines: [
+      'Trophies run in seasons. When one ends you are paid for the highest you reached that season, not the number you finish on — so a peak counts even if you slide back.',
+      'Everyone then starts again closer together, and the ladder is worth climbing a second time.',
+    ],
+  },
+  {
+    h: 'Items and relics',
+    lines: [
+      'The Rage Horn and the Bomb are spent during a raid rather than before it. A raid you were losing is a raid you can still turn.',
+      'Relics — Guard, Blade and Revive — make your hero tougher, stronger, or quicker to come back. You carry two at a time and can swap them whenever you like.',
+      'Relics level up with shards, from clan wars and the end of a season. There is nothing in this game you can buy.',
     ],
   },
 ];

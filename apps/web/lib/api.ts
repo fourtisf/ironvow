@@ -214,6 +214,14 @@ export const api = {
   requestLogin: (email: string, accessCode?: string): Promise<{ ok: true }> => post('/auth/request', { email, accessCode }),
   gate: (): Promise<{ required: boolean }> => call('/auth/gate'),
   invite: (): Promise<{ code: string; invited: number; paid: number }> => call('/invite'),
+  /**
+   * Mark What's New read up to a note number.
+   *
+   * The number is sent rather than "the latest", because this build only knows
+   * the notes it shipped with — answering "latest" from a tab left open across
+   * a deploy would swallow a note it never showed.
+   */
+  markNews: (no: number): Promise<{ newsSeen: number }> => post('/me/news', { no }),
   donate: (playerId: string, type: TroopType, count: number): Promise<
     { ok: true; count: number; reward: number }
   > => post('/clan/donate', { playerId, type, count }),

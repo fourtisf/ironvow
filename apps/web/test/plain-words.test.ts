@@ -1,4 +1,5 @@
-import { ITEM, QUESTS, RELIC, SEASON_TIERS, TROOP, TYPES } from '@ironvow/config';
+import { ITEM, NEWS, QUESTS, RELIC, SEASON_TIERS, TROOP, TYPES } from '@ironvow/config';
+import { SECTIONS as HELP } from '../components/HelpSheet';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -55,8 +56,22 @@ function facing(): { where: string; text: string; isName: boolean }[] {
     out.push({ where: `QUESTS.${q.id}.n`, text: q.n, isName: true });
     out.push({ where: `QUESTS.${q.id}.d`, text: q.d, isName: false });
   }
+  for (const s of HELP) {
+    out.push({ where: `HELP.${s.h}`, text: s.h, isName: false });
+    for (const l of s.lines) out.push({ where: `HELP.${s.h}`, text: l, isName: false });
+  }
+  for (const n of NEWS) {
+    // The one note that is *about* the rename has to print the words it
+    // retired, or it cannot tell anybody what became of them.
+    if (n.no === RENAME_NOTE) continue;
+    out.push({ where: `NEWS.${n.no}.title`, text: n.title, isName: false });
+    for (const l of n.lines) out.push({ where: `NEWS.${n.no}`, text: l, isName: false });
+  }
   return out;
 }
+
+/** "Plainer words" — see NEWS. */
+const RENAME_NOTE = 6;
 
 describe('every name a player reads is a word games use', () => {
   it.each(JARGON)('never says "%s", anywhere', (word) => {

@@ -288,6 +288,20 @@ model Raid {
   trophyDelta  Int       @default(0)
   /// Server checksum of the replay. Compared against the client's to spot drift.
   checksum     String?
+
+  /// Opaque token for a replay anybody can watch, or null while it is private.
+  ///
+  /// Deliberately not the raid id. Sharing one fight must not hand out a key
+  /// that can be walked to the next fight, and a token nobody can guess is the
+  /// difference between publishing one replay and publishing the table.
+  ///
+  /// Set by the attacker or the defender, and either of them can take it back:
+  /// the row keeps the token so an unshare-then-reshare returns the same link
+  /// rather than quietly breaking the one already posted.
+  shareId   String?   @unique
+  /// Null while private. What `sharedAt` and `shareId` disagree about is the
+  /// answer: a token with no date is a link that has been withdrawn.
+  sharedAt  DateTime?
   createdAt    DateTime  @default(now())
   expiresAt    DateTime
   resolvedAt   DateTime?

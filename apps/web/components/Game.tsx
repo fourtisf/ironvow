@@ -633,6 +633,21 @@ export function Game() {
     const raidId = world.raid.raidId;
     const isDrill = raidId === '';
 
+    /*
+     * A replay ending is not a raid ending. Nothing was at stake and nothing
+     * may be submitted — the raid it is a recording of was settled long ago,
+     * and re-submitting it would ask the server to resolve a finished fight.
+     */
+    if (world.watching) {
+      setMode(world, 'base');
+      setModeState('base');
+      world.battle = null;
+      world.raid = null;
+      world.watching = false;
+      centerOnKeep(world);
+      return;
+    }
+
     setOutcome({
       stars: local.stars,
       destroyedPct: local.destroyedPct,
@@ -677,6 +692,7 @@ export function Game() {
         commands,
         pending: false,
         war: settled.war === true,
+        raidId,
       });
       void api.incoming().then((r) => setIncoming(r.raids)).catch(() => undefined);
     void loadQuests();
@@ -1290,13 +1306,18 @@ export function Game() {
             void api.replay(raidId).then((r) => {
               if (!worldRef.current) return;
               setSheet(null);
+              /*
+               * The commands go in here, not afterwards.
+               *
+               * They used to be pushed into `battleCommands` once the battle
+               * had been created — which is the outbox, not the schedule, so
+               * every replay in the game played out as a base nobody attacked.
+               */
               beginBattle(worldRef.current, {
                 raidId: r.raidId, seed: r.seed, snapshot: r.snapshot, army: r.army,
-                hero: r.hero, troopLevels: r.troopLevels,
+                hero: r.hero, troopLevels: r.troopLevels, pouch: r.pouch,
                 expiresAt: new Date().toISOString(), rerollCost: 0,
-              });
-              // A replay is watched, not played: feed it the recorded commands.
-              for (const c of r.commands) worldRef.current.battleCommands.push(c);
+              }, 'raid', { commands: r.commands, items: r.items ?? [] });
               setModeState('battle');
             }).catch(() => say('That raid cannot be replayed'));
           }}
@@ -1339,6 +1360,7 @@ export function Game() {
           loot={outcome.loot}
           trophyDelta={outcome.trophyDelta}
           war={outcome.war === true}
+          raidId={outcome.raidId}
           onStar={(i) => sfx.star(i)}
           onClose={() => setOutcome(null)}
         />

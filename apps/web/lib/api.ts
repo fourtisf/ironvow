@@ -208,8 +208,42 @@ export interface SeasonState {
   } | null;
 }
 
+/** The headline of a shared fight: enough for a link preview. */
+export interface ShareCard {
+  shareId: string;
+  attacker: string;
+  defender: string;
+  stars: number;
+  destroyedPct: number;
+  loot: { g: number; i: number };
+  at: string;
+}
+
+/** A shared fight in full, as handed to somebody with no account. */
+export interface SharedReplay extends ShareCard {
+  seed: number;
+  snapshot: ScoutedRaid['snapshot'];
+  army: ScoutedRaid['army'];
+  hero: ScoutedRaid['hero'];
+  troopLevels: ScoutedRaid['troopLevels'];
+  commands: DeployCommand[];
+  pouch: NonNullable<ScoutedRaid['pouch']>;
+  items: ItemCommand[];
+}
+
 export const api = {
   me: (): Promise<PlayerState> => call('/me'),
+
+  /* --- sharing a fight --- */
+  /** Publish a finished raid, or get back the link it already has. */
+  share: (raidId: string): Promise<{ shareId: string }> => post(`/raid/${raidId}/share`),
+  /** Withdraw it. The address is kept, so sharing again revives the same link. */
+  unshare: (raidId: string): Promise<{ ok: true }> => call(`/raid/${raidId}/share`, { method: 'DELETE' }),
+  /**
+   * Watch a shared fight. Deliberately reachable with no session — this is the
+   * one call in the whole file that a stranger is expected to make.
+   */
+  sharedReplay: (shareId: string): Promise<SharedReplay> => call(`/share/${shareId}`),
 
   requestLogin: (email: string, accessCode?: string): Promise<{ ok: true }> => post('/auth/request', { email, accessCode }),
   gate: (): Promise<{ required: boolean }> => call('/auth/gate'),
@@ -458,7 +492,13 @@ export const api = {
     hero: ScoutedRaid['hero'];
     troopLevels: ScoutedRaid['troopLevels'];
     commands: DeployCommand[];
+    /* Both halves of the fight, or the replay is not the fight: the pouch
+     * bounds what the items are allowed to do. */
+    pouch: NonNullable<ScoutedRaid['pouch']>;
+    items: ItemCommand[];
     attackerName: string;
     stars: number;
+    /** Null while private. What the SHARE button reads to know its state. */
+    shareId: string | null;
   }> => call(`/raid/${raidId}/replay`),
 };

@@ -418,6 +418,42 @@
   #newsSheet > .btn{display:block;width:100%;padding:12px;font-size:12px;letter-spacing:1.8px;
     border-radius:14px;margin-top:2px}
 
+  /* The share link, once made. Shown as well as copied: clipboard access is
+     refused often enough that a link the player cannot see is no link. */
+  .shareBox{margin-top:8px}
+  .shareBox p{font-size:9.5px;font-family:Arial;font-weight:700;color:#8fb2d8;
+    line-height:1.5;margin-bottom:6px}
+
+  /* ---------- a raid anybody can watch ---------- */
+  /* Deliberately spare. The page has one job — show the fight and then say
+     where it came from — so everything but the field is a thin band. */
+  #watchTop{position:fixed;top:calc(9px + env(safe-area-inset-top));left:9px;right:9px;z-index:15;
+    display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;
+    background:rgba(20,28,40,.82);border:2px solid #3d5170;border-radius:12px;padding:7px 10px}
+  #watchTop .who{font-size:11px;letter-spacing:1.4px;color:#f2e4c4}
+  #watchTop .vs{font-size:8.5px;letter-spacing:1.4px;color:#7f97b8;font-family:Arial;font-weight:900}
+
+  #watchBar{position:fixed;bottom:calc(9px + env(safe-area-inset-bottom));left:9px;right:9px;z-index:15;
+    display:flex;align-items:center;justify-content:center;gap:14px;
+    background:rgba(20,28,40,.82);border:2px solid #3d5170;border-radius:12px;padding:8px 10px}
+  #watchBar .stars{display:flex;gap:4px}
+  #watchBar .stars svg{width:22px;height:22px}
+  #watchBar .pct{font-size:14px;color:#ffd97a;letter-spacing:1px}
+  #watchBar .took{display:flex;gap:11px}
+  #watchBar .took span{display:flex;align-items:center;gap:4px;font-size:11px;color:#ffd97a}
+  #watchBar .took svg{width:15px;height:15px}
+
+  /* The card at the end. Same shell as a modal, over the finished field. */
+  #watch .watchCard{position:fixed;z-index:40;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(340px,calc(100vw - 44px));background:linear-gradient(#25344e,#141d2b);
+    border:3px solid #e8b23c;border-radius:22px;padding:20px 18px;text-align:center;
+    box-shadow:0 16px 44px rgba(0,0,0,.6)}
+  #watch .watchCard h2{font-size:19px;letter-spacing:2.4px;margin-bottom:7px}
+  #watch .watchCard p{font-size:10.5px;font-family:Arial;font-weight:700;color:#c3d4ea;line-height:1.55}
+  #watch .watchCard p.sub{color:#8fa6c4;margin-top:7px}
+  #watch .watchCard .big{display:block;width:100%;padding:13px;font-size:13px;letter-spacing:1.8px;
+    border-radius:14px;margin-top:13px;text-decoration:none}
+
   /* ---------- wide screens ---------- */
   /* A phone layout stretched across a desktop put a full-width inspector
      under 1900 px of nothing. Above tablet width the inspector and the

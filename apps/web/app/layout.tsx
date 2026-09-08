@@ -1,10 +1,18 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { SITE_URL } from '../lib/links';
 
 const TITLE = 'IRONVOW — Forge. Muster. Conquer.';
 const DESCRIPTION = 'A base builder with async raiding, fought on a server that cannot be talked into a lie.';
 
 export const metadata: Metadata = {
+  /*
+   * What a relative image path in a card resolves against. Unset, Next assumes
+   * localhost and every link this game is shared with unfurls with a broken
+   * image. Left undefined when there is no site URL configured, because a wrong
+   * absolute URL is worse than none.
+   */
+  ...(SITE_URL === '' ? {} : { metadataBase: new URL(SITE_URL) }),
   title: TITLE,
   description: DESCRIPTION,
   applicationName: 'IRONVOW',

@@ -10,6 +10,20 @@
 
 const trim = (v: string | undefined): string => (v ?? '').trim();
 
+/**
+ * Where this game lives, e.g. https://ironvow.xyz.
+ *
+ * Only ever used to turn a relative image path into an absolute one for a link
+ * preview, which is the one place a relative URL cannot work: the card is built
+ * by somebody else's server, from the markup, with no page to resolve against.
+ * Without it Next assumes localhost and every shared link unfurls with a broken
+ * image — which is exactly what the shared-replay feature exists to avoid.
+ *
+ * Fed from WEB_ORIGIN, which the deployment already sets for the API, so there
+ * is no new variable to remember.
+ */
+export const SITE_URL = trim(process.env.NEXT_PUBLIC_SITE_URL);
+
 export const X_URL = trim(process.env.NEXT_PUBLIC_X_URL);
 export const TELEGRAM_URL = trim(process.env.NEXT_PUBLIC_TG_URL);
 

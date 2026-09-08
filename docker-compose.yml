@@ -120,6 +120,10 @@ services:
         # The first screen's links, and the contract address once there is
         # one. Blank is fine: a link with no address is not drawn, and the
         # contract chip says COMING SOON until it is filled in.
+        # Absolute, and only for link previews: a card is built by somebody
+        # else's server from the markup, with no page for a relative image path
+        # to resolve against. Same value the API already gets.
+        NEXT_PUBLIC_SITE_URL: ${WEB_ORIGIN:-}
         NEXT_PUBLIC_X_URL: ${X_URL:-}
         NEXT_PUBLIC_TG_URL: ${TELEGRAM_URL:-}
         NEXT_PUBLIC_CONTRACT: ${CONTRACT:-}

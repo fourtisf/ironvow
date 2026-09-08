@@ -31,6 +31,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { debitDefender, revengeCutoff, settleRaid, snapshotBase, trophyBand } from '../domain/raid.js';
 import { buildReport, nameOf } from '../domain/report.js';
+import { share, shareable, unshare } from '../domain/share.js';
 import { grant } from '../domain/production.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
@@ -984,6 +985,40 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  /**
+   * Start sharing a fight, or hand back the link that already exists.
+   *
+   * Either side may share. A base is not a secret — anybody the matchmaker
+   * points at it can already walk round it — and the person who wants to post
+   * a replay is usually the attacker, who does not own the base in it.
+   */
+  app.post<{ Params: { id: string } }>('/raid/:id/share', {
+    preHandler: requireAuth,
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+  }, async (request, reply) => {
+    const raid = await prisma.raid.findUnique({ where: { id: request.params.id } });
+    if (!raid) return reply.code(404).send({ error: 'noSuchRaid' });
+    if (raid.attackerId !== request.playerId && raid.defenderId !== request.playerId) {
+      return reply.code(403).send({ error: 'notYours' });
+    }
+    if (!shareable(raid)) return reply.code(409).send({ error: 'notReplayable' });
+
+    return reply.send({ shareId: await share(raid.id) });
+  });
+
+  /** Take the link back. The address is kept, so re-sharing revives it. */
+  app.delete<{ Params: { id: string } }>('/raid/:id/share', {
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const raid = await prisma.raid.findUnique({ where: { id: request.params.id } });
+    if (!raid) return reply.code(404).send({ error: 'noSuchRaid' });
+    if (raid.attackerId !== request.playerId && raid.defenderId !== request.playerId) {
+      return reply.code(403).send({ error: 'notYours' });
+    }
+    await unshare(raid.id);
+    return reply.send({ ok: true });
+  });
+
   /** Everything needed to replay a stored raid client-side. */
   app.get<{ Params: { id: string } }>('/raid/:id/replay', async (request, reply) => {
     const raid = await prisma.raid.findUnique({ where: { id: request.params.id } });
@@ -1017,6 +1052,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       destroyedPct: raid.destroyedPct,
       loot: { g: Number(raid.lootGold), i: Number(raid.lootIron) },
       checksum: raid.checksum,
+      /** Null while private: what the SHARE button reads to know its state. */
+      shareId: raid.sharedAt === null ? null : raid.shareId,
     });
   });
 }

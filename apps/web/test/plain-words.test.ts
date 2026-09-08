@@ -1,5 +1,7 @@
 import { ITEM, NEWS, QUESTS, RELIC, SEASON_TIERS, TROOP, TYPES } from '@ironvow/config';
 import { SECTIONS as HELP } from '../components/HelpSheet';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -72,6 +74,72 @@ function facing(): { where: string; text: string; isName: boolean }[] {
 
 /** "Plainer words" — see NEWS. */
 const RENAME_NOTE = 6;
+
+/**
+ * The other half, and the half that actually broke.
+ *
+ * Sweeping the config caught every *name*, and missed the scout sheet saying
+ * "Keep 1 · 0 ramparts" for a week after both of those were renamed — because
+ * that sentence is not a config value, it is typed into a component.
+ *
+ * What is checked is JSX text: the prose between the tags, which is exactly
+ * what a player reads and nothing else. Not identifiers and not string
+ * literals, because `TYPES.brazier` and `'demolish'` are a building key and a
+ * prop name — database values and code, not words anybody is shown.
+ */
+
+/** Comments go first, newlines kept so a reported line number is the real one. */
+function withoutComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (_m, before: string) => before);
+}
+
+/**
+ * The prose between tags, with `{...}` expressions taken out.
+ *
+ * The lookbehind is the whole trick: `=>` ends in a `>` too, so without it an
+ * arrow function reads as the start of a text node and `onDemolish={() =>
+ * demolish(id)}` looks like a component printing the word demolish at a player.
+ */
+function jsxText(source: string): string {
+  return withoutComments(source)
+    .split('\n')
+    .map((line) => (line.match(/(?<![=!<>-])>[^<>]*(?=<|$)/g) ?? [])
+      .map((run) => run.slice(1).replace(/\{[^{}]*\}/g, ' '))
+      .join(' '))
+    .join('\n');
+}
+
+describe('what components print, not just what config holds', () => {
+  const dir = join(__dirname, '..', 'components');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
+
+  it('has components to check at all', () => {
+    // A sweep that quietly matches nothing is a test that quietly passes.
+    expect(files.length).toBeGreaterThan(8);
+  });
+
+  it.each(JARGON)('never prints "%s"', (word) => {
+    const re = new RegExp(`\\b${word}\\b`, 'i');
+    for (const f of files) {
+      const lines = jsxText(readFileSync(join(dir, f), 'utf8')).split('\n');
+      const at = lines.findIndex((l) => re.test(l));
+      expect(at, `${f}:${at + 1} — ${lines[at] ?? ''}`).toBe(-1);
+    }
+  });
+
+  it('reads building names from the config rather than typing them', () => {
+    /*
+     * The specific failure: the scout sheet spelled the old names out by hand,
+     * so renaming the buildings changed everything except the one line a player
+     * reads while deciding whether to attack.
+     */
+    const scout = readFileSync(join(dir, 'Modals.tsx'), 'utf8');
+    expect(scout).toContain('TYPES.keep.n');
+    expect(scout).toContain('TYPES.wall.n');
+  });
+});
 
 describe('every name a player reads is a word games use', () => {
   it.each(JARGON)('never says "%s", anywhere', (word) => {

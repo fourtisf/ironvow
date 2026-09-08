@@ -2082,6 +2082,72 @@ be reached — the panel opens itself first, so by the time settings is availabl
 the player is always caught up — so it was deleted rather than shipped as
 decoration.
 
+## A raid anybody can watch
+
+Nothing in this game made anybody want to show it to somebody else. A player
+could win three stars off a base that had beaten them twice and had no way to
+hand that to a single person who did not already have an account. The launch
+thread is one push; after it there was no second one, because the game had no
+way to leave its own tab.
+
+The whole fight was already stored — seed, frozen base, army, every deploy
+command — and the browser runs the same simulation the server does. The missing
+piece was never the data. It was that `/raid/:id/replay` answers 403 to
+everybody who was not in the fight.
+
+So: `POST /raid/:id/share` mints an opaque token, `GET /share/:id` hands the
+fight to anyone holding it, and `/r/<token>` plays it. That page renders
+`WatchReplay` and not `Game`, which is what keeps it open: the access code, the
+session and the whole HUD live in `Game`, so a share link opens a raid rather
+than a door. The separation is the feature.
+
+The token is deliberately not the raid id. Sharing one fight must not hand out a
+key that can be walked to the next one, and cuids sort by creation time —
+publishing one would publish roughly where in the table to look for the rest.
+Either side can share, and either can withdraw it; the row keeps the token
+through a withdrawal so re-sharing revives a link already posted somewhere
+rather than leaving it dead.
+
+Two things are not published. The `checksum`, because handing an attacker the
+number their forged client has to reproduce is the one thing it must never do,
+and the defender's player id, which nothing in the simulation reads. Everything
+else passes through untouched, and `share.test.ts` re-runs the public payload
+through the simulation and demands the stored stars, percentage and checksum
+back: trim one building or round one number and what a stranger watches stops
+being the fight that happened.
+
+**Every replay in the game was empty, and had been all along.** The recorded
+commands were pushed into `world.battleCommands` after `beginBattle` — and that
+array is the outbox, the record of what the player did, read only when a raid is
+submitted. `createBattle` buckets commands by tick before the first step, so
+handing them over afterwards does nothing at all. Watching a raid played out as
+a base standing untouched for three minutes, which looks exactly like an
+attacker who did nothing rather than like a bug, and nothing failed: there is no
+error in an empty schedule. Commands and items go into `beginBattle` now, and
+`apps/web/test/replay.test.ts` holds it there.
+
+Alongside it, `world.watching`: a replay is watched, not played. Without it a
+tap on the canvas deploys a troop that was never in the fight, and the recording
+quietly stops being a recording — and on a public page the viewer has no stake
+in it being true. `finishBattle` bails on the same flag, because a replay
+reaching its end must not re-submit a raid the server settled days ago.
+
+Link previews needed `metadataBase`, without which Next resolves `/og.png`
+against `localhost:3000` and every link this game is shared with unfurls with a
+broken image — the main page included, which had been true since launch. It
+comes from `WEB_ORIGIN`, which the deployment already sets, so there is no new
+variable to remember. The title is built per replay: "Sarah took 3 stars off
+Torvald".
+
+Two words survived the rename in the one place the rename tests did not look.
+The scout sheet — the last thing a player reads before deciding to attack — said
+"Keep 1 · 0 ramparts", because that sentence is not a config value, it is typed
+into a component. It reads `TYPES.keep.n` and `TYPES.wall.n` now, and
+`plain-words.test.ts` sweeps the JSX text of every component as well as the
+config. The sweep looks at prose between tags and not at identifiers or string
+literals: `TYPES.brazier` is a database key and `onDemolish` is a prop name,
+and neither is a word anybody is shown.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

@@ -132,6 +132,16 @@ export interface World {
   /** Items used this raid, in tick order. Sent alongside the deploys. */
   battleItems: ItemCommand[];
   /**
+   * A recording, not a fight: taps deploy nothing.
+   *
+   * Without this a replay is only a replay until somebody touches the screen.
+   * The recorded commands are pushed in by the caller, and a tap would add a
+   * troop that was never there — so what is watched stops being what happened,
+   * with nothing to say it changed. It matters most on the public watch page,
+   * where the viewer has no stake in the fight being true.
+   */
+  watching: boolean;
+  /**
    * Where items landed, for the renderer.
    *
    * Kept on the world rather than read back off the battle, because a Firepot
@@ -186,6 +196,7 @@ export function createWorld(events: WorldEvents): World {
     raid: null,
     preview: null,
     battleCommands: [],
+    watching: false,
     battleItems: [],
     bursts: [],
     heard: 0,
@@ -299,8 +310,30 @@ export function bump(w: World, buildingId: string): void {
 
 /* --------------------------------------------------------------- battle --- */
 
-export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'raid'): void {
+/**
+ * A fight that has already happened, to be watched rather than played.
+ *
+ * The commands have to reach `createBattle`, which buckets them by tick before
+ * the first step. Handing them over afterwards — pushing them into
+ * `battleCommands` — does nothing at all: that array is the outbox, the record
+ * of what the player did, and the schedule is already built by the time
+ * anything is added to it. A replay fed that way runs an empty fight, and looks
+ * exactly like a base nobody attacked.
+ */
+export interface Recorded {
+  commands: readonly DeployCommand[];
+  items: readonly ItemCommand[];
+}
+
+export function beginBattle(
+  w: World,
+  raid: ScoutedRaid,
+  kind: BattleKind = 'raid',
+  recorded?: Recorded,
+): void {
   w.raid = raid;
+  // A recording is watched: taps deploy nothing, and nothing is submitted.
+  w.watching = recorded !== undefined;
   w.battleCommands = [];
   w.battleItems = [];
   w.bursts = [];
@@ -308,7 +341,8 @@ export function beginBattle(w: World, raid: ScoutedRaid, kind: BattleKind = 'rai
   w.battle = createBattle(
     {
       snapshot: raid.snapshot,
-      commands: [],
+      commands: recorded?.commands ?? [],
+      items: recorded?.items ?? [],
       army: raid.army,
       seed: raid.seed,
       kind,
@@ -519,7 +553,7 @@ export function decayFx(w: World, dt: number): void {
 /** Deploy at a grid position, recording the command for submission. */
 export function deployAt(w: World, gx: number, gy: number): void {
   const battle = w.battle;
-  if (!battle || battle.ended) return;
+  if (!battle || battle.ended || w.watching) return;
   const type = w.selectedTroop;
   if (!type) {
     w.events.onToast('Pick a troop first');
@@ -550,7 +584,7 @@ export function deployAt(w: World, gx: number, gy: number): void {
 export function useItemAt(w: World, gx: number, gy: number): void {
   const battle = w.battle;
   const item = w.selectedItem;
-  if (!battle || battle.ended || !item) return;
+  if (!battle || battle.ended || !item || w.watching) return;
   const out = battle.useItem(item, gx, gy);
   if (!out.ok) {
     w.events.onToast(out.reason === 'outOfBounds' ? 'Too far out' : 'None of those left');

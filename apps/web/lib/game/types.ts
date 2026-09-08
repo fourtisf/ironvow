@@ -119,4 +119,6 @@ export interface BattleOutcome {
   commands: DeployCommand[];
   /** A war attack: the stars went to the clan. */
   war?: boolean;
+  /** The raid this was, so the result screen can offer to share it. Empty for a drill. */
+  raidId?: string;
 }

@@ -3,6 +3,7 @@
 import { TYPES } from '@ironvow/config';
 import { useEffect, useState } from 'react';
 import type { BaseSnapshot } from '@ironvow/types';
+import { api } from '../lib/api';
 import { fmt } from '../lib/format';
 import { GoldIcon, IronIcon, StarIcon, TelegramIcon, XIcon } from './icons';
 import { CONTRACT, TELEGRAM_URL, X_URL, builtAtLabel, shortAddress } from '../lib/links';
@@ -44,9 +45,14 @@ export function ScoutModal({
         <div>
           <h2>{snapshot.defenderName.toUpperCase()}</h2>
           <p>
-            {war ? 'War base' : isPlayer ? 'Player' : 'Garrison'} · Keep {snapshot.keepLevel} ·{' '}
+            {/* Names read from the config rather than written here, which is
+              * the only thing that keeps this line from drifting: it said
+              * "Keep 1 · 0 ramparts" for a week after both were renamed. */}
+            {war ? 'War base' : isPlayer ? 'Player' : 'Garrison'} ·{' '}
+            {TYPES.keep.n} {snapshot.keepLevel} ·{' '}
             {defences} defence{defences === 1 ? '' : 's'} ·{' '}
-            {counts.get('wall') ?? 0} ramparts · drag to look around
+            {counts.get('wall') ?? 0} {TYPES.wall.n.toLowerCase()}
+            {(counts.get('wall') ?? 0) === 1 ? '' : 's'} · drag to look around
           </p>
         </div>
         <button className="xbtn" onClick={onCancel}>✕</button>
@@ -95,6 +101,8 @@ export interface ResultModalProps {
   trophyDelta: number;
   /** A war attack: the stars went to the clan. */
   war?: boolean;
+  /** The raid, so it can be shared. Absent for a practice attack. */
+  raidId?: string;
   onStar: (index: number) => void;
   onClose: () => void;
 }
@@ -106,7 +114,7 @@ export interface ResultModalProps {
  * than appearing. Winning three stars and being shown a static number is the
  * difference between a game that feels good and one that merely works.
  */
-export function ResultModal({ stars, loot, trophyDelta, war = false, onStar, onClose }: ResultModalProps) {
+export function ResultModal({ stars, loot, trophyDelta, war = false, raidId, onStar, onClose }: ResultModalProps) {
   const won = stars >= 1;
   const [shown, setShown] = useState(0);
   const [counted, setCounted] = useState({ g: 0, i: 0 });
@@ -179,8 +187,61 @@ export function ResultModal({ stars, loot, trophyDelta, war = false, onStar, onC
             </>}
         </p>
 
+        {raidId !== undefined && raidId !== '' && <ShareRaid raidId={raidId} />}
+
         <button className="btn big" onClick={onClose}>BACK TO BASE</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Share the fight that just happened.
+ *
+ * The first thing in this game a player can hand to somebody who does not have
+ * an account. A raid is the only part of IRONVOW that is worth watching, and
+ * until now the only people who could watch one were the two in it.
+ *
+ * Nothing is published until this is pressed. The link is made on the server
+ * and copied here, so the common case — see it, copy it, paste it — is one tap.
+ */
+function ShareRaid({ raidId }: { raidId: string }) {
+  const [link, setLink] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const make = (): void => {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    api.share(raidId)
+      .then(({ shareId }) => {
+        const url = `${window.location.origin}/r/${shareId}`;
+        setLink(url);
+        // Clipboard access is refused often enough — an insecure origin, a
+        // browser that wants a gesture it did not see — that the link is shown
+        // either way. Copying is the convenience; reading it is the feature.
+        return navigator.clipboard?.writeText(url)
+          .then(() => setCopied(true))
+          .catch(() => undefined);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setBusy(false));
+  };
+
+  if (link === null) {
+    return (
+      <button className="btn grey big" onClick={make} disabled={busy}>
+        {busy ? 'MAKING A LINK…' : failed ? 'TRY SHARING AGAIN' : 'SHARE THIS RAID'}
+      </button>
+    );
+  }
+
+  return (
+    <div className="shareBox">
+      <p>{copied ? 'Link copied. Anyone can watch this — no account needed.' : 'Anyone can watch this — no account needed.'}</p>
+      <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} style={inputStyle} />
     </div>
   );
 }

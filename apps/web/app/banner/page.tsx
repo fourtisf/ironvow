@@ -157,11 +157,33 @@ interface Near {
  * a thumbnail among the rooftops, and at twice it, walking out of the bottom
  * of the frame, it is the thing the eye lands on first.
  */
+/*
+ * A figure is drawn from the centre of its own viewport, so `y` is the middle
+ * of the man and not his feet. The first rank sat at y 918–984 in a 900-tall
+ * frame: every one of them was centred *below the bottom edge*, so all that
+ * survived the crop was a band of shoulder and hat, and four soldiers read as
+ * four dark blobs.
+ *
+ * They sit at the ankle now — cropped by the frame, which is the point of a
+ * near plane, but cropped at the feet rather than at the neck. The raid
+ * banner's rank had this right from the start and is what these were measured
+ * against.
+ */
 const NEAR: Near[] = [
-  { type: 'ram', x: 246, y: 968, scale: 1.70, face: 1, swing: 0.85 },
-  { type: 'raider', x: 486, y: 928, scale: 1.48, face: 1, swing: 0.95 },
-  { type: 'hero', x: 690, y: 984, scale: 1.76, face: 1, swing: 0.7 },
-  { type: 'archer', x: 878, y: 918, scale: 1.32, face: 1, swing: 0.3 },
+  /*
+   * The Ram is a siege engine and wants to be the biggest thing in the rank,
+   * and at 1.62 in the near plane it was the biggest thing in the *frame* — a
+   * wooden cart of three heads, isolated on the left with nothing to give it
+   * scale, reading as a bug rather than a battering ram. Smaller, and pushed
+   * far enough left that the frame crops it: half a ram entering the shot is a
+   * ram, where a whole one filling the corner is a blob.
+   *
+   * The hero is the focal point instead, which is what a hero is for.
+   */
+  { type: 'ram', x: 206, y: 826, scale: 1.28, face: 1, swing: 0.85 },
+  { type: 'raider', x: 432, y: 802, scale: 1.34, face: 1, swing: 0.95 },
+  { type: 'hero', x: 646, y: 846, scale: 1.62, face: 1, swing: 0.7 },
+  { type: 'archer', x: 836, y: 792, scale: 1.16, face: 1, swing: 0.3 },
 ];
 
 /** The raid banner's rank: wider, and walking in from the left. */
@@ -333,11 +355,20 @@ function Figure({ type, level, scale, w: fw, h: fh }: {
 }
 
 /** Dusk, laid over the day the renderer draws. */
+/*
+ * Night, as a multiply over the daylight render.
+ *
+ * The first mix bottomed out at #0d1230, which is very nearly black, and the
+ * gradient reached it by the middle of the frame — so the base a night post is
+ * meant to be *about* was a silhouette you had to hunt for, and the right half
+ * of the picture was an empty black rectangle. Lifted at both ends: still
+ * plainly night, still cold, but a hold you can read.
+ */
 const NIGHT: React.CSSProperties = {
   position: 'absolute', inset: 0, pointerEvents: 'none',
   mixBlendMode: 'multiply',
   background:
-    'linear-gradient(168deg, #4b5c9e 0%, #26305e 44%, #0d1230 100%)',
+    'linear-gradient(168deg, #6a7cc4 0%, #3d4a86 46%, #1b2352 100%)',
 };
 
 /** And the light the hold makes for itself once the sun is off it. */
@@ -499,6 +530,21 @@ export default function BannerPage() {
         <div style={FLOOR} />
         <Grade />
         <div style={SCRIM_RIGHT} />
+        {/*
+          * A second, tighter scrim under the mark alone.
+          *
+          * The shared one reaches about 0.6 where the wordmark starts, which
+          * is enough for text and not enough for the gold bar under it: an
+          * Army Camp's tents were showing straight through the crenellations.
+          * Local rather than a change to SCRIM_RIGHT, because four other
+          * frames are composed against that gradient as it stands.
+          */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'linear-gradient(270deg, rgba(5,11,20,.62) 0%, rgba(5,11,20,.52) 34%,'
+            + ' rgba(5,11,20,0) 62%)',
+        }}
+        />
         <div style={{
           position: 'absolute', right: 88, top: '50%', transform: 'translateY(-50%)', width: 566,
         }}
@@ -679,7 +725,22 @@ export default function BannerPage() {
         */}
       <Frame id="levels" w={W} h={H} note="post 4 — every level is a different soldier">
         <HoldDof shot={{ w: W, h: H, gx: 28.5, gy: 28.5, zoom: 0.8 }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,14,24,.82)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,14,24,.86)' }} />
+        {/*
+          * A band of shadow across the middle, where the three figures stand.
+          *
+          * A flat wash over the whole hold darkens it evenly, which leaves
+          * every wall and rooftop still legible — and the LEVEL captions were
+          * landing straight on top of them. This puts the row of soldiers on
+          * ground of its own without blacking out the base behind the corners,
+          * which is the thing that says the figures are from this game.
+          */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'radial-gradient(120% 58% at 50% 52%, rgba(6,12,20,.86) 0%,'
+            + ' rgba(6,12,20,.62) 42%, rgba(6,12,20,0) 78%)',
+        }}
+        />
         <Grade />
         <div style={{
           position: 'absolute', inset: 0, padding: '62px 84px 58px',
@@ -747,10 +808,28 @@ export default function BannerPage() {
             <HoldDof shot={{ w: W / 2, h: H, gx: 28.5, gy: 28.5, zoom: 0.55, enemy: true }} />
           </div>
         </div>
-        <Grade />
+        {/*
+          * The war frame is two half-width holds side by side, and each half
+          * gets its own flat daylight — so the whole picture came out evenly
+          * bright, with no focus anywhere and nothing to say where to look.
+          * A vignette from the corners pulls the eye onto the seam, which is
+          * the only part of this composition that means anything.
+          */}
         <div style={{
-          position: 'absolute', left: W / 2 - 1, top: 0, bottom: 0, width: 2,
-          background: `linear-gradient(180deg, rgba(232,178,60,.2), ${GOLD} 16%, ${GOLD} 84%, rgba(232,178,60,.2))`,
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'radial-gradient(78% 86% at 50% 48%, rgba(6,12,20,0) 34%,'
+            + ' rgba(6,12,20,.42) 72%, rgba(6,12,20,.82) 100%)',
+        }}
+        />
+        <Grade />
+        {/*
+          * The divider stops short of the foot, where the wordmark sits. Run
+          * full height it drew a gold line straight through the mark and out
+          * the bottom of the frame, over the road.
+          */}
+        <div style={{
+          position: 'absolute', left: W / 2 - 1, top: 0, height: H - 236, width: 2,
+          background: `linear-gradient(180deg, rgba(232,178,60,.2), ${GOLD} 16%, ${GOLD} 82%, rgba(232,178,60,0))`,
           boxShadow: '0 0 34px rgba(232,178,60,.65)',
         }}
         />

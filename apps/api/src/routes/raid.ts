@@ -12,7 +12,7 @@ import {
   type ItemType,
   type Pouch,
   TROOP_ORDER,
-  heroRespawnMinutes,
+  respawnWith,
   heroUnlocked,
   stageFromTrophies,
   type BuildingType,
@@ -196,6 +196,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
             hero: {
               level: me.heroLevel,
               available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+              relics: me.relics,
+              carried: me.carried,
             } satisfies HeroLoadout as unknown as object,
             troopLevels: me.troopLevels as unknown as object,
             pouch: me.pouch as unknown as object,
@@ -246,6 +248,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           hero: {
             level: me.heroLevel,
             available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+            relics: me.relics,
+            carried: me.carried,
           } satisfies HeroLoadout as unknown as object,
           troopLevels: me.troopLevels as unknown as object,
           pouch: me.pouch as unknown as object,
@@ -342,6 +346,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           hero: {
             level: me.heroLevel,
             available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+            relics: me.relics,
+            carried: me.carried,
           } satisfies HeroLoadout as unknown as object,
           troopLevels: me.troopLevels as unknown as object,
           pouch: me.pouch as unknown as object,
@@ -562,7 +568,15 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           // A fallen hero is away for a while. That cost is what makes
           // committing it a decision rather than a reflex.
           ...(sim.heroDied
-            ? { heroReadyAt: new Date(now.getTime() + heroRespawnMinutes(hero.level) * 60_000) }
+            // Read off the frozen loadout, not the live one: the hero that
+            // fell is the hero that was carrying those relics, and forging
+            // Haste after a raid must not shorten a timer already running.
+            ? {
+                heroReadyAt: new Date(
+                  now.getTime()
+                  + respawnWith(hero.level, hero.relics ?? {}, hero.carried ?? []) * 60_000,
+                ),
+              }
             : {}),
         },
       });
@@ -737,6 +751,8 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       hero: {
         level: me.heroLevel,
         available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+        relics: me.relics,
+        carried: me.carried,
       } satisfies HeroLoadout,
       troopLevels: me.troopLevels,
       stage,

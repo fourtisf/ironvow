@@ -42,6 +42,15 @@ model Player {
   /// nothing that was already earned. Reset to the post-reset total at close.
   seasonPeak Int @default(0)
 
+  /// Relic shards, earned from clan wars and season closes. The only currency
+  /// in the game that is not gold or iron, because gold is what a finished
+  /// hold has too much of. See relics.ts in @ironvow/config.
+  shards  Int  @default(0)
+  /// Relic levels held, by type. A type absent has never been forged.
+  relics  Json @default("{}")
+  /// Which two are carried. Always RELIC_SLOTS long; entries may be null.
+  carried Json @default("[]")
+
   /// Battle items bought and not yet spent. A JSON column for the same reason
   /// the garrison is one: a handful of counts read and written whole, always
   /// with the player, never queried across. See items.ts in @ironvow/config.

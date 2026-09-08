@@ -60,7 +60,11 @@ export async function resetDatabase(): Promise<void> {
 /** A fresh player with the opening layout and an optional custom purse. */
 export async function makePlayer(
   name: string,
-  opts: { gold?: number; iron?: number; trophies?: number; seasonPeak?: number; keepLevel?: number; builders?: number; pouch?: Record<string, number> } = {},
+  opts: {
+    gold?: number; iron?: number; trophies?: number; seasonPeak?: number;
+    keepLevel?: number; builders?: number; pouch?: Record<string, number>;
+    shards?: number; relics?: Record<string, number>; carried?: (string | null)[];
+  } = {},
 ): Promise<string> {
   const mid = Math.floor(56 / 2) - 1;
   const player = await db.player.create({
@@ -71,6 +75,9 @@ export async function makePlayer(
       trophies: opts.trophies ?? 0,
       seasonPeak: opts.seasonPeak ?? opts.trophies ?? 0,
       ...(opts.pouch === undefined ? {} : { pouch: opts.pouch }),
+      ...(opts.shards === undefined ? {} : { shards: opts.shards }),
+      ...(opts.relics === undefined ? {} : { relics: opts.relics }),
+      ...(opts.carried === undefined ? {} : { carried: opts.carried }),
       keepLevel: opts.keepLevel ?? 1,
       // The schema default is the opening crew; a test that is about
       // something else says so by asking for more.

@@ -1,13 +1,20 @@
 import {
   ITEM,
   ITEM_TYPES,
+  RELIC,
+  RELIC_FORGE_COST,
+  RELIC_KEEP_LEVEL,
+  RELIC_MAX_LEVEL,
+  RELIC_SLOTS,
+  RELIC_TYPES,
+  relicRaiseCost,
+  respawnWith,
   HERO_MAX_LEVEL,
   MAX_BUILDERS,
   builderCost,
   HERO_NAME,
   HERO_UNLOCK_KEEP_LEVEL,
   TROOP_TYPES,
-  heroRespawnMinutes,
   heroStats,
   heroUpgradeCost,
   troopPower,
@@ -16,7 +23,7 @@ import {
 } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { UPGRADE_MESSAGE, labLevelOf, planBuilderHire, planHeroUpgrade, planItemBuy, planTroopUpgrade } from '../domain/upgrades.js';
+import { UPGRADE_MESSAGE, labLevelOf, planBuilderHire, planCarry, planHeroUpgrade, planItemBuy, planRelic, planTroopUpgrade } from '../domain/upgrades.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
@@ -32,6 +39,12 @@ import { serialise } from './auth.js';
 
 const troopSchema = z.object({ type: z.enum(TROOP_TYPES) });
 const itemSchema = z.object({ type: z.enum(ITEM_TYPES), count: z.number().int().min(1).max(9) });
+const relicSchema = z.object({ type: z.enum(RELIC_TYPES) });
+const carrySchema = z.object({
+  slot: z.number().int().min(0).max(RELIC_SLOTS - 1),
+  // Null empties the slot, which is a thing a player should be able to do.
+  type: z.enum(RELIC_TYPES).nullable().optional(),
+});
 
 export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -51,7 +64,9 @@ export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
         stats: heroStats(player.heroLevel),
         upgradeCost: heroUpgradeCost(player.heroLevel),
         readyAt: player.heroReadyAt?.toISOString() ?? null,
-        respawnMinutes: heroRespawnMinutes(player.heroLevel),
+        // Haste included, so the hero panel and the server agree about the
+        // one number a player plans around.
+        respawnMinutes: respawnWith(player.heroLevel, player.relics, player.carried),
       },
       crew: {
         builders: player.builders,
@@ -70,6 +85,31 @@ export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
         held: player.pouch[type] ?? 0,
         unlocked: player.keepLevel >= ITEM[type].keep,
       })),
+      relics: {
+        unlocked: player.keepLevel >= RELIC_KEEP_LEVEL,
+        keep: RELIC_KEEP_LEVEL,
+        shards: player.shards,
+        slots: RELIC_SLOTS,
+        carried: player.carried,
+        // The respawn as it actually is, Haste included: the number on the
+        // hero panel and the number the server uses must be the same one.
+        respawnMinutes: respawnWith(player.heroLevel, player.relics, player.carried),
+        list: RELIC_TYPES.map((type) => {
+          const level = player.relics[type] ?? 0;
+          return {
+            type,
+            n: RELIC[type].n,
+            d: RELIC[type].d,
+            level,
+            max: RELIC_MAX_LEVEL,
+            per: RELIC[type].per,
+            /** Null once it is at the top, which is what the sheet shows instead of a price. */
+            cost: level >= RELIC_MAX_LEVEL
+              ? null
+              : level === 0 ? RELIC_FORGE_COST : relicRaiseCost(level),
+          };
+        }),
+      },
       lab: {
         level: labLevel,
         troops: TROOP_TYPES.map((type) => ({
@@ -165,6 +205,66 @@ export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(409).send({ error: result.error, message: UPGRADE_MESSAGE[result.error] });
     }
     return reply.send({ ...result.value, player: serialise(result.player) });
+  });
+
+  /**
+   * Forge a relic, or raise one already forged.
+   *
+   * The one thing in the game gold cannot buy. Shards come from clan wars and,
+   * more slowly, from season closes — so the progression that outlasts the Keep
+   * is the one that also keeps clans and the ladder busy.
+   */
+  app.post('/relic/forge', async (request, reply) => {
+    const parsed = relicSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      await lockPlayer(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!);
+
+      const plan = planRelic(player, parsed.data.type);
+      if (!plan.ok) return plan;
+
+      const relics = { ...player.relics, [plan.value.type]: plan.value.toLevel };
+      await tx.player.update({
+        where: { id: player.id },
+        data: {
+          shards: { decrement: plan.value.shards },
+          relics: relics as unknown as object,
+        },
+      });
+      return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };
+    }, COMMAND_TX);
+
+    if (!result.ok) {
+      return reply.code(409).send({ error: result.error, message: UPGRADE_MESSAGE[result.error] });
+    }
+    return reply.send({ ...result.value, player: serialise(result.player) });
+  });
+
+  /** Carry a relic in a slot, or empty the slot. Costs nothing; changes a raid. */
+  app.post('/relic/carry', async (request, reply) => {
+    const parsed = carrySchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      await lockPlayer(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!);
+
+      const plan = planCarry(player, parsed.data.slot, parsed.data.type ?? null);
+      if (!plan.ok) return plan;
+
+      await tx.player.update({
+        where: { id: player.id },
+        data: { carried: plan.value as unknown as object },
+      });
+      return { ok: true as const, carried: plan.value, player: await settleAndLoad(tx, player.id) };
+    }, COMMAND_TX);
+
+    if (!result.ok) {
+      return reply.code(409).send({ error: result.error, message: UPGRADE_MESSAGE[result.error] });
+    }
+    return reply.send({ carried: result.carried, player: serialise(result.player) });
   });
 
   app.post('/troop/upgrade', async (request, reply) => {

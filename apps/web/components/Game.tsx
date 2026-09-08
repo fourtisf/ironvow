@@ -2,6 +2,7 @@
 
 import {
   HERO_UNLOCK_KEEP_LEVEL,
+  RELIC,
   PROD,
   TROOP_ORDER,
   TYPES,
@@ -1066,6 +1067,16 @@ export function Game() {
           }}
           // Straight into placing one, rather than sending them off to find
           // the card themselves: they are already asking for it.
+          onForgeRelic={(type) => {
+            void runCommand(() => api.forgeRelic(type)).then((r) => {
+              if (r) { sfx.up(); say(`${RELIC[type].n} at level ${r.toLevel}`); void loadProgression(); }
+            });
+          }}
+          onCarryRelic={(slot, type) => {
+            void runCommand(() => api.carryRelic(slot, type)).then((r) => {
+              if (r) { sfx.tap(); void loadProgression(); }
+            });
+          }}
           onBuyItem={(type) => {
             void runCommand(() => api.buyItem(type)).then((r) => {
               if (r) { sfx.up(); say(`Bought ${r.count} — carried into your next raid`); void loadProgression(); }

@@ -166,7 +166,9 @@ describe.skipIf(!hasDatabase)('the hero in a raid', () => {
     const cookie = await loginAs(app, attackerId);
 
     const scout = (await app.inject({ method: 'POST', url: '/raid/find', headers: { cookie }, payload: {} })).json();
-    expect(scout.hero).toEqual({ level: 4, available: true });
+    // The relics ride along with the level now, and they are frozen for the
+    // same reason: forging one mid-raid must not change the fight in flight.
+    expect(scout.hero).toEqual({ level: 4, available: true, relics: {}, carried: [null, null] });
     expect(scout.troopLevels.raider).toBe(3);
 
     // Raising the hero mid-raid must not change what the raid may field.

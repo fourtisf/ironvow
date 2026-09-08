@@ -1,4 +1,4 @@
-import type { BuildingType, ItemType, Pouch, TrapType, TroopType } from '@ironvow/config';
+import type { BuildingType, ItemType, Pouch, RelicLevels, RelicLoadout, TrapType, TroopType } from '@ironvow/config';
 
 /** A building as it exists on a live base. */
 export interface BuildingState {
@@ -103,6 +103,16 @@ export interface HeroLoadout {
   level: number;
   /** False while the hero is still recovering from the last raid. */
   available: boolean;
+  /**
+   * Relic levels held, and which two are carried.
+   *
+   * Frozen onto the raid like the level itself: forging one mid-raid must not
+   * change the fight already in flight, and a replay years later has to field
+   * the same hero. Absent on every raid recorded before relics existed, which
+   * replays as a hero carrying nothing.
+   */
+  relics?: RelicLevels;
+  carried?: RelicLoadout;
 }
 
 /** Per-troop lab levels, frozen onto the raid alongside the warband. */

@@ -8,6 +8,7 @@ import {
   HORN_SPEED,
   ITEM,
   ITEM_TYPES,
+  RELIC_TYPES,
   TRAP,
   DEPLOY_CLEARANCE,
   DEPLOY_MARGIN,
@@ -23,6 +24,7 @@ import {
   dist,
   facingOf,
   heroStats,
+  heroWith,
   hpOf,
   isDefensive,
   isItemType,
@@ -36,6 +38,8 @@ import {
   troopPower,
   type BuildingType,
   type ItemType,
+  type RelicLevels,
+  type RelicLoadout,
   type TrapType,
   type TroopType,
 } from '@ironvow/config';
@@ -85,9 +89,14 @@ export function statsFor(
   type: DeployableType,
   troopLevels: Partial<Record<TroopType, number>>,
   heroLevel: number,
+  relics: RelicLevels = {},
+  carried: RelicLoadout = [],
 ): UnitStats {
   if (type === 'hero') {
-    const h = heroStats(heroLevel);
+    // heroWith multiplies by one for an empty loadout, so every existing caller
+    // and every raid recorded before relics gets exactly the numbers it always
+    // had.
+    const h = heroWith(heroStats(heroLevel), relics, carried);
     return { ...h, pref: 'any', ranged: false, climb: false };
   }
   const def = TROOP[type];
@@ -282,6 +291,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   const kind: BattleKind = input.kind ?? 'raid';
   const troopLevels = input.troopLevels ?? {};
   const heroLevel = input.hero?.level ?? 1;
+  const heroRelics = input.hero?.relics ?? {};
+  const heroCarried = input.hero?.carried ?? [];
   const heroAvailable = input.hero?.available === true;
   const events: TimelineEvent[] = [];
   const wantTimeline = options.timeline === true;
@@ -364,7 +375,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   const mySide: 'atk' | 'def' = kind === 'raid' ? 'atk' : 'def';
 
   const spawn = (t: DeployableType, x: number, y: number, side: 'atk' | 'def', scale: number, tick: number): void => {
-    const d = statsFor(t, troopLevels, heroLevel);
+    const d = statsFor(t, troopLevels, heroLevel, heroRelics, heroCarried);
     const u: SimUnit = {
       i: units.length,
       t,
@@ -642,7 +653,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
    * target, and then takes the nearest thing anyway rather than standing still.
    */
   const pickTarget = (u: SimUnit): void => {
-    const stats = statsFor(u.t, troopLevels, heroLevel);
+    const stats = statsFor(u.t, troopLevels, heroLevel, heroRelics, heroCarried);
     const pref = stats.pref;
     let best = -1;
     let bd = 1e9;
@@ -721,6 +732,18 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   const check = new Checksum();
   check.addInt(seed).addInt(structs.length).addInt(maxTicks);
   check.addInt(heroAvailable ? heroLevel : 0);
+  /*
+   * The relics, folded in the same way the lab levels are.
+   *
+   * A hero carrying a different Bulwark is a different hero, so a submission
+   * claiming one loadout and a server replaying another must not agree about
+   * the checksum. Walked in RELIC_TYPES order rather than the loadout's, so
+   * swapping the two carried slots — which changes nothing about the fight —
+   * does not change the digest either.
+   */
+  for (const r of RELIC_TYPES) {
+    check.addInt(heroCarried.includes(r) ? (heroRelics[r] ?? 0) : 0);
+  }
   for (const t of TROOP_ORDER) check.addInt(troopLevels[t] ?? 1);
 
   let deployed = 0;
@@ -753,7 +776,7 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     /* --- units --- */
     for (const u of units) {
       if (u.dead) continue;
-      const d = statsFor(u.t, troopLevels, heroLevel);
+      const d = statsFor(u.t, troopLevels, heroLevel, heroRelics, heroCarried);
       // A Warhorn is read fresh every tick from where the unit is standing,
       // rather than stamped onto it when the horn was blown. Walking out of the
       // circle ends it; walking in starts it.

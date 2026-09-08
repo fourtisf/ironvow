@@ -1,4 +1,8 @@
 import {
+  parseLoadout,
+  parseRelics,
+  type RelicLevels,
+  type RelicLoadout,
   parsePouch,
   type Pouch,
   DAILY_COUNTERS,
@@ -55,6 +59,10 @@ export interface LoadedPlayer extends PlayerView {
   garrisonCap: number;
   /** Battle items bought and not yet spent. */
   pouch: Pouch;
+  /** Relic shards, and what has been forged and is carried. */
+  shards: number;
+  relics: RelicLevels;
+  carried: RelicLoadout;
   shieldUntil: Date | null;
   buildings: (OwnedBuildingRow & { stock: number })[];
   storageCap: number;
@@ -261,6 +269,10 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     DAILY_COUNTERS.map((k) => [k, player[k]]),
   ) as Record<DailyCounter, number>;
 
+  // Read once, because the loadout is validated against it: a slot naming a
+  // relic that was never forged must come back empty rather than free.
+  const relicLevels = parseRelics(player.relics);
+
   return {
     id: player.id,
     name: player.name,
@@ -280,6 +292,12 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     garrison: parseGarrison(player.garrison),
     garrisonCap: garrisonSlots(keepLevel),
     pouch: parsePouch(player.pouch),
+    shards: player.shards,
+    relics: relicLevels,
+    // Parsed against the levels, so a loadout naming a relic that was never
+    // forged — or the same one twice — comes back empty in that slot rather
+    // than quietly granting a bonus nobody paid for.
+    carried: parseLoadout(player.carried, relicLevels),
     shieldUntil: player.shieldUntil,
     buildings,
     army,

@@ -1741,6 +1741,72 @@ eventually walk the entire map and every gun on it gets a shot off. True, and
 useless. It takes two raiders against a maxed gun now: they die on the near side
 and the far one never sees anybody.
 
+## Something after the last upgrade
+
+A Keep tops out at 9. Every building, every troop and the hero top out with it,
+and the War Orders run dry in the first few hours. Seasons gave a reason to
+climb the ladder again every fortnight, but a season **resets** a number rather
+than adding to one — after the final upgrade there was nothing left in the game
+that a player could still be working towards.
+
+Relics are that. Three of them, **two slots**, so owning all three is not the
+end of it: what the Vowkeeper carries is a decision made against the base you
+are about to hit, and it stays a decision at every level.
+
+- **Bulwark** — the hero takes more before it falls. +7% hit points a level.
+- **Edge** — the hero hits harder. +5.5% damage a level.
+- **Haste** — the hero returns sooner after falling. −5% a level, floored at
+  three minutes, because a hero with no cost to losing is a hero nobody thinks
+  about committing, and thinking about it is the only thing that ever made it
+  interesting.
+
+Each moves exactly one number and none moves two. A relic that did a little of
+everything would be a relic nobody ever left behind.
+
+### The currency is deliberately not gold
+
+Gold is what a finished hold has too much of; a sink priced in it would be a
+formality. **Shards** come from clan wars — per star earned, doubled on the
+winning side, the same shape as the war's gold so nobody has to learn a second
+rule — which means the thing that keeps a finished player playing is the thing
+that also keeps their clan alive.
+
+They come more slowly from a season close as well, and that second source exists
+for one reason: wars need a clan, and a player without one must not be locked
+out of the only progression left in the game. A season is a fortnight and a war
+is a day, so joining a clan is still plainly the better answer. Shards are
+uncapped, unlike the purse — storage is a rule about gold and iron, and a player
+who fought a war and came home to a full Vault must not lose the currency that
+buys the thing relics exist for.
+
+### Open at Keep 7, not Keep 9
+
+They are the answer to what happens after the last Keep, and they still unlock
+two levels before it. A feature nobody can see until they have finished the game
+is a feature almost nobody ever sees; the point of relics is to be visible as
+the thing you are heading towards. The panel shows locked, with the level to aim
+for, rather than nothing at all.
+
+### The parts that had to be right
+
+- **A relic is worth nothing while it sits in the vault.** `heroWith` reads the
+  loadout, not the levels — forging Bulwark to 10 and carrying nothing changes
+  no number.
+- **A stored loadout is never trusted.** `parseLoadout` drops a relic that was
+  never forged, refuses to carry the same one twice, and is always exactly
+  `RELIC_SLOTS` long. Both of the first two would otherwise grant a bonus
+  nobody paid for.
+- **It is frozen onto the raid**, like the hero level and the warband and the
+  pouch before it, and folded into the checksum in `RELIC_TYPES` order — so a
+  hero carrying a different Bulwark is a different fight, while swapping the two
+  slots, which changes nothing, changes no digest either.
+- **The respawn timer reads the frozen loadout.** The hero that fell is the hero
+  that was carrying those relics; forging Haste afterwards must not shorten a
+  clock already running.
+- **`heroWith` wraps `heroStats` rather than replacing it.** An empty loadout
+  multiplies by one, so every existing caller and every raid recorded before
+  relics existed keeps exactly the numbers it always had.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

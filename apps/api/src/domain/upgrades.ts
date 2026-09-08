@@ -1,5 +1,13 @@
 import {
   ITEM,
+  RELIC_FORGE_COST,
+  RELIC_KEEP_LEVEL,
+  RELIC_MAX_LEVEL,
+  RELIC_SLOTS,
+  relicRaiseCost,
+  type RelicLevels,
+  type RelicLoadout,
+  type RelicType,
   itemUnlocked,
   pouchRoomFor,
   type ItemType,
@@ -39,7 +47,12 @@ export type UpgradeError =
   | 'noSuchTroop'
   | 'crewFull'
   | 'itemLocked'
-  | 'pouchFull';
+  | 'pouchFull'
+  | 'relicLocked'
+  | 'relicAtMax'
+  | 'relicNotForged'
+  | 'noShards'
+  | 'noSuchSlot';
 
 /**
  * Upgrades carry their own verdict rather than reusing the command one.
@@ -152,6 +165,67 @@ export function planItemBuy(player: PouchView, type: ItemType, want: number): Up
   };
 }
 
+/* --------------------------------------------------------------- relics --- */
+
+export interface RelicPlan {
+  type: RelicType;
+  fromLevel: number;
+  toLevel: number;
+  /** Shards spent. Relics are the one thing in the game gold cannot buy. */
+  shards: number;
+}
+
+export interface RelicView extends PlayerView {
+  keepLevel: number;
+  shards: number;
+  relics: RelicLevels;
+  carried: RelicLoadout;
+}
+
+/**
+ * Forge a relic, or raise one already forged.
+ *
+ * One function for both, because they are the same decision at different
+ * prices: a player with sixty shards is choosing between a third relic and a
+ * level on one of the two they carry, and splitting that into two endpoints
+ * would not change what they are weighing.
+ */
+export function planRelic(player: RelicView, type: RelicType): UpgradeVerdict<RelicPlan> {
+  if (player.keepLevel < RELIC_KEEP_LEVEL) return fail('relicLocked');
+  const from = player.relics[type] ?? 0;
+  if (from >= RELIC_MAX_LEVEL) return fail('relicAtMax');
+
+  const shards = from === 0 ? RELIC_FORGE_COST : relicRaiseCost(from);
+  if (player.shards < shards) return fail('noShards');
+
+  return { ok: true, value: { type, fromLevel: from, toLevel: from + 1, shards } };
+}
+
+/**
+ * Carry a relic in a slot, or empty the slot.
+ *
+ * Refuses a relic that has not been forged, and refuses to carry the same one
+ * twice — both would grant a bonus nobody paid for. Swapping a relic that is
+ * already in the other slot moves it rather than duplicating it, because
+ * "carry Edge here" and "stop carrying Edge there" is one intention.
+ */
+export function planCarry(
+  player: RelicView, slot: number, type: RelicType | null,
+): UpgradeVerdict<RelicLoadout> {
+  if (player.keepLevel < RELIC_KEEP_LEVEL) return fail('relicLocked');
+  if (!Number.isInteger(slot) || slot < 0 || slot >= RELIC_SLOTS) return fail('noSuchSlot');
+  if (type !== null && (player.relics[type] ?? 0) <= 0) return fail('relicNotForged');
+
+  const next: RelicLoadout = [...player.carried];
+  while (next.length < RELIC_SLOTS) next.push(null);
+  if (type !== null) {
+    const already = next.indexOf(type);
+    if (already >= 0 && already !== slot) next[already] = next[slot] ?? null;
+  }
+  next[slot] = type;
+  return { ok: true, value: next.slice(0, RELIC_SLOTS) };
+}
+
 export const UPGRADE_MESSAGE: Record<UpgradeError, string> = {
   cannotAfford: 'Not enough resources.',
   heroLocked: 'Raise your Keep to level 3 to call a hero.',
@@ -164,6 +238,11 @@ export const UPGRADE_MESSAGE: Record<UpgradeError, string> = {
   crewFull: 'Your crew is already ten builders strong.',
   itemLocked: 'Raise your Keep further to carry this.',
   pouchFull: 'Your pouch is full.',
+  relicLocked: `Relics open at Keep ${RELIC_KEEP_LEVEL}.`,
+  relicAtMax: 'That relic is already at the highest level.',
+  relicNotForged: 'You have not forged that relic.',
+  noShards: 'Not enough shards. Fight a clan war.',
+  noSuchSlot: 'No such slot.',
 };
 
 /* ------------------------------------------------------------ builders --- */

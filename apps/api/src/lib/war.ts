@@ -8,6 +8,7 @@ import {
   rosterSize,
   warOutcome,
   warReward,
+  warShards,
   type BuildingType,
 } from '@ironvow/config';
 import type { BaseSnapshot } from '@ironvow/types';
@@ -261,10 +262,26 @@ export async function settleWar(tx: Tx, warId: string, now: Date): Promise<boole
     if (!player) continue;
     const credited = grant(player.gold, player.iron, reward.g, reward.i,
       player.buildings.map((b) => ({ type: b.type as BuildingType, level: b.level })));
-    await tx.player.update({ where: { id: m.playerId }, data: { gold: credited.gold, iron: credited.iron } });
+    /*
+     * Shards, alongside the gold.
+     *
+     * Uncapped, unlike the purse: storage is a rule about gold and iron, and a
+     * player who fought a war and came back to a full Vault must not lose the
+     * only currency that buys the progression past a maxed Keep. That is
+     * exactly the player relics exist for.
+     */
+    const shards = warShards(stars, winner === m.clanId);
+    await tx.player.update({
+      where: { id: m.playerId },
+      data: {
+        gold: credited.gold,
+        iron: credited.iron,
+        ...(shards > 0 ? { shards: { increment: shards } } : {}),
+      },
+    });
     void pushTo(m.playerId, {
       title: winner === m.clanId ? 'Your clan won the war' : outcome === 'draw' ? 'The war was a draw' : 'Your clan lost the war',
-      body: `${reward.g} gold and ${reward.i} iron for your ${stars} star${stars === 1 ? '' : 's'}.`,
+      body: `${reward.g} gold and ${shards} shard${shards === 1 ? '' : 's'} for your ${stars} star${stars === 1 ? '' : 's'}.`,
       tag: 'war',
       url: '/',
     }).catch(() => undefined);

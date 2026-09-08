@@ -16,10 +16,12 @@ import {
   type BuildingType,
   type Cost,
   type TroopType,
+  RELIC,
   type ItemType,
+  type RelicType,
 } from '@ironvow/config';
 import { fmt, longUntil, until } from '../lib/format';
-import type { BreachView, SeasonState } from '../lib/api';
+import type { BreachView, RelicsView, SeasonState } from '../lib/api';
 import type { PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
 import { TroopArt } from './TroopArt';
@@ -198,6 +200,7 @@ export interface ProgressionView {
     type: ItemType; n: string; d: string; cost: Cost;
     cap: number; keep: number; held: number; unlocked: boolean;
   }[];
+  relics: RelicsView;
 }
 
 export interface ArmySheetProps {
@@ -209,6 +212,8 @@ export interface ArmySheetProps {
   onUpgradeTroop: (type: TroopType) => void;
   onCancelJob: (jobId: string) => void;
   onBuyItem: (type: ItemType) => void;
+  onForgeRelic: (type: RelicType) => void;
+  onCarryRelic: (slot: number, type: RelicType | null) => void;
   /**
    * Takes the player to BUILD with the War Lab in hand.
    *
@@ -255,7 +260,7 @@ type Batch = 1 | 5 | 'max';
 
 export function ArmySheet({
   player, progression, onClose, onTrain, onUpgradeHero, onUpgradeTroop, onCancelJob,
-  onBuildLab, onBuyItem, highlight = null, hint = null,
+  onBuildLab, onBuyItem, onForgeRelic, onCarryRelic, highlight = null, hint = null,
 }: ArmySheetProps) {
   const [batch, setBatch] = useState<Batch>(1);
   const owned = player.buildings.map((b) => ({ type: b.type, level: b.level }));
@@ -264,6 +269,7 @@ export function ArmySheet({
   const hero = progression?.hero;
   const lab = progression?.lab;
   const items = progression?.items;
+  const relics = progression?.relics;
 
   return (
     <div className="sheet">
@@ -463,6 +469,98 @@ export function ArmySheet({
         * offers to go and build it. The same shape as the hero row above,
         * which has always done this properly.
         */}
+      {/*
+        * Relics.
+        *
+        * Above the pouch and below the hero, because that is where they sit in
+        * the game: the hero's own progression, carried on after the Keep and
+        * everything on it has finished. Shown locked rather than hidden, so a
+        * player climbing towards Keep 7 can see what is waiting.
+        */}
+      {relics && (
+        <>
+          <div className="sheetHead" style={{ marginTop: 14 }}>
+            <div>
+              <h2>RELICS</h2>
+              <p>
+                {relics.unlocked
+                  ? `${relics.shards} shards · won in clan wars, and slowly at a season's close`
+                  : `Open at Keep ${relics.keep}. What the Vowkeeper carries when everything else is finished.`}
+              </p>
+            </div>
+          </div>
+
+          {relics.unlocked && (
+            <div className="qrow" style={{ borderColor: '#7a5a24' }}>
+              <div className="qi">
+                <h4>CARRYING {relics.carried.filter(Boolean).length} OF {relics.slots}</h4>
+                <p>
+                  Fewer slots than relics, on purpose. The Vowkeeper returns in{' '}
+                  {relics.respawnMinutes} min after falling.
+                </p>
+              </div>
+              <div className="slotRow">
+                {relics.carried.map((held, i) => (
+                  <button
+                    key={i}
+                    className={`slot${held ? ' on' : ''}`}
+                    onClick={() => held && onCarryRelic(i, null)}
+                    title={held ? 'Put it down' : 'Empty'}
+                  >
+                    {held ? RELIC[held].n : '—'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {relics.list.map((r) => {
+            const carried = relics.carried.includes(r.type);
+            const full = relics.carried.every(Boolean);
+            const afford = r.cost !== null && relics.shards >= r.cost;
+            return (
+              <div className={`qrow${relics.unlocked ? '' : ' done'}`} key={r.type}>
+                <div className="qi">
+                  <h4>
+                    {r.n.toUpperCase()}
+                    {r.level > 0 && ` · LEVEL ${r.level}`}
+                    {carried && ' · CARRIED'}
+                  </h4>
+                  <p>
+                    {r.d}
+                    {r.level > 0 && ` Now +${Math.round(r.per * r.level * 100)}%.`}
+                  </p>
+                </div>
+                {relics.unlocked && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 'none' }}>
+                    <button
+                      className={`btn${afford ? ' gold' : ' grey'}`}
+                      disabled={r.cost === null || !afford}
+                      onClick={() => onForgeRelic(r.type)}
+                    >
+                      {r.cost === null ? 'MAX' : `${r.level === 0 ? 'FORGE' : 'RAISE'} ${r.cost}`}
+                    </button>
+                    {r.level > 0 && !carried && (
+                      <button
+                        className="btn grey"
+                        onClick={() => {
+                          // Into the first empty slot, or the first slot when
+                          // both are full: a tap should always do something.
+                          const empty = relics.carried.findIndex((x) => !x);
+                          onCarryRelic(full ? 0 : Math.max(0, empty), r.type);
+                        }}
+                      >
+                        CARRY
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+
       {/*
         * The pouch.
         *

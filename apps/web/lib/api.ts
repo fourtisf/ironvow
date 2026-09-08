@@ -1,4 +1,4 @@
-import type { BuildingType, ItemType, TroopType } from '@ironvow/config';
+import type { BuildingType, ItemType, RelicType, TroopType } from '@ironvow/config';
 import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import type { PlayerState, ScoutedRaid } from './game/types';
 
@@ -140,6 +140,23 @@ export interface BreachView {
   mine: boolean;
 }
 
+export interface RelicsView {
+  unlocked: boolean;
+  /** The Keep level they open at, so a locked panel can say what to aim for. */
+  keep: number;
+  shards: number;
+  slots: number;
+  carried: (RelicType | null)[];
+  /** The hero's respawn with Haste already applied. */
+  respawnMinutes: number;
+  list: {
+    type: RelicType; n: string; d: string;
+    level: number; max: number; per: number;
+    /** Null once it is at the top. */
+    cost: number | null;
+  }[];
+}
+
 export interface SeasonTierView {
   id: string; n: string; at: number; reward: { g: number; i: number };
 }
@@ -255,12 +272,19 @@ export const api = {
       type: ItemType; n: string; d: string; cost: { g: number; i: number };
       cap: number; keep: number; held: number; unlocked: boolean;
     }[];
+    relics: RelicsView;
   }> => call('/progression'),
 
   upgradeHero: (): Promise<CommandResponse & { toLevel: number }> => post('/hero/upgrade'),
   hireBuilder: (): Promise<CommandResponse & { to: number }> => post('/builder/hire'),
   upgradeTroop: (type: TroopType): Promise<CommandResponse & { toLevel: number }> =>
     post('/troop/upgrade', { type }),
+  /** Forge a relic, or raise one already forged. Shards only — never gold. */
+  forgeRelic: (type: RelicType): Promise<CommandResponse & { toLevel: number }> =>
+    post('/relic/forge', { type }),
+  /** Carry a relic in a slot, or pass null to empty it. */
+  carryRelic: (slot: number, type: RelicType | null): Promise<CommandResponse & { carried: (RelicType | null)[] }> =>
+    post('/relic/carry', { slot, type }),
   /** Buy battle items. The server clamps to the pouch and to the purse. */
   buyItem: (type: ItemType, count = 1): Promise<CommandResponse & { type: ItemType; count: number }> =>
     post('/item/buy', { type, count }),

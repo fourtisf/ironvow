@@ -1,5 +1,7 @@
 import {
   SEASON_MIN_TROPHIES,
+  SEASON_TIERS,
+  seasonShards,
   SEASON_RESET_FLOOR,
   SEASON_RESET_KEEP,
   seasonEnd,
@@ -205,9 +207,25 @@ async function payLadder(
     // the economy already makes.
     const credited = grant(p.gold, p.iron, reward.g, reward.i,
       p.buildings.map((b) => ({ type: b.type as BuildingType, level: b.level })));
+    /*
+     * Shards, and the reason this second source exists at all.
+     *
+     * Wars are the main road to a relic, and wars need a clan. A player with
+     * no clan must not be locked out of the only progression left after a
+     * maxed Keep, so a season close pays some too — deliberately the slower
+     * road, since a season is a fortnight and a war is a day, so joining a
+     * clan is still plainly the better answer.
+     *
+     * Uncapped, unlike the purse: storage is a rule about gold and iron.
+     */
+    const shards = seasonShards(SEASON_TIERS.findIndex((t) => t.id === tier.id));
     await tx.player.update({
       where: { id: p.id },
-      data: { gold: credited.gold, iron: credited.iron },
+      data: {
+        gold: credited.gold,
+        iron: credited.iron,
+        ...(shards > 0 ? { shards: { increment: shards } } : {}),
+      },
     });
 
     rows.push({

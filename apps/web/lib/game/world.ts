@@ -1,6 +1,7 @@
 import {
   ITEM,
   type ItemType,
+  type TrapType,
   MAX_DPR,
   N,
   PROD,
@@ -138,7 +139,7 @@ export interface World {
    * and the flash the player needs to see it happen outlives the tick it
    * happened on.
    */
-  bursts: { x: number; y: number; r: number; item: ItemType; born: number }[];
+  bursts: { x: number; y: number; r: number; item: ItemType | TrapType; born: number }[];
   /** How many timeline events have been heard. */
   heard: number;
   /** What the tray has selected for the next deploy. */
@@ -443,6 +444,19 @@ function hear(w: World, battle: Battle): void {
       }
       case 'unitDead':
         sfx.fall();
+        break;
+      /*
+       * A trap going off.
+       *
+       * Driven from the simulation's own event rather than from the trap list,
+       * because the flash has to land on the tick it fired on and the trap
+       * itself carries only the tick number. It is also the moment the trap
+       * stops being invisible to the attacker, which is the whole feature —
+       * so it gets a sound of its own rather than borrowing a hit.
+       */
+      case 'trap':
+        w.bursts.push({ x: e.x, y: e.y, r: e.r, item: e.item, born: w.t });
+        if (e.item === 'spike') sfx.wallBreak(); else sfx.hit();
         break;
       case 'spawn':
         if (e.side === 'atk') {

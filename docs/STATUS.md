@@ -1629,6 +1629,74 @@ were ever deployed. Every helper in `packages/sim/test/mortar.test.ts` now
 asserts that the deploys it asked for actually happened before it measures
 anything.
 
+## The one thing a scout cannot see
+
+Everything about a hold is public. A raid opens with a scout, the scout shows
+the whole layout, and from there the attack is a solved problem: read every
+Cannon's reach and every Mortar's dead zone, pick the side with the least of
+both. That is fine for the attacker — it is what makes raiding a planning game
+rather than a lottery — but it leaves the defender with nothing to decide. Their
+layout is read before it is played against, so the best a good one can do is be
+slightly less bad than a poor one.
+
+A trap is the defender's half of that. Two of them, opposites on purpose,
+because one trap is a tax and two are a decision:
+
+- **Spike Trap** (900g / 300i, Keep 5). Springs on whoever walks over it and
+  hurts everything within three cells. 150 damage at level 1, rising to about
+  950 — enough to finish a Ram and no more.
+- **Snare** (700g / 240i, Keep 6). Does no damage at all. Holds whoever walks
+  into it at 42% speed for four and a half seconds, in front of whatever the
+  defender put there. Worth nothing on its own and a great deal in front of a
+  Mortar.
+
+### A trap is not a building
+
+It never enters `structs`. It cannot be attacked, it has no hit points anything
+reads, and it counts for nothing towards destruction — otherwise a defender
+could buy their way out of three stars with hardware the attacker is not allowed
+to break, and a Lancer (which prefers defensive buildings) would walk across the
+map to hit a hole in the ground. `snapshot.buildings` is split before anything
+else looks at it.
+
+### The trigger is tighter than the blast, and a test is why
+
+The first draft used one radius for both, and a trap caught exactly one man.
+Troops deploy a tick apart and arrive strung out in a column, so the front man
+tripped it and everyone behind him was — by a tenth of a cell — outside the only
+radius there was. A tight tripwire and a wide blast is how the thing is supposed
+to work: you step on it, and it hurts the people walking with you.
+
+### Hidden in the renderer, and that is said plainly
+
+The simulation is deterministic and both sides run the same code, so a trap has
+to be in the snapshot the client is given: a client that fired its traps on a
+different tick from the server would diverge on the first raid. **What is hidden
+is hidden in the renderer.** The attacker's battle view draws a trap only once
+`sprung` is set, and `renderPreview` — the scout screen the whole feature hangs
+off — skips them entirely when the hold is somebody else's.
+
+Somebody reading their own memory could find them. They still could not forge a
+result, because the server replays the commands and computes the outcome itself;
+the anti-cheat property the game actually rests on is untouched. **This is a
+fairness rule, not a security one**, and pretending otherwise in a comment would
+be worse than the hole.
+
+Two details that follow from the same honesty: a defender watching a drill on
+their own hold sees every trap, because the point of laying them out is seeing
+the layout; and the garrison a clan donated never springs them, because a hold
+whose donated troops attack it would make generosity a weapon.
+
+### A Snare is a Warhorn with the sign flipped
+
+It reuses the item machinery exactly: an area, a lifetime, a multiplier on
+speed. One mechanism rather than two, so a unit can never be in a state where
+one applies and the other silently does not — and a man dragged out of a Snare
+by a Warhorn moves at a sensible fraction rather than at whichever effect the
+code happened to check last. Snares do not stack; the deepest wins. A cluster is
+a wider net, not a troop frozen solid, which would be a win button rather than a
+trap.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

@@ -1,4 +1,4 @@
-import type { BuildingType, ItemType, Pouch, TroopType } from '@ironvow/config';
+import type { BuildingType, ItemType, Pouch, TrapType, TroopType } from '@ironvow/config';
 
 /** A building as it exists on a live base. */
 export interface BuildingState {
@@ -183,7 +183,8 @@ export type TimelineEvent =
   | { t: number; k: 'shot'; from: 'unit' | 'struct'; src: number; x: number; y: number; tx: number; ty: number; kind: 'arrow' | 'ball' }
   | { t: number; k: 'hitStruct'; struct: number; dmg: number }
   | { t: number; k: 'hitUnit'; unit: number; dmg: number }
-  | { t: number; k: 'item'; item: ItemType; x: number; y: number; r: number };
+  | { t: number; k: 'item'; item: ItemType; x: number; y: number; r: number }
+  | { t: number; k: 'trap'; trap: number; item: TrapType; x: number; y: number; r: number };
 
 /** What the client is allowed to send when it finishes a raid. */
 export interface RaidSubmission {

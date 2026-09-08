@@ -22,3 +22,4 @@ export * from './invites.js';
 export * from './garrison.js';
 export * from './items.js';
 export * from './seasons.js';
+export * from './traps.js';

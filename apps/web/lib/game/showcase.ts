@@ -104,6 +104,12 @@ const PLAN: Plan[] = [
   // hold should be laid out the way a good one is.
   ...quad('mortar', 20, 22),
 
+  // Traps on the approaches, outside everything. A hold that hides them in the
+  // middle has hidden them where nobody walks.
+  ...quad('spike', 17, 23),
+  ...quad('spike', 23, 17),
+  ...quad('snare', 19, 19),
+
   // The economy, in its own ring.
   ...quad('store', 18, 14),
   ...quad('mine', 22, 14),

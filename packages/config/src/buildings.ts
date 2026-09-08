@@ -3,6 +3,7 @@ import { ipow } from './math.js';
 
 export const BUILDING_TYPES = [
   'keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab', 'cannon', 'tower', 'mortar', 'wall',
+  'spike', 'snare',
   'statue', 'brazier', 'standard',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
@@ -10,8 +11,13 @@ export type BuildingType = (typeof BUILDING_TYPES)[number];
 /**
  * `vanity` is the odd one out and deliberately so: it costs, it occupies a
  * cell, and it does nothing. See VANITY_NOTE below.
+ *
+ * `trap` is the other odd one: it occupies a cell but is not a structure. It
+ * cannot be attacked, it has no hit points that anything reads, and it counts
+ * for nothing towards destruction — so `hp` and `hpG` below are filled in only
+ * because the shape demands them. See traps.ts.
  */
-export type BuildingCategory = 'core' | 'eco' | 'mil' | 'def' | 'vanity';
+export type BuildingCategory = 'core' | 'eco' | 'mil' | 'def' | 'trap' | 'vanity';
 
 export interface Cost {
   g: number;
@@ -117,6 +123,17 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   wall:   { n: 'Rampart',     s: 1, cat: 'def',  hp: 340,  hpG: 1.35, base: { g: 60,  i: 20  }, up: { g: 90,  i: 60  }, upG: 1.70, countG: RAMPART_COUNT_GROWTH, blurb: 'Blocks the path. Enemies must stop and break it.' },
 
   /*
+   * Traps. See traps.ts for what they do and why they are hidden.
+   *
+   * One cell each, like a Rampart, because a trap you can see the outline of is
+   * not hidden and a three-cell one would be obvious from the gap it leaves.
+   * Priced steeply for their size and capped low: a field of them would make
+   * the guess trivial, and the guess is the whole feature.
+   */
+  spike:  { n: 'Spike Trap',  s: 1, cat: 'trap', hp: 1, hpG: 1, base: { g: 900,  i: 300 }, up: { g: 700, i: 340 }, upG: 1.80, countG: NEW_BUILDING_GROWTH, blurb: 'Hidden. Springs on whoever walks over it, and hurts everyone around them.' },
+  snare:  { n: 'Snare',       s: 1, cat: 'trap', hp: 1, hpG: 1, base: { g: 700,  i: 240 }, up: { g: 560, i: 280 }, upG: 1.78, countG: NEW_BUILDING_GROWTH, blurb: 'Hidden. Does no damage — holds them still in front of whatever does.' },
+
+  /*
    * VANITY_NOTE — TUNABLE, and not in the build document.
    *
    * Added because a maxed hold has nowhere to put its gold. Every other sink
@@ -194,6 +211,10 @@ export const CAP: Record<Exclude<BuildingType, 'keep'>, readonly number[]> = {
   // Late, few, and expensive. A Mortar is meant to be the piece a layout is
   // built around, not another thing to line the perimeter with.
   mortar: [0,  0,  0,  0,  1,   1,   2,   2,   3,   4],
+  // Few, and late enough that a player has a layout worth defending before
+  // they get to hide anything in it.
+  spike:  [0,  0,  0,  0,  2,   3,   4,   5,   6,   8],
+  snare:  [0,  0,  0,  0,  0,   2,   3,   4,   5,   6],
   wall:   [0, 20, 40, 65, 95, 130, 170, 215, 265, 320],
   // Vanity opens at Keep 3, by which point a player has somewhere to put it
   // and something to spare. The counts rise slowly: the sink is meant to be

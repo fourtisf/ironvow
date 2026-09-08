@@ -41,6 +41,6 @@ export const bannerColor = (enemy: boolean): string => (enemy ? '#c2412d' : '#3f
  * forge's chimneys are what set those two.
  */
 export const PIPH: Record<string, number> = {
-  keep: 172, mine: 96, forge: 112, store: 82, barr: 122, camp: 66, lab: 108, cannon: 56, tower: 132, mortar: 62, wall: 0,
+  keep: 172, mine: 96, forge: 112, store: 82, barr: 122, camp: 66, lab: 108, cannon: 56, tower: 132, mortar: 62, spike: 26, snare: 26, wall: 0,
   statue: 128, brazier: 58, standard: 96,
 };

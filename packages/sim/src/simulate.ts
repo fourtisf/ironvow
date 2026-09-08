@@ -8,6 +8,7 @@ import {
   HORN_SPEED,
   ITEM,
   ITEM_TYPES,
+  TRAP,
   DEPLOY_CLEARANCE,
   DEPLOY_MARGIN,
   N,
@@ -25,13 +26,17 @@ import {
   hpOf,
   isDefensive,
   isItemType,
+  isTrap,
   isRanged,
   isTroopType,
   starsFor,
   stepToward,
+  trapDamage,
+  trapSeconds,
   troopPower,
   type BuildingType,
   type ItemType,
+  type TrapType,
   type TroopType,
 } from '@ironvow/config';
 import type {
@@ -42,6 +47,7 @@ import type {
   ItemCommand,
   RejectedCommand,
   SimInput,
+  SnapshotBuilding,
   SimResult,
   SimTimeline,
   TimelineEvent,
@@ -133,6 +139,28 @@ export interface SimUnit {
   moving: boolean;
 }
 
+/**
+ * A trap on the field.
+ *
+ * `sprung` is the tick it fired on, or -1 while it is still armed. Kept rather
+ * than deleted so the renderer can reveal one at the moment it goes off and
+ * leave it revealed — and so a replay shows the same thing happening at the
+ * same instant.
+ */
+export interface SimTrap {
+  i: number;
+  id: string;
+  t: TrapType;
+  lv: number;
+  x: number;
+  y: number;
+  /** Trigger radius: how close they must come. */
+  r: number;
+  /** Effect radius: how far it reaches once it goes off. Wider than `r`. */
+  blast: number;
+  sprung: number;
+}
+
 export interface SimProj {
   x: number;
   y: number;
@@ -206,6 +234,15 @@ export interface Battle {
   itemsLeft(): Readonly<Record<ItemType, number>>;
   /** Warhorn circles still burning, for the renderer. */
   auras(): readonly { x: number; y: number; r: number; left: number }[];
+  /**
+   * Every trap on the field, sprung or not.
+   *
+   * The renderer decides what to show: an attacker sees only the ones that
+   * have fired, a defender watching their own hold sees the lot.
+   */
+  traps(): readonly SimTrap[];
+  /** Snares still holding, for the renderer. */
+  snares(): readonly { x: number; y: number; r: number; left: number }[];
   /** Whether the hero is still available to commit. */
   heroReady(): boolean;
   result(): SimOutcome;
@@ -249,9 +286,38 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   const events: TimelineEvent[] = [];
   const wantTimeline = options.timeline === true;
 
+  /* ---- traps, taken out of the building list before anything else looks at it ----
+   *
+   * A trap is not a structure. It cannot be attacked, it has no hit points
+   * anything reads, and it counts for nothing towards destruction — so it must
+   * never enter `structs`, or a raid would be scored on buildings the attacker
+   * had no way to destroy and a Lancer would walk across the map to hit a hole
+   * in the ground.
+   */
+  const traps: SimTrap[] = [];
+  const standing: SnapshotBuilding[] = [];
+  for (const b of snapshot.buildings) {
+    if (isTrap(b.type)) {
+      const size = TYPES[b.type].s;
+      traps.push({
+        i: traps.length,
+        id: b.id,
+        t: b.type as TrapType,
+        lv: b.level,
+        x: b.gx + size / 2,
+        y: b.gy + size / 2,
+        r: TRAP[b.type as TrapType].r,
+        blast: TRAP[b.type as TrapType].blast,
+        sprung: -1,
+      });
+    } else {
+      standing.push(b);
+    }
+  }
+
   /* ---- structures ---- */
-  const carriers = snapshot.buildings.reduce((n, b) => (b.type === 'wall' ? n : n + 1), 0) || 1;
-  const structs: SimStruct[] = snapshot.buildings.map((b, i) => {
+  const carriers = standing.reduce((n, b) => (b.type === 'wall' ? n : n + 1), 0) || 1;
+  const structs: SimStruct[] = standing.map((b, i) => {
     const size = TYPES[b.type].s;
     const maxHp = hpOf(b.type, b.level);
     return {
@@ -348,6 +414,8 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
   const pouchLeft: Record<string, number> = {};
   for (const t of ITEM_TYPES) pouchLeft[t] = input.pouch?.[t] ?? 0;
   const auras: { x: number; y: number; r: number; until: number }[] = [];
+  /** Live Snares. The same shape as an aura, with a multiplier instead of a flag. */
+  const snares: { x: number; y: number; r: number; until: number; slow: number }[] = [];
 
   const itemsByTick = new Map<number, { cmd: ItemCommand; index: number }[]>();
   {
@@ -475,6 +543,72 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       }
       if (wantTimeline) events.push({ t: tick, k: 'item', item: cmd.item, x: cmd.gx, y: cmd.gy, r: spec.r });
     }
+  };
+
+  /**
+   * Spring whatever an attacker has just walked onto.
+   *
+   * Checked after the deploys and the items and before the units move, so a
+   * trap fires on the tick a man arrives on it rather than a tick later. Traps
+   * are walked in index order and units in index order, so the same battle
+   * state always springs the same traps in the same sequence.
+   *
+   * Only the attacking side sets one off. A garrison standing on its own
+   * defender's spikes would be a comedy, and worse, it would make donating
+   * troops to a hold with traps in it actively harmful.
+   */
+  const springTraps = (tick: number): void => {
+    for (const tr of traps) {
+      if (tr.sprung >= 0) continue;
+      let hit = false;
+      for (const u of units) {
+        if (u.dead || u.side !== mySide) continue;
+        if (dist(u.x, u.y, tr.x, tr.y) <= tr.r) { hit = true; break; }
+      }
+      if (!hit) continue;
+
+      tr.sprung = tick;
+      check.addInt(tick).addInt(tr.i);
+      if (wantTimeline) events.push({ t: tick, k: 'trap', trap: tr.i, item: tr.t, x: tr.x, y: tr.y, r: tr.blast });
+
+      if (tr.t === 'snare') {
+        /*
+         * Reuses the Warhorn's machinery, deliberately: a Snare is an area with
+         * a lifetime that multiplies a speed, which is exactly what a Warhorn
+         * is with the sign flipped. One mechanism, so a unit can never be in a
+         * state where one of them applies and the other silently does not.
+         */
+        snares.push({
+          x: tr.x, y: tr.y, r: tr.blast,
+          until: tick + Math.round(trapSeconds(tr.t, tr.lv) * TICKS_PER_SECOND),
+          slow: TRAP.snare.slow,
+        });
+      } else {
+        const dmg = trapDamage(tr.t, tr.lv);
+        for (const u of units) {
+          if (u.dead || u.side !== mySide) continue;
+          if (dist(u.x, u.y, tr.x, tr.y) <= tr.blast) hurtUnit(u, dmg, tick);
+        }
+      }
+    }
+  };
+
+  /**
+   * How slow a Snare is holding this unit, or 1.
+   *
+   * Read fresh from where the unit is standing, like a Warhorn: walking out of
+   * one ends it. Snares do not stack — the deepest one wins — so a cluster of
+   * them is a wider net rather than a unit frozen solid, which is the
+   * difference between a trap and a win button.
+   */
+  const snareAt = (u: SimUnit, tick: number): number => {
+    if (u.side !== mySide) return 1;
+    let worst = 1;
+    for (const sn of snares) {
+      if (tick >= sn.until) continue;
+      if (dist(u.x, u.y, sn.x, sn.y) <= sn.r && sn.slow < worst) worst = sn.slow;
+    }
+    return worst;
   };
 
   /**
@@ -612,6 +746,9 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     // After the deploys, before the units move: an item played on the same tick
     // as a deploy is meant to catch the troops it was played for.
     applyItems(tick);
+    // After the items: a Warhorn played on the tick a man steps onto a Spike
+    // Trap should have been worth something before he takes the hit.
+    springTraps(tick);
 
     /* --- units --- */
     for (const u of units) {
@@ -621,7 +758,11 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       // rather than stamped onto it when the horn was blown. Walking out of the
       // circle ends it; walking in starts it.
       const horn = auras.length > 0 && hornAt(u, tick);
-      const spd = horn ? d.spd * HORN_SPEED : d.spd;
+      // A Snare and a Warhorn multiply the same number, so a man dragged out of
+      // a snare by a horn moves at a sensible fraction rather than at whichever
+      // effect the code happened to check last.
+      const held = snares.length > 0 ? snareAt(u, tick) : 1;
+      const spd = (horn ? d.spd * HORN_SPEED : d.spd) * held;
       const dmg = horn ? u.dmg * HORN_DAMAGE : u.dmg;
 
       if (u.side === 'def') {
@@ -914,6 +1055,28 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     return out;
   };
 
+  /**
+   * The traps on this field.
+   *
+   * Handed out whole rather than filtered to the sprung ones, because the
+   * defender watching a replay of their own hold should see where every trap
+   * was, and the attacker's client is the one that decides to draw only the
+   * ones that have gone off. Hiding here would mean two different arrays for
+   * two views of the same battle.
+   */
+  const trapList = (): readonly SimTrap[] => traps;
+
+  /**
+   * Snares still holding, for the renderer.
+   *
+   * Separate from the auras because they are the other side's and they mean the
+   * opposite thing. A Snare that slowed a warband with nothing on screen to
+   * explain it would read as the game stuttering.
+   */
+  const liveSnares = (): readonly { x: number; y: number; r: number; left: number }[] =>
+    snares.filter((n) => tick < n.until)
+      .map((n) => ({ x: n.x, y: n.y, r: n.r, left: (n.until - tick) * DT }));
+
   /** Warhorn circles still burning, for the renderer to draw. */
   const liveAuras = (): readonly { x: number; y: number; r: number; left: number }[] =>
     auras.filter((a) => tick < a.until).map((a) => ({ x: a.x, y: a.y, r: a.r, left: (a.until - tick) * DT }));
@@ -935,7 +1098,9 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
     deploy,
     useItem,
     itemsLeft,
+    traps: trapList,
     auras: liveAuras,
+    snares: liveSnares,
     result,
   };
 }

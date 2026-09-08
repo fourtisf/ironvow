@@ -1,4 +1,4 @@
-import { DEF_STAT, DEPLOY_CLEARANCE, HORN_SECONDS, PROD, TH, TROOP, TROOP_ORDER, TW, TYPES, heroStats, type BuildingType } from '@ironvow/config';
+import { DEF_STAT, DEPLOY_CLEARANCE, HORN_SECONDS, PROD, TH, TROOP, TROOP_ORDER, TW, TYPES, heroStats, isTrap, trapSeconds, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
@@ -45,6 +45,7 @@ type BaseEntity =
 type BattleEntity =
   | { d: number; k: 'deco'; i: number }
   | { d: number; k: 'struct'; i: number }
+  | { d: number; k: 'trap'; i: number }
   | { d: number; k: 'unit'; i: number };
 
 /*
@@ -451,6 +452,19 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
   }
   const walls = new Set<number>();
   snapshot.buildings.forEach((b, i) => {
+    /*
+     * The scout does not show traps.
+     *
+     * This is the one screen the whole feature hangs off. A raid opens with a
+     * look at the defender's layout, and if a Spike Trap were drawn on it the
+     * attacker would simply walk round it — the defender's guess about where
+     * somebody would come in would be answered before it was ever tested.
+     *
+     * `previewEnemy` is exactly the right switch: it is false when this is the
+     * player's own hold, on the landing page or in the banner workbench, and
+     * there the traps should be visible like anything else they own.
+     */
+    if (w.previewEnemy && isTrap(b.type)) return;
     if (b.type === 'wall') walls.add(wallKey(b.gx, b.gy));
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) return;
     ents.push({ d: b.gx + b.gy + TYPES[b.type].s * 0.5, k: 'struct', i });
@@ -667,6 +681,14 @@ function drawItems(w: World, d: Draw, battle: Battle): void {
     ctx.stroke();
   };
 
+  for (const n of battle.snares()) {
+    // Cold, where a Warhorn is warm. The two areas do opposite things and a
+    // player has to tell at a glance which one their troops are standing in.
+    const life = Math.max(0, Math.min(1, n.left / trapSeconds('snare', 1)));
+    ring(n.x, n.y, n.r, `rgba(120,200,255,${0.08 + life * 0.10})`,
+      `rgba(150,215,255,${0.3 + life * 0.4})`, 2);
+  }
+
   for (const a of battle.auras()) {
     // Fading as it runs out, so "how long have I got" is something you can see
     // rather than something you have to count.
@@ -679,10 +701,15 @@ function drawItems(w: World, d: Draw, battle: Battle): void {
     const b = w.bursts[i]!;
     const age = (w.t - b.born) / BURST_SECONDS;
     if (age >= 1) { w.bursts.splice(i, 1); continue; }
-    if (b.item !== 'firepot') continue;
+    // A Warhorn leaves a lasting circle drawn from the simulation above; the
+    // rest are one-off flashes, and each is coloured for what it did.
+    if (b.item === 'horn') continue;
+    const paint = b.item === 'snare'
+      ? { fill: 'rgba(120,200,255,', edge: 'rgba(190,230,255,' }
+      : { fill: 'rgba(255,140,60,', edge: 'rgba(255,217,122,' };
     // Expanding and fading: the shape of something that went off.
-    ring(b.x, b.y, b.r * (0.55 + age * 0.45), `rgba(255,140,60,${(1 - age) * 0.4})`,
-      `rgba(255,217,122,${1 - age})`, 3);
+    ring(b.x, b.y, b.r * (0.55 + age * 0.45), `${paint.fill}${(1 - age) * 0.4})`,
+      `${paint.edge}${1 - age})`, 3);
   }
 }
 
@@ -713,6 +740,24 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
     if (s.dead || !structOnScreen(w.cam, w.vp, s.gx, s.gy, s.size)) return;
     ents.push({ d: s.gx + s.gy + s.size * 0.5, k: 'struct', i });
   });
+  /*
+   * Traps, and the one rule that makes them a feature.
+   *
+   * On a raid the attacker sees a trap only once it has fired. On a drill or a
+   * defence it is the player's own hold and every one of them is drawn, because
+   * the whole point of laying them out is being able to see the layout.
+   *
+   * The hiding is here, in the renderer, and nowhere else: the simulation has
+   * to know where they are on both sides or a live raid and its replay would
+   * fire them on different ticks. That makes this a fairness rule rather than a
+   * security one — see traps.ts in @ironvow/config.
+   */
+  const mine = battle.kind !== 'raid';
+  battle.traps().forEach((t, i) => {
+    if (!mine && t.sprung < 0) return;
+    ents.push({ d: t.x + t.y, k: 'trap', i });
+  });
+
   battle.units.forEach((u, i) => {
     if (!u.dead) ents.push({ d: u.x + u.y, k: 'unit', i });
   });
@@ -721,6 +766,10 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
   for (const e of ents) {
     if (e.k === 'deco') {
       blitDeco(d, w.terrain.deco[e.i]!);
+    } else if (e.k === 'trap') {
+      const t = battle.traps()[e.i]!;
+      const size = TYPES[t.t].s;
+      drawStruct(w, d, t.t, t.lv, battle.kind === 'raid', t.x - size / 2, t.y - size / 2);
     } else if (e.k === 'unit') {
       const u = battle.units[e.i]!;
       /*

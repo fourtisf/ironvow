@@ -810,6 +810,73 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     ctx.beginPath(); ctx.ellipse(px, top + 3 * z, (10 + tier) * z, (7 + tier * 0.6) * z, 0, 0, 6.29);
     ctx.fill(); ctx.stroke();
 
+  } else if (b.type === 'spike' || b.type === 'snare') {
+    /*
+     * A trap, on the defender's own field.
+     *
+     * Deliberately low and flat: it has to read as something set *into* the
+     * ground rather than built on it, because that is what it is, and because
+     * a player laying one out needs to see that it does not block a path the
+     * way a Rampart does.
+     *
+     * The attacker never sees this at all until it fires — see `drawStruct` in
+     * lib/game/render.ts. Hidden in the renderer, which is a fairness rule and
+     * not a security one; see traps.ts in @ironvow/config for why that is the
+     * honest way to describe it.
+     */
+    const lid = 5 + lv * 0.5;
+    const spike = b.type === 'spike';
+    // The pit rim, in earth rather than dressed stone: it is buried.
+    isoBox(d, gx + 0.08, gy + 0.08, s - 0.16, s - 0.16, lid,
+      spike ? '#6b5a3f' : '#4a5f45', spike ? '#43371f' : '#2c3b29', spike ? '#54452e' : '#3a4d36');
+
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const top = py - lid * z;
+
+    // The mouth of the pit, dark, so there is a hole to look into.
+    ctx.fillStyle = '#141c27';
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1, 1.6 * z);
+    ctx.beginPath();
+    ctx.ellipse(px, top, 11 * z, 6 * z, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+
+    if (spike) {
+      // Points coming up out of it, one more pair each tier.
+      for (let i = 0; i < 4 + tier * 2; i++) {
+        const a2 = (i / (4 + tier * 2)) * 6.283 + 0.4;
+        const bx = px + Math.cos(a2) * 6.6 * z;
+        const by = top + Math.sin(a2) * 3.4 * z;
+        ctx.fillStyle = tier >= 2 ? '#c3ccd6' : '#8d9aa8';
+        ctx.beginPath();
+        ctx.moveTo(bx - 2.2 * z, by);
+        ctx.lineTo(bx, by - (9 + tier * 1.6) * z);
+        ctx.lineTo(bx + 2.2 * z, by);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    } else {
+      // A net drawn across the mouth: two crossing runs of cord.
+      ctx.strokeStyle = tier >= 2 ? '#d8c79b' : '#a8b096';
+      ctx.lineWidth = Math.max(1, 1.5 * z);
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(px + i * 4.4 * z, top - 5.6 * z);
+        ctx.lineTo(px + i * 4.4 * z, top + 5.6 * z);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(px - 10 * z, top + i * 2.5 * z);
+        ctx.lineTo(px + 10 * z, top + i * 2.5 * z);
+        ctx.stroke();
+      }
+      // The stake it is pegged to, so it does not read as a manhole.
+      ctx.strokeStyle = '#6b5a3f';
+      ctx.lineWidth = Math.max(1.4, 2.2 * z);
+      ctx.beginPath();
+      ctx.moveTo(px + 9 * z, top + 2 * z);
+      ctx.lineTo(px + 9 * z, top - (10 + tier * 2) * z);
+      ctx.stroke();
+    }
+
   } else if (b.type === 'mortar') {
     /*
      * A squat, wide-mouthed tube sunk in a stone pit.

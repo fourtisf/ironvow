@@ -1,6 +1,6 @@
 'use client';
 
-import { KEEP_MAX, TYPES, campSlots, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD } from '@ironvow/config';
+import { KEEP_MAX, TYPES, campSlots, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD, isTrap, trapDamage, trapSeconds } from '@ironvow/config';
 import { useEffect, useState } from 'react';
 import { fmt, until } from '../lib/format';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
@@ -110,6 +110,12 @@ export function Inspector({
       // A Mortar's dead zone belongs on the same line as its reach: "range 9.2"
       // on its own is the half of the story that flatters it.
       ? `${Math.round(defence(building.level).dmg)}${defence(building.level).splash ? ' splash' : ''} damage · range ${defence(building.level).min ? `${defence(building.level).min}–` : ''}${defence(building.level).rng}`
+      : isTrap(building.type)
+        // A trap has no range and no rate. What a player wants to know is what
+        // it does when somebody finds it, and that they cannot see it coming.
+        ? building.type === 'snare'
+          ? `Holds them ${trapSeconds('snare', building.level).toFixed(1)}s · hidden until it springs`
+          : `${trapDamage('spike', building.level)} damage · hidden until it springs`
       : building.type === 'camp'
         ? `${campSlots(building.level)} warband slots`
         : building.type === 'store'

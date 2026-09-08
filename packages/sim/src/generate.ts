@@ -112,6 +112,17 @@ export function generateBase(stage: number, seed = 0): SnapshotBuilding[] {
    * by being easy.
    */
   if (stage >= 5) ring('mortar', about(Math.floor(stage / 4), 1, 3), L.def - 1.4, 2.6);
+
+  /*
+   * Traps, on the approaches rather than in the middle.
+   *
+   * A generated hold has to lay them somewhere a raider will actually walk, or
+   * the feature never shows up in single-player at all and a new player meets
+   * their first Spike Trap only when a real defender catches them with one.
+   * Out past the ramparts, where troops mass before they break in.
+   */
+  if (stage >= 5) ring('spike', about(Math.floor(stage / 3), 1, 5), L.wall + 1.6, 1.3);
+  if (stage >= 6) ring('snare', about(Math.floor(stage / 4), 1, 4), L.wall + 2.4, 3.9);
   ring('mine', about(2 + Math.floor(stage / 3), 2, 6), L.mine, 2.1);
   if (stage >= 2) ring('forge', about(Math.floor(stage / 3), 1, 4), L.forge, 4.0);
 

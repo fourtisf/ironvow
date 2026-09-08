@@ -15,6 +15,7 @@ export {
   type SimOutcome,
   type SimProj,
   type SimStruct,
+  type SimTrap,
   type SimUnit,
 } from './simulate.js';
 export { mulberry, randomSeed, seedToInt32, type Rng } from './rng.js';

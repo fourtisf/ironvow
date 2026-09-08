@@ -63,6 +63,7 @@ function CostLine({ cost, affordable }: { cost: Cost; affordable: boolean }) {
  */
 export const BUILDABLE: BuildingType[] = [
   'mine', 'forge', 'store', 'camp', 'barr', 'lab', 'cannon', 'tower', 'mortar', 'wall',
+  'spike', 'snare',
 ];
 
 /** Bought to be looked at. Shown separately, and only once one is unlocked. */

@@ -10,9 +10,16 @@ import { serialise } from './auth.js';
 /**
  * Saved layouts (spec S8.7).
  *
- * Two slots: one arrangement for defence, one for farming. A defensive layout
- * rings the Keep and the Vaults; a farming one pushes the mines out where they
- * are cheap to give away, so a raider takes resources instead of stars.
+ * Four slots. A defensive layout rings the Keep and the Vaults; a farming one
+ * pushes the mines out where they are cheap to give away, so a raider takes
+ * resources instead of stars.
+ *
+ * The other two came later, and both because the game grew a reason for them.
+ * A war base is scored on stars alone — no loot moves in a war — so the right
+ * shape for one is nothing like a farming base and only a little like a
+ * defensive one. And a season is a fortnight of pushing trophies, which wants
+ * the layout that loses the fewest of them rather than the one that keeps the
+ * most gold. Two slots was the right number for a game with neither.
  *
  * A layout stores positions, not buildings. Applied weeks later it moves the
  * base the player has now rather than resurrecting the one they had then:
@@ -20,7 +27,7 @@ import { serialise } from './auth.js';
  * where it is.
  */
 
-const SLOTS = ['defence', 'farming'] as const;
+const SLOTS = ['defence', 'farming', 'war', 'push'] as const;
 type Slot = (typeof SLOTS)[number];
 
 const slotSchema = z.object({ slot: z.enum(SLOTS) });
@@ -35,6 +42,8 @@ interface SavedPosition {
 const DEFAULT_NAMES: Record<Slot, string> = {
   defence: 'Defence',
   farming: 'Farming',
+  war: 'War',
+  push: 'Trophy push',
 };
 
 export async function layoutRoutes(app: FastifyInstance): Promise<void> {

@@ -165,7 +165,8 @@ model Building {
 model Layout {
   id        String   @id @default(cuid())
   playerId  String
-  /// defence | farming — two slots, as the specification asks for.
+  /// defence | farming | war | push. Free text rather than an enum, which is
+  /// why adding the last two needed no migration at all.
   slot      String
   name      String
   /// [{ id, gx, gy }] for every building at the moment it was saved.

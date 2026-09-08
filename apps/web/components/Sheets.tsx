@@ -21,7 +21,7 @@ import {
   type RelicType,
 } from '@ironvow/config';
 import { fmt, longUntil, until } from '../lib/format';
-import type { BreachView, RelicsView, SeasonState } from '../lib/api';
+import type { BreachView, PlayerHit, PlayerProfile, RelicsView, SeasonState } from '../lib/api';
 import type { PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
 import { TroopArt } from './TroopArt';
@@ -886,12 +886,72 @@ export interface LadderRow {
   isMe: boolean;
 }
 
+/**
+ * The page behind a name.
+ *
+ * You could raid somebody and never learn a thing about them beyond a name and
+ * a star count. This is what a name is worth: how far up they are, who they
+ * fight with, and how their hold has fared.
+ *
+ * Deliberately not a layout. A profile that scouted for free would make the
+ * reroll cost meaningless, and the server does not send one.
+ */
+export function ProfileSheet({ p, onClose }: { p: PlayerProfile; onClose: () => void }) {
+  const rate = p.raids > 0 ? Math.round((p.wins / p.raids) * 100) : null;
+  const since = new Date(p.since);
+
+  return (
+    <div className="sheet">
+      <div className="sheetHead">
+        <div>
+          <h2>{p.name.toUpperCase()}</h2>
+          <p>
+            Keep {p.keepLevel} · Vowkeeper {p.heroLevel} · holding since{' '}
+            {since.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+          </p>
+        </div>
+        <button className="xbtn" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="qrow" style={{ borderColor: '#e8b23c' }}>
+        <div className="qi">
+          <h4>#{p.rank} ON THE LADDER</h4>
+          <p>{p.trophies} trophies now · {p.seasonPeak} at their best this season</p>
+        </div>
+      </div>
+
+      {p.clan ? (
+        <div className="qrow">
+          <div className="qi">
+            <h4>{p.clan.name} [{p.clan.tag}]</h4>
+            <p>{p.clan.role === 'leader' ? 'Leads it' : p.clan.role === 'elder' ? 'An elder' : 'A member'}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="qrow done"><div className="qi">
+          <h4>No clan</h4><p>Fights alone.</p></div></div>
+      )}
+
+      <div className="qrow">
+        <div className="qi">
+          <h4>{p.raids} RAIDS</h4>
+          <p>
+            {p.wins} won{rate !== null && ` · ${rate}%`} · {p.threeStars} flattened outright
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export interface LadderSheetProps {
   top: LadderRow[];
   me: { name: string; trophies: number; rank: number } | null;
   total: number;
   /** Null while it is still loading, or if the request failed. The board works without it. */
   season: SeasonState | null;
+  onFind: (q: string) => Promise<PlayerHit[]>;
+  onOpen: (id: string) => void;
   onClose: () => void;
 }
 
@@ -966,8 +1026,23 @@ export function SeasonBanner({ season }: { season: SeasonState }) {
  * A player far down the list still gets their own rank pinned at the top,
  * because that is the number they actually came to see.
  */
-export function LadderSheet({ top, me, total, season, onClose }: LadderSheetProps) {
+export function LadderSheet({ top, me, total, season, onFind, onOpen, onClose }: LadderSheetProps) {
   const inTop = top.some((p) => p.isMe);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<PlayerHit[] | null>(null);
+
+  /*
+   * Search sits on the ladder rather than in a sheet of its own.
+   *
+   * It is the same question the board answers — who is out there — asked about
+   * one person instead of the top fifty, and a player who wants to look
+   * somebody up opens the leaderboard first anyway.
+   */
+  const look = (next: string): void => {
+    setQ(next);
+    if (next.trim().length < 2) { setHits(null); return; }
+    void onFind(next).then(setHits).catch(() => setHits([]));
+  };
 
   return (
     <div className="sheet">
@@ -980,6 +1055,31 @@ export function LadderSheet({ top, me, total, season, onClose }: LadderSheetProp
       </div>
 
       {season && <SeasonBanner season={season} />}
+
+      {/* The same row the clan search uses, because it is the same gesture. */}
+      <div className="formRow">
+        <input
+          value={q}
+          onChange={(e) => look(e.target.value)}
+          placeholder="Find a hold by name"
+          aria-label="Find a player"
+        />
+      </div>
+
+      {hits !== null && (
+        hits.length === 0
+          ? <div className="qrow"><div className="qi"><h4>No hold by that name</h4>
+              <p>Names are exact. Ask them how theirs is spelled.</p></div></div>
+          : hits.map((p) => (
+              <div className={`qrow${p.isMe ? ' me' : ''}`} key={p.id}>
+                <div className="qi">
+                  <h4>{p.name}</h4>
+                  <p>Keep {p.keepLevel} · {p.trophies} trophies</p>
+                </div>
+                <button className="btn grey" onClick={() => onOpen(p.id)}>LOOK</button>
+              </div>
+            ))
+      )}
 
       {me && !inTop && (
         <div className="qrow" style={{ borderColor: '#e8b23c', marginBottom: 12 }}>
@@ -996,13 +1096,15 @@ export function LadderSheet({ top, me, total, season, onClose }: LadderSheetProp
       )}
 
       {top.map((p) => (
-        <div className={`qrow${p.isMe ? ' me' : ''}`} key={p.id}>
+        // The whole row, because a name on a board that cannot be tapped is a
+        // name the player has already tried to tap.
+        <button className={`qrow tap${p.isMe ? ' me' : ''}`} key={p.id} onClick={() => onOpen(p.id)}>
           <div className="qi">
             <h4>#{p.rank} · {p.name}</h4>
             <p>Keep {p.keepLevel}</p>
           </div>
           <span className="qrw">{p.trophies}</span>
-        </div>
+        </button>
       ))}
     </div>
   );

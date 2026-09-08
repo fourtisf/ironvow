@@ -217,6 +217,11 @@
      one block on that sheet that is about a deadline, not about a rank. */
   /* The two relic slots, side by side on the carrying row. Tapping a full one
      puts the relic down, which is the only way to empty a slot. */
+  /* A ladder row that opens a profile. A button, so it is reachable by
+     keyboard, but it must look exactly like the rows either side of it. */
+  .qrow.tap{width:100%;text-align:left;font:inherit;cursor:pointer}
+  .qrow.tap:active{transform:translateY(2px)}
+
   .slotRow{display:flex;gap:6px;flex:none}
   .slot{min-width:74px;height:38px;border-radius:11px;font-size:9.5px;letter-spacing:.9px;
     background:#18233a;border:2px solid #34486a;color:#8fa6c4;padding:0 8px}

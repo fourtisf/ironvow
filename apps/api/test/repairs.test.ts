@@ -392,11 +392,13 @@ describe.skipIf(!hasDatabase)('saved layouts', () => {
     expect(applied.statusCode).toBe(200);
   });
 
-  it('reports both slots, saved or not', async () => {
+  it('reports every slot, saved or not', async () => {
     const playerId = await makePlayer('Planner', { keepLevel: 5 });
     const cookie = await loginAs(app, playerId);
     const before = (await app.inject({ method: 'GET', url: '/layouts', headers: { cookie } })).json();
-    expect(before.layouts.map((l: { slot: string }) => l.slot)).toEqual(['defence', 'farming']);
+    // Four now: war and push were added when the game grew a reason for each.
+    expect(before.layouts.map((l: { slot: string }) => l.slot))
+      .toEqual(['defence', 'farming', 'war', 'push']);
     expect(before.layouts.every((l: { saved: boolean }) => !l.saved)).toBe(true);
   });
 });

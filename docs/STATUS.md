@@ -1807,6 +1807,37 @@ for, rather than nothing at all.
   multiplies by one, so every existing caller and every raid recorded before
   relics existed keeps exactly the numbers it always had.
 
+## Three small things the game had grown out of
+
+**You could not look anybody up.** There was a ladder and a clan list and no way
+to find one specific person: a friend could tell you the name of their hold and
+there was nothing you could do with it. `GET /players?q=` is mostly an exact
+lookup — names are unique — with a case-insensitive prefix search behind it for
+the half-remembered ones. Two letters minimum, because the first keystroke would
+otherwise return a slice of the whole player table.
+
+**A name was all you ever learned about anybody.** You could raid somebody and
+come away knowing their name and a star count. `GET /player/:id` is the page
+behind the name: ladder rank, season peak, clan and role, and how their hold has
+fared. The rule that shapes it is that **a profile is a way to find somebody,
+not a way to scout them** — nothing in it is anything a raid would not already
+reveal, and it never contains a layout. One that scouted for free would make the
+reroll cost meaningless.
+
+Both live on the ladder sheet rather than in a sheet of their own, because they
+answer the same question the board answers — who is out there — asked about one
+person instead of the top fifty. Rows on the board are tappable now, since a
+name that cannot be tapped is a name a player has already tried to tap.
+
+**Two layout slots, four things worth laying out for.** Two was right for a game
+with a defence base and a farming base. It stopped being right when wars arrived
+— a war base is scored on stars alone, because no loot moves in a war, so its
+shape is nothing like a farming base and only a little like a defensive one —
+and again with seasons, which are a fortnight of pushing trophies and want the
+layout that loses the fewest rather than the one that keeps the most gold. There
+are four now: `defence`, `farming`, `war`, `push`. The `slot` column was free
+text rather than an enum, so this needed no migration at all.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

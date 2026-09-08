@@ -12,7 +12,7 @@
 export type PushState = 'unsupported' | 'unavailable' | 'denied' | 'off' | 'on';
 
 export interface LayoutSlot {
-  slot: 'defence' | 'farming';
+  slot: 'defence' | 'farming' | 'war' | 'push';
   name: string;
   saved: boolean;
   buildings: number;
@@ -155,14 +155,16 @@ export function SettingsSheet({
       )}
 
       {/*
-        Saved layouts (S8.7). One arrangement rings the Keep and the Vaults;
-        the other pushes the mines out where they are cheap to give away, so a
-        raider takes resources instead of stars.
+        Saved layouts (S8.7). Four of them now, because the game grew four
+        things worth laying out for: defence rings the Keep and the Vaults,
+        farming pushes the mines out where they are cheap to give away, a war
+        base is scored on stars alone since no loot moves in a war, and a push
+        base is the one that loses the fewest trophies over a season.
       */}
       <div className="sheetHead" style={{ marginTop: 14 }}>
         <div>
           <h2>LAYOUTS</h2>
-          <p>Two arrangements you can switch between</p>
+          <p>Four arrangements you can switch between</p>
         </div>
       </div>
 

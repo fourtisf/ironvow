@@ -119,6 +119,26 @@ export interface ClanLadderRow {
   memberCount: number; trophies: number; rank: number; isMine: boolean;
 }
 
+export interface PlayerHit {
+  id: string; name: string; trophies: number; keepLevel: number; isMe: boolean;
+}
+
+export interface PlayerProfile {
+  id: string;
+  name: string;
+  trophies: number;
+  seasonPeak: number;
+  keepLevel: number;
+  heroLevel: number;
+  rank: number;
+  since: string;
+  raids: number;
+  wins: number;
+  threeStars: number;
+  clan: { id: string; name: string; tag: string; badge: number; role: string } | null;
+  isMe: boolean;
+}
+
 export interface BreachRow {
   type: BuildingType;
   /** The building's name, resolved server-side so this file holds no copy. */
@@ -139,6 +159,9 @@ export interface BreachView {
   /** True when the hold that fell was the reader's own. */
   mine: boolean;
 }
+
+/** The four things a hold is worth laying out for. */
+export type LayoutSlot = 'defence' | 'farming' | 'war' | 'push';
 
 export interface RelicsView {
   unlocked: boolean;
@@ -368,8 +391,14 @@ export const api = {
   /** Why a hold fell: which side, what never fired, what was never found. */
   report: (raidId: string): Promise<BreachView> => call(`/raid/${raidId}/report`),
 
+  /** Find a hold by the name somebody told you. Two letters minimum. */
+  findPlayers: (q: string): Promise<{ players: PlayerHit[] }> =>
+    call(`/players?q=${encodeURIComponent(q)}`),
+  /** The page behind a name. Never a layout — that is what scouting is for. */
+  player: (id: string): Promise<PlayerProfile> => call(`/player/${id}`),
+
   layouts: (): Promise<{
-    layouts: { slot: 'defence' | 'farming'; name: string; saved: boolean; buildings: number; savedAt: string | null }[];
+    layouts: { slot: LayoutSlot; name: string; saved: boolean; buildings: number; savedAt: string | null }[];
   }> => call('/layouts'),
   saveLayout: (slot: string, name?: string): Promise<{ ok: true; buildings: number }> =>
     post('/layouts/save', { slot, name }),

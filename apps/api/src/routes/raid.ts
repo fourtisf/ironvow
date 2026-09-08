@@ -908,6 +908,82 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  /**
+   * Find a player by name.
+   *
+   * The game had a ladder and a clan list and no way to look for one specific
+   * person: a friend could tell you their hold's name and there was nothing you
+   * could do with it. Names are unique, so this is mostly an exact lookup with
+   * a prefix search behind it for the half-remembered ones.
+   *
+   * Public fields only, and deliberately fewer than the ladder shows about the
+   * same people — this is a way to find somebody, not a way to scout them.
+   */
+  app.get('/players', async (request, reply) => {
+    const raw = String((request.query as { q?: string } | undefined)?.q ?? '').trim();
+    if (raw.length < 2) return reply.send({ players: [] });
+
+    const players = await prisma.player.findMany({
+      where: { name: { contains: raw.slice(0, 24), mode: 'insensitive' } },
+      orderBy: [{ trophies: 'desc' }, { createdAt: 'asc' }],
+      take: 20,
+      select: { id: true, name: true, trophies: true, keepLevel: true },
+    });
+    return reply.send({
+      players: players.map((p) => ({ ...p, isMe: p.id === request.playerId })),
+    });
+  });
+
+  /**
+   * One player, as anybody may see them.
+   *
+   * You can raid somebody and never learn a thing about them beyond a name and
+   * a star count. This is the page behind the name: how far up the ladder they
+   * are this season, what clan they are in, and how their hold has fared.
+   *
+   * Nothing here is anything a raid would not already reveal, and nothing here
+   * is their layout — a profile that scouted for free would make the reroll
+   * cost meaningless.
+   */
+  app.get<{ Params: { id: string } }>('/player/:id', async (request, reply) => {
+    const p = await prisma.player.findUnique({
+      where: { id: request.params.id },
+      select: {
+        id: true, name: true, trophies: true, seasonPeak: true, keepLevel: true,
+        heroLevel: true, createdAt: true, raids: true, wins: true, threeStars: true,
+        clanSeat: { select: { clan: { select: { id: true, name: true, tag: true, badge: true } }, role: true } },
+      },
+    });
+    if (!p) return reply.code(404).send({ error: 'noSuchPlayer' });
+
+    // The same ordering the ladder uses, so the rank shown here is the rank
+    // they would find themselves at if they opened it.
+    const ahead = await prisma.player.count({
+      where: {
+        OR: [
+          { trophies: { gt: p.trophies } },
+          { trophies: p.trophies, createdAt: { lt: p.createdAt } },
+        ],
+      },
+    });
+
+    return reply.send({
+      id: p.id,
+      name: p.name,
+      trophies: p.trophies,
+      seasonPeak: p.seasonPeak,
+      keepLevel: p.keepLevel,
+      heroLevel: p.heroLevel,
+      rank: ahead + 1,
+      since: p.createdAt.toISOString(),
+      raids: p.raids,
+      wins: p.wins,
+      threeStars: p.threeStars,
+      clan: p.clanSeat ? { ...p.clanSeat.clan, role: p.clanSeat.role } : null,
+      isMe: p.id === request.playerId,
+    });
+  });
+
   /** Everything needed to replay a stored raid client-side. */
   app.get<{ Params: { id: string } }>('/raid/:id/replay', async (request, reply) => {
     const raid = await prisma.raid.findUnique({ where: { id: request.params.id } });

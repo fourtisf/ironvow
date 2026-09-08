@@ -11,7 +11,7 @@ import {
 } from '@ironvow/config';
 import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, api, type BreachView, type DailyView, type SeasonState } from '../lib/api';
+import { ApiError, api, type BreachView, type DailyView, type PlayerProfile, type SeasonState } from '../lib/api';
 import {
   beginBattle,
   bump,
@@ -41,7 +41,7 @@ import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { Coach } from './Coach';
 import { HelpSheet } from './HelpSheet';
-import { ArmySheet, BreachSheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
+import { ArmySheet, BreachSheet, BuildSheet, LadderSheet, LogSheet, ProfileSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Toast } from './Toast';
@@ -101,6 +101,7 @@ export function Game() {
   const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
   const [season, setSeason] = useState<SeasonState | null>(null);
   const [breach, setBreach] = useState<BreachView | null>(null);
+  const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [push, setPush] = useState<PushState>('off');
   const [layouts, setLayouts] = useState<LayoutSlot[]>([]);
   const [busy, setBusy] = useState(false);
@@ -1104,12 +1105,22 @@ export function Game() {
         />
       )}
 
-      {sheet === 'ladder' && ladder && (
+      {/* Over the board, like the breach report over the log: closing it should
+        * put the reader back where they were. */}
+      {profile && <ProfileSheet p={profile} onClose={() => { sfx.tap(); setProfile(null); }} />}
+
+      {sheet === 'ladder' && ladder && !profile && (
         <LadderSheet
           top={ladder.top}
           me={ladder.me}
           total={ladder.total}
           season={season}
+          onFind={(q) => api.findPlayers(q).then((r) => r.players)}
+          onOpen={(id) => {
+            void api.player(id)
+              .then((r) => { sfx.tap(); setProfile(r); })
+              .catch(() => say('That hold is gone'));
+          }}
           onClose={() => setSheet(null)}
         />
       )}

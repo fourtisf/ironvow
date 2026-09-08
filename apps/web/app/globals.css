@@ -95,7 +95,10 @@
   .card.locked{opacity:.42;filter:grayscale(.6)}
   .card.poor{border-color:#7a3c33}
   .card canvas{width:52px;height:52px}
-  .card .nm{font-size:9.5px;letter-spacing:.8px;text-align:center;line-height:1.25}
+  /* Padded either side so a two-word name wraps instead of running under the
+     count badge in the corner — "Archer Tower" was colliding with it. */
+  .card .nm{font-size:9.5px;letter-spacing:.3px;text-align:center;line-height:1.25;
+    padding:0 4px;overflow-wrap:anywhere}
   .card .cost{display:flex;align-items:center;gap:4px;font-size:10.5px;color:#ffd97a}
   .card .cost.no{color:#ff7a63}
   .card .cost svg{width:13px;height:13px}

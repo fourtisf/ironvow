@@ -124,7 +124,7 @@ export async function pushRaided(
   loot: { g: number; i: number },
 ): Promise<void> {
   await pushTo(defenderId, {
-    title: `${attackerName} raided your hold`,
+    title: `${attackerName} attacked your base`,
     body: stars === 0
       ? 'They were driven off empty-handed.'
       : `${stars}★ — they took ${loot.g} gold and ${loot.i} iron.`,

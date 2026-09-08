@@ -180,7 +180,7 @@ function Seat({ m, enemy, children }: { m: WarRosterRow; enemy: boolean; childre
     <div className={`qrow${m.isMe ? ' me' : ''}`}>
       <div className="qi">
         <h4>{m.name}{m.isMe ? ' (you)' : ''}</h4>
-        <p>Keep {m.keepLevel} · {enemy ? 'best against them' : 'best against us'}: {m.bestStars}★ {Math.round(m.bestPct * 100)}% · attacks {m.attacksUsed}/{m.attacksUsed + m.attacksLeft}</p>
+        <p>Town Hall {m.keepLevel} · {enemy ? 'best against them' : 'best against us'}: {m.bestStars}★ {Math.round(m.bestPct * 100)}% · attacks {m.attacksUsed}/{m.attacksUsed + m.attacksLeft}</p>
       </div>
       <span className="warStars" aria-label={`${m.bestStars} stars`}>
         {[0, 1, 2].map((i) => <span key={i}><StarIcon on={i < m.bestStars} /></span>)}

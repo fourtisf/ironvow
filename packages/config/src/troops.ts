@@ -51,7 +51,7 @@ export const TROOP: Record<TroopType, TroopDef> = {
   // warband with nothing to decide. Priced and statted as the ram's opposite:
   // the fastest and most fragile thing in the game, and the only one a rampart
   // does not stop.
-  scaler: { n: 'Scaler', hp: 105, dmg: 19, cd: 0.75, spd: 2.90, rng: 0.85, sp: 2, cost: { g: 130, i: 70  }, tt: 12, pref: 'any',  climb: true, col: '#c9a2e0', col2: '#6d4a8f' },
+  scaler: { n: 'Climber', hp: 105, dmg: 19, cd: 0.75, spd: 2.90, rng: 0.85, sp: 2, cost: { g: 130, i: 70  }, tt: 12, pref: 'any',  climb: true, col: '#c9a2e0', col2: '#6d4a8f' },
 };
 
 /** Barracks level required before a type can be trained. */

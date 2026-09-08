@@ -73,8 +73,8 @@ export function ScoutModal({
           : !isPlayer
           ? 'An abandoned garrison. Nobody loses what you take, and nobody is coming to answer it.'
           : vaults > 0
-            ? 'Their Vaults hold back the rest. This layout is frozen — whatever they build from here changes nothing about the fight you walk into.'
-            : 'They have no Vault, so everything they hold is on the table. This layout is frozen — whatever they build from here changes nothing.'}
+            ? 'Their Storages protect the rest. This layout is frozen — whatever they build from here changes nothing about the fight you walk into.'
+            : 'They have no Storage, so everything they own is up for grabs. This layout is frozen — whatever they build from here changes nothing.'}
       </p>
 
       <div style={{ display: 'flex', gap: 8 }}>
@@ -149,7 +149,7 @@ export function ResultModal({ stars, loot, trophyDelta, war = false, onStar, onC
   return (
     <div className="ovl">
       <div className="modal">
-        <h2>{war ? (won ? 'STARS FOR THE CLAN' : 'NOTHING FOR THE CLAN') : won ? 'HOLD TAKEN' : 'DRIVEN OFF'}</h2>
+        <h2>{war ? (won ? 'STARS FOR THE CLAN' : 'NOTHING FOR THE CLAN') : won ? 'BASE TAKEN' : 'DRIVEN OFF'}</h2>
 
         <div id="resStars">
           {[0, 1, 2].map((i) => (
@@ -174,12 +174,12 @@ export function ResultModal({ stars, loot, trophyDelta, war = false, onStar, onC
             : <>
               {trophyDelta >= 0 ? '+' : ''}{trophyDelta} trophies.{' '}
               {won
-                ? 'Their Vaults kept back what you could not reach.'
-                : 'Troops spent are gone either way — muster again before the next one.'}
+                ? 'Their Storages protected what you could not reach.'
+                : 'Troops used are gone either way — train more before the next one.'}
             </>}
         </p>
 
-        <button className="btn big" onClick={onClose}>BACK TO THE HOLD</button>
+        <button className="btn big" onClick={onClose}>BACK TO BASE</button>
       </div>
     </div>
   );
@@ -286,12 +286,12 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error, gate, unloc
     <div className="ovl">
       <div className="modal">
         <Wordmark />
-        <p className="lead">Forge. Muster. Conquer.</p>
+        <p className="lead">Build. Train. Conquer.</p>
         {!sent && !showEmail && (
           <ul className="features">
-            <li><b>Build a hold</b> that mines, forges and trains while you are away.</li>
+            <li><b>Build a base</b> that mines, forges and trains while you are away.</li>
             <li><b>Raid real players</b> — scout the base, drop your troops, take the stars.</li>
-            <li><b>Found a clan</b>, talk, and go to war one day at a time.</li>
+            <li><b>Start a clan</b>, talk, and go to war one day at a time.</li>
           </ul>
         )}
 
@@ -349,10 +349,10 @@ export function SignInModal({ onGuest, onRequest, sent, busy, error, gate, unloc
         ) : (
           <>
             <button className="btn gold big" onClick={onGuest} disabled={busy}>
-              {busy ? 'RAISING YOUR HOLD…' : 'PLAY NOW'}
+              {busy ? 'BUILDING YOUR BASE…' : 'PLAY NOW'}
             </button>
             <button className="btn grey big" onClick={() => setShowEmail(true)}>
-              I ALREADY HAVE A HOLD
+              I ALREADY HAVE A BASE
             </button>
             <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
               No sign-up. You can add an email later to keep it.
@@ -388,19 +388,19 @@ export function ClaimModal({ sent, busy, error, onSubmit, onClose }: ClaimModalP
           if (input?.value) onSubmit(input.value);
         }}
       >
-        <h2>KEEP YOUR HOLD</h2>
+        <h2>SAVE YOUR BASE</h2>
         {sent ? (
           <>
             <p className="lead">
-              Link sent. Open it on any device and this same hold — every building, every
+              Link sent. Open it on any device and this same base — every building, every
               trophy — comes with you.
             </p>
-            <button className="btn big" type="button" onClick={onClose}>BACK TO THE HOLD</button>
+            <button className="btn big" type="button" onClick={onClose}>BACK TO BASE</button>
           </>
         ) : (
           <>
             <p className="lead">
-              An email attaches this hold to you. Nothing changes in the game; it just
+              An email attaches this base to you. Nothing changes in the game; it just
               stops being tied to this one browser.
             </p>
             <input name="email" type="email" required placeholder="you@example.com" style={inputStyle} />
@@ -488,13 +488,13 @@ export function ServerDownModal({ detail, onRetry }: { detail: string; onRetry: 
       <div className="modal">
         <Wordmark />
         <p className="lead">
-          The hold cannot be reached right now.
+          The server cannot be reached right now.
           <br />
           {detail}
         </p>
         <button className="btn gold big" onClick={onRetry}>TRY AGAIN</button>
         <p className="lead" style={{ marginTop: 12, marginBottom: 0 }}>
-          Nothing is lost. Your hold is on the server, and it keeps earning while this is sorted out.
+          Nothing is lost. Your base is on the server, and it keeps earning while this is sorted out.
         </p>
       </div>
     </div>

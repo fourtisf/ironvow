@@ -62,20 +62,20 @@ export interface TutorialStep {
 export const TUTORIAL: readonly TutorialStep[] = [
   {
     id: 'welcome',
-    title: 'Tap your Keep',
-    text: 'The Keep in the middle is the heart of your hold. Tap it — the arrow is pointing at it — to see what it can do.',
+    title: 'Tap your Town Hall',
+    text: 'The Town Hall in the middle is the heart of your base. Tap it — the arrow is pointing at it — to see what it can do.',
     target: 'keep', go: 'keep', goLabel: 'SHOW ME',
   },
   {
     id: 'camera',
     title: 'Look around',
-    text: 'Drag the ground to move about. Pinch, or scroll, to zoom. HOME brings you back to the Keep whenever you are lost.',
+    text: 'Drag the ground to move about. Pinch, or scroll, to zoom. HOME brings you back to the Town Hall whenever you are lost.',
     target: 'home', go: null, goLabel: '',
   },
   {
     id: 'resources',
     title: 'Collect your gold',
-    text: 'Your Gold Mine makes gold around the clock and holds it until you take it. Tap the pouch floating over it.',
+    text: 'Your Gold Mine makes gold around the clock and stores it until you take it. Tap the coins floating over it.',
     target: 'mine', go: 'collect', goLabel: 'COLLECT',
   },
   {
@@ -88,19 +88,19 @@ export const TUTORIAL: readonly TutorialStep[] = [
 
 /** Where each one-time War Order sends the player. */
 const QUEST_GUIDE: Record<string, { target: CoachTarget; go: CoachGo; goLabel: string; how: string; buildType?: BuildingType; troopType?: TroopType; hint?: string }> = {
-  q1:  { target: 'mine', go: 'collect', goLabel: 'COLLECT', how: 'Tap the pouch over the Gold Mine, or press COLLECT. Three times fills the order.' },
+  q1:  { target: 'mine', go: 'collect', goLabel: 'COLLECT', how: 'Tap the coins over the Gold Mine, or press COLLECT. Three times finishes the quest.' },
   q2:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD, pick Gold Mine, and drop it on free ground. PLACE confirms it.', buildType: 'mine', hint: 'Pick the Gold Mine, then drop it on free ground and press PLACE.' },
-  q3:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place a Cannon near the Keep. It fires on anyone who raids you.', buildType: 'cannon', hint: 'Pick the Cannon and put it near the Keep.' },
+  q3:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place a Cannon near the Town Hall. It shoots anyone who attacks you.', buildType: 'cannon', hint: 'Pick the Cannon and put it near the Town Hall.' },
   q4:  { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train five Raiders. Training takes a moment; they wait in the Barracks.', troopType: 'raider', hint: 'Tap TRAIN on the Raider five times.' },
-  q5:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Press RAID, look the hold over, press ATTACK, then tap the ground to drop troops. Half the hold broken is a win.' },
-  q6:  { target: 'keep', go: 'keep', goLabel: 'SELECT KEEP', how: 'Select the Keep and press UPGRADE. A higher Keep unlocks more of everything.' },
+  q5:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Press RAID, look the base over, press ATTACK, then tap the ground to drop troops. Half the base destroyed is a win.' },
+  q6:  { target: 'keep', go: 'keep', goLabel: 'TAP TOWN HALL', how: 'Tap the Town Hall and press UPGRADE. A higher Town Hall unlocks more of everything.' },
   q7:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and place an Iron Forge. It is the only thing that makes iron, and everything after this needs some. It costs gold alone.', buildType: 'forge', hint: 'Pick the Iron Forge and drop it on free ground.' },
-  q8:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and lay Ramparts in a ring inside your cannon’s range. Placing one offers the next straight away.', buildType: 'wall', hint: 'Pick the Rampart. After each PLACE the next one is already in your hand.' },
-  q9:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Bring a full warband and take every building down. Rams on walls, archers behind.' },
+  q8:  { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and lay Walls in a ring inside your cannon’s range. Placing one offers the next straight away.', buildType: 'wall', hint: 'Pick the Wall. After each PLACE the next one is already in your hand.' },
+  q9:  { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Bring a full army and take every building down. Rams on walls, archers behind.' },
   q10: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Every win earns trophies; losses cost some. Keep raiding to climb.' },
-  q11: { target: 'keep', go: 'keep', goLabel: 'SELECT KEEP', how: 'Raise the Keep to level 4. Towers and rams open up on the way.' },
-  q13: { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and raise a War Lab. Once it stands, ARMY gains a row per troop: every level is +12% damage and hit points, kept for good.', buildType: 'lab', hint: 'Pick the War Lab. Afterwards, upgrade your troops in ARMY.' },
-  q12: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Fifteen wins. Scout each hold before you commit.' },
+  q11: { target: 'keep', go: 'keep', goLabel: 'TAP TOWN HALL', how: 'Upgrade the Town Hall to level 4. Towers and rams open up on the way.' },
+  q13: { target: 'build', go: 'build', goLabel: 'OPEN BUILD', how: 'Open BUILD and build a Laboratory. Once it stands, ARMY gains a row per troop: every level is +12% damage and health, kept for good.', buildType: 'lab', hint: 'Pick the Laboratory. Afterwards, upgrade your troops in ARMY.' },
+  q12: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Fifteen wins. Scout each base before you commit.' },
 };
 
 /** Where each kind of daily order sends the player. */
@@ -108,10 +108,10 @@ const DAILY_GUIDE: Record<DailyCounter, { target: CoachTarget; go: CoachGo; goLa
   dayCollected:  { target: 'producers', go: 'collect', goLabel: 'COLLECT', how: 'Every COLLECT from a mine or forge counts once. Come back through the day as they fill.' },
   dayTrained:    { target: 'army', go: 'army', goLabel: 'OPEN ARMY', how: 'Open ARMY and train troops. Any kind counts.', troopType: 'raider', hint: 'Tap TRAIN on any troop. Each one counts.' },
   dayRaids:      { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Launching a raid counts whether or not you win it.' },
-  dayWins:       { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Break at least half a hold, or its Keep, to win.' },
-  dayStars:      { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'One star for half the hold, one for the Keep, one for all of it. They add up across raids.' },
-  dayThreeStars: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Take every building down in one raid. Bring a full warband.' },
-  dayLootGold:   { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Gold carried off from raids adds up. Vaults and mines are where it is.' },
+  dayWins:       { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Destroy at least half a base, or its Town Hall, to win.' },
+  dayStars:      { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'One star for half the base, one for the Town Hall, one for all of it. They add up across raids.' },
+  dayThreeStars: { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Take every building down in one raid. Bring a full army.' },
+  dayLootGold:   { target: 'raid', go: 'raid', goLabel: 'FIND A RAID', how: 'Gold taken from raids adds up. Storages and mines are where it is.' },
   dayUpgrades:   { target: 'build', go: 'keep', goLabel: 'SELECT KEEP', how: 'Select any building and press UPGRADE; it counts when the builder finishes.' },
 };
 
@@ -143,7 +143,7 @@ export function nextObjective(input: CoachInput): Objective {
     const index = input.quests.indexOf(quest);
     return {
       kind: 'quest', id: quest.id,
-      label: `WAR ORDER · ${index + 1} OF ${input.quests.length}`,
+      label: `QUEST · ${index + 1} OF ${input.quests.length}`,
       title: quest.name,
       text: claimable ? `Done. Claim ${rewardLine(quest.reward)}.` : guide.how,
       progress: Math.min(quest.progress, quest.goal), goal: quest.goal, claimable,
@@ -178,8 +178,8 @@ export function nextObjective(input: CoachInput): Objective {
     label: today && today.streak > 1 ? `🔥 ${today.streak} DAY STREAK` : 'ALL ORDERS DONE',
     title: 'Nothing owed today',
     text: today
-      ? `New orders in ${untilText(today.resetsInMs)}. Until then: raid for trophies, or raise the Keep.`
-      : 'Raid for trophies, or raise the Keep.',
+      ? `New quests in ${untilText(today.resetsInMs)}. Until then: raid for trophies, or upgrade the Town Hall.`
+      : 'Raid for trophies, or upgrade the Town Hall.',
     progress: 0, goal: 0, claimable: false,
     target: null, go: 'raid', goLabel: 'FIND A RAID',
   };

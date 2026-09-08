@@ -120,7 +120,7 @@ export function Game() {
   /** Bumped when the ghost moves, so the placement bar re-reads it. */
   const [placeTick, setPlaceTick] = useState(0);
 
-  /** Tutorial steps finished, remembered per hold in this browser. */
+  /** Tutorial steps finished, remembered per base in this browser. */
   const [tutorialDone, setTutorialDone] = useState<string[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
   /** The door: whether the server wants an access code, and the one it took. */
@@ -169,7 +169,7 @@ export function Game() {
   /* --- toasts are the game's only error channel, as in the prototype --- */
   const say = useCallback((message: string) => setToast(message + '​'.repeat(Math.random() * 3 | 0)), []);
 
-  /** Frame the hold once, on the first load, not on every poll. */
+  /** Frame the base once, on the first load, not on every poll. */
   const framed = useRef(false);
 
   /**
@@ -390,7 +390,7 @@ export function Game() {
         target.type === 'mine' ? '#ffd25c' : '#c3d2e0');
       bump(world, target.id);
     }
-    if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
+    if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or upgrade a Storage');
     void loadQuests();
   }, [runCommand, say, loadQuests, markTutorial]);
 
@@ -413,7 +413,7 @@ export function Game() {
         }
       }
     }
-    if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or raise a Vault');
+    if (result.wasted.gold + result.wasted.iron > 0) say('Storage is full — build or upgrade a Storage');
     void loadQuests();
   }, [runCommand, say, loadQuests, markTutorial]);
 
@@ -476,10 +476,10 @@ export function Game() {
     const b = player?.buildings.find((x) => x.id === buildingId);
     if (!b) return;
     setConfirm({
-      title: `TEAR DOWN THE ${TYPES[b.type].n.toUpperCase()}?`,
-      lead: 'Half of everything that went into it comes back, and the slot it '
+      title: `SELL THE ${TYPES[b.type].n.toUpperCase()}?`,
+      lead: 'You get back half of everything you spent on it, and the slot it '
         + 'was using is free again. The building itself is gone.',
-      label: 'DEMOLISH',
+      label: 'SELL',
       danger: true,
       run: () => {
         setConfirm(null);
@@ -582,7 +582,7 @@ export function Game() {
       setModeState('battle');
       say('Hold the line — your defences are firing');
     } catch {
-      say('Could not start a drill');
+      say('Could not start the practice attack');
     }
   }, [applyPlayer, say]);
 
@@ -754,7 +754,7 @@ export function Game() {
         const world = worldRef.current;
         const ready = (world?.player?.buildings ?? []).some((b) => PROD[b.type] && b.stock >= 1);
         if (ready) void collectAll();
-        else { focusBuilding('mine'); say('The pouch is still filling — come back in a moment'); }
+        else { focusBuilding('mine'); say('Still filling up — come back in a moment'); }
         return;
       }
       default: return;
@@ -838,7 +838,7 @@ export function Game() {
             .catch((e: unknown) => setSignInError(
               e instanceof ApiError && e.code === 'badAccessCode'
                 ? 'The access code has changed. Reload and enter the new one.'
-                : 'Could not raise a hold. Try again in a moment.',
+                : 'Could not create a base. Try again in a moment.',
             ))
             .finally(() => setSignInBusy(false));
         }}
@@ -1119,7 +1119,7 @@ export function Game() {
           onOpen={(id) => {
             void api.player(id)
               .then((r) => { sfx.tap(); setProfile(r); })
-              .catch(() => say('That hold is gone'));
+              .catch(() => say('That base is gone'));
           }}
           onClose={() => setSheet(null)}
         />
@@ -1184,13 +1184,13 @@ export function Game() {
               .finally(() => setBusy(false));
           }}
           onRename={() => {
-            const next = window.prompt('Name your hold', player.name);
+            const next = window.prompt('Name your base', player.name);
             if (!next || next.trim() === player.name) return;
             void api.rename(next.trim())
               .then(() => { sfx.up(); say('Renamed'); return refresh(); })
               .catch((e: unknown) => say(
                 e instanceof ApiError && e.code === 'nameTaken'
-                  ? 'Somebody already holds that name'
+                  ? 'Somebody already has that name'
                   : 'That name will not do',
               ));
           }}
@@ -1198,9 +1198,9 @@ export function Game() {
           onReport={() => { setSheet(null); setReportOpen(true); }}
           onDeleteAccount={() => {
             setConfirm({
-              title: 'DELETE THIS HOLD?',
+              title: 'DELETE THIS BASE?',
               lead: 'Everything goes: buildings, troops, trophies, raid history. '
-                + 'Type your hold’s name to confirm. There is no way back.',
+                + 'Type your base name to confirm. There is no way back.',
               label: 'DELETE FOREVER',
               danger: true,
               requireTyped: player.name,
@@ -1309,9 +1309,9 @@ export function Game() {
               .then(() => setClaimSent(true))
               .catch((e: unknown) => setClaimError(
                 e instanceof ApiError && e.code === 'emailTaken'
-                  ? 'That address already holds a base.'
+                  ? 'That address already has a base.'
                   : e instanceof ApiError && e.code === 'mailOff'
-                    ? 'This server cannot send email yet, so the hold cannot be attached to an address. Your guest hold is safe on this device.'
+                    ? 'This server cannot send email yet, so the base cannot be attached to an address. Your guest base is safe on this device.'
                     : 'Could not send that. Try again in a minute.',
               ))
               .finally(() => setSignInBusy(false));

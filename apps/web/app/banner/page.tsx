@@ -492,7 +492,7 @@ export default function BannerPage() {
         * re-rendering anything.
         */}
       <Frame id="banner" w={W} h={H} note="post 1 — the launch">
-        {/* Pushed two cells across the screen's own axis so the hold clears
+        {/* Pushed two cells across the screen's own axis so the base clears
             the mark: `gx - gy` is what moves a thing sideways, not `gx`. */}
         <HoldDof shot={{ w: W, h: H, gx: 35.6, gy: 19.4, zoom: 0.66 }} />
         <NearPlane rank={NEAR} />
@@ -505,11 +505,11 @@ export default function BannerPage() {
         >
           <Wordmark width={506} />
           <div style={{ marginTop: 26 }}>
-            <Eyebrow>FORGE · MUSTER · CONQUER</Eyebrow>
+            <Eyebrow>BUILD · TRAIN · CONQUER</Eyebrow>
           </div>
           <div style={{ marginTop: 26 }}>
             <Line>
-              A hold that works
+              A base that works
               <br />
               while you sleep.
             </Line>
@@ -544,7 +544,7 @@ export default function BannerPage() {
         }}
         >
           <Wordmark width={412} />
-          <Eyebrow>FORGE · MUSTER · CONQUER</Eyebrow>
+          <Eyebrow>BUILD · TRAIN · CONQUER</Eyebrow>
           <Address />
         </div>
       </Frame>
@@ -605,7 +605,7 @@ export default function BannerPage() {
           boxShadow: '0 0 30px rgba(232,178,60,.55)',
         }}
         />
-        {[['DAY ONE', 'Five buildings and a Keep'], ['KEEP 9', 'Everything, at its ceiling']].map(
+        {[['DAY ONE', 'Five buildings and a Town Hall'], ['TOWN HALL 9', 'Everything, at its ceiling']].map(
           ([cap, sub], i) => (
             <div key={cap} style={{ position: 'absolute', top: 66, left: i === 0 ? 84 : W / 2 + 84 }}>
               <Eyebrow>{cap}</Eyebrow>

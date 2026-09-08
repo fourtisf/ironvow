@@ -42,9 +42,9 @@ export interface RelicSpec {
  * ever left behind.
  */
 export const RELIC: Record<RelicType, RelicSpec> = {
-  bulwark: { n: 'Bulwark', d: 'The Vowkeeper takes more before it falls.', per: 0.07 },
-  edge:    { n: 'Edge',    d: 'The Vowkeeper hits harder.',                 per: 0.055 },
-  haste:   { n: 'Haste',   d: 'The Vowkeeper returns sooner after falling.', per: 0.05 },
+  bulwark: { n: 'Guard', d: 'The Vowkeeper takes more damage before it falls.', per: 0.07 },
+  edge:    { n: 'Blade',   d: 'The Vowkeeper hits harder.',                 per: 0.055 },
+  haste:   { n: 'Revive',  d: 'The Vowkeeper comes back sooner after falling.', per: 0.05 },
 };
 
 export const RELIC_MAX_LEVEL = 10;

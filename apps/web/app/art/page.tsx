@@ -150,7 +150,7 @@ export default function ArtPage() {
     ctx.fillStyle = C.parch;
     ctx.font = '700 15px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText('RAMPART RUN', 14, 30 + row * ROW + ROW / 2);
+    ctx.fillText('WALL RUN', 14, 30 + row * ROW + ROW / 2);
 
     /*
      * The troops, on the same grid.

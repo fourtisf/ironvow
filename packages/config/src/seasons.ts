@@ -56,8 +56,8 @@ export const SEASON_TIERS: readonly SeasonTier[] = [
   { id: 'bronze', n: 'Bronze',  at: 900,  reward: { g: 10_000, i: 3_600 } },
   { id: 'silver', n: 'Silver',  at: 1_400, reward: { g: 18_000, i: 6_500 } },
   { id: 'gold',   n: 'Gold',    at: 2_000, reward: { g: 30_000, i: 11_000 } },
-  { id: 'ember',  n: 'Ember',   at: 2_800, reward: { g: 48_000, i: 17_000 } },
-  { id: 'iron_crown', n: 'Iron Crown', at: 3_800, reward: { g: 75_000, i: 27_000 } },
+  { id: 'ember',  n: 'Crystal', at: 2_800, reward: { g: 48_000, i: 17_000 } },
+  { id: 'iron_crown', n: 'Champion', at: 3_800, reward: { g: 75_000, i: 27_000 } },
 ];
 
 /** The lowest peak that is paid anything at all. */

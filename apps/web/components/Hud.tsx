@@ -14,7 +14,7 @@ import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIco
 export interface HudProps {
   player: PlayerState;
   incomingCount: number;
-  /** Any War Order finished and waiting to be claimed. */
+  /** Any quest finished and waiting to be claimed. */
   ordersReady: boolean;
   /** Total sitting uncollected across every producer. */
   pending: number;
@@ -34,7 +34,7 @@ export interface HudProps {
   /** Whether every defence is showing what it covers. */
   rangesOn: boolean;
   onToggleRanges: () => void;
-  /** Hidden until the hold has a defence to show the reach of. */
+  /** Hidden until the base has a defence to show the reach of. */
   hasDefences: boolean;
   /** Whether the guest nudge has earned its place on screen yet. */
   showGuestNote: boolean;
@@ -70,14 +70,14 @@ export function Hud({
 
       <div id="keepBadge">
         <div className="n">{player.keepLevel}</div>
-        <div className="t">KEEP</div>
+        <div className="t">TOWN HALL</div>
       </div>
 
       {/* Tapping the trophy count opens the ladder: the number and the thing
           it means should be one tap apart. */}
       <button id="helpBtn" onClick={onHelp} aria-label="How to play">?</button>
 
-      <button id="trophyBar" onClick={onLadder} aria-label="Open the ladder">
+      <button id="trophyBar" onClick={onLadder} aria-label="Open the leaderboard">
         <TrophyIcon />
         <span>{player.trophies}</span>
         <LadderIcon />
@@ -89,7 +89,7 @@ export function Hud({
         A ring appears on its own while a defence is being placed or is
         selected, which answers "where does this one reach". This answers the
         other question — "is anything not covered" — and that one is about the
-        whole hold at once, so it is a switch rather than a selection. Hidden
+        whole base at once, so it is a switch rather than a selection. Hidden
         until there is a defence to show, because a button that does nothing is
         worse than no button.
       */}
@@ -119,13 +119,13 @@ export function Hud({
       */}
       {showGuestNote && (
         <div id="guestNote">
-          <span>Playing as a guest. Add an email so this hold is still yours on your next phone.</span>
+          <span>Playing as a guest. Add an email so this base is still yours on your next phone.</span>
           <button className="btn gold" onClick={onClaimAccount}>SAVE IT</button>
           <button className="xbtn" onClick={onDismissGuestNote} aria-label="Dismiss">✕</button>
         </div>
       )}
 
-      <button id="homeBtn" className={hi('home')} onClick={onHome} aria-label="Centre on the keep">
+      <button id="homeBtn" className={hi('home')} onClick={onHome} aria-label="Centre on the Town Hall">
         <HomeIcon />
       </button>
 
@@ -151,7 +151,7 @@ export function Hud({
         <button className={`rbtn${hi('army')}`} onClick={onArmy}><ArmyIcon /><span>ARMY</span></button>
         <button className={`rbtn${hi('orders')}`} onClick={onOrders}>
           <OrdersIcon />
-          <span>ORDERS</span>
+          <span>QUESTS</span>
           {ordersReady && <span className="dot" />}
         </button>
         <button className={`rbtn${hi('log')}`} onClick={onLog}>

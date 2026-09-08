@@ -47,16 +47,16 @@ export interface ItemSpec {
  */
 export const ITEM: Record<ItemType, ItemSpec> = {
   horn: {
-    n: 'Warhorn',
-    d: 'Your troops in the circle hit harder and move faster.',
+    n: 'Rage Horn',
+    d: 'Troops inside the circle hit harder and move faster.',
     r: 4.5,
     keep: 4,
     cost: { g: 2_600, i: 0 },
     cap: 3,
   },
   firepot: {
-    n: 'Firepot',
-    d: 'Bursts on the ground. Everything of theirs in the circle burns.',
+    n: 'Bomb',
+    d: 'Explodes on the ground. Everything of theirs in the circle takes damage.',
     r: 3.2,
     keep: 5,
     cost: { g: 0, i: 1_900 },

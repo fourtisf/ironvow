@@ -1,9 +1,9 @@
 import { keepLevelOf, type OwnedBuilding } from './economy.js';
 
 /**
- * Daily War Orders.
+ * Daily quests.
  *
- * Not in the build document. Added because the twelve War Orders in
+ * Not in the build document. Added because the twelve quests in
  * `quests.ts` are one-time: the last one is "win fifteen raids", which a
  * player clears on their second day, and after that opening the game offers
  * nothing that was not there yesterday. A base builder lives on having a
@@ -55,20 +55,20 @@ export interface DailyOrder {
  * day can be cleared without opening the game at least twice.
  */
 export const DAILY_POOL: readonly DailyOrder[] = [
-  { id: 'd-collect-8',  n: 'Empty the pouches',   d: 'Collect from your producers 8 times.',   goal: 8,     counter: 'dayCollected',  base: { g: 220, i: 60  } },
-  { id: 'd-collect-16', n: 'Working the seam',    d: 'Collect from your producers 16 times.',  goal: 16,    counter: 'dayCollected',  base: { g: 360, i: 110 } },
-  { id: 'd-train-12',   n: 'Fill the yard',       d: 'Train 12 troops.',                       goal: 12,    counter: 'dayTrained',    base: { g: 260, i: 90  } },
-  { id: 'd-train-30',   n: 'Raise a warband',     d: 'Train 30 troops.',                       goal: 30,    counter: 'dayTrained',    base: { g: 420, i: 160 } },
+  { id: 'd-collect-8',  n: 'Collect 8 times',   d: 'Collect from your producers 8 times.',   goal: 8,     counter: 'dayCollected',  base: { g: 220, i: 60  } },
+  { id: 'd-collect-16', n: 'Collect 16 times',    d: 'Collect from your producers 16 times.',  goal: 16,    counter: 'dayCollected',  base: { g: 360, i: 110 } },
+  { id: 'd-train-12',   n: 'Fill the camps',       d: 'Train 12 troops.',                       goal: 12,    counter: 'dayTrained',    base: { g: 260, i: 90  } },
+  { id: 'd-train-30',   n: 'Raise an army',     d: 'Train 30 troops.',                       goal: 30,    counter: 'dayTrained',    base: { g: 420, i: 160 } },
   { id: 'd-raid-4',     n: 'March out',           d: 'Launch 4 raids.',                        goal: 4,     counter: 'dayRaids',      base: { g: 300, i: 90  } },
-  { id: 'd-win-2',      n: 'Two holds broken',    d: 'Win 2 raids.',                           goal: 2,     counter: 'dayWins',       base: { g: 320, i: 110 } },
+  { id: 'd-win-2',      n: 'Two bases broken',    d: 'Win 2 raids.',                           goal: 2,     counter: 'dayWins',       base: { g: 320, i: 110 } },
   { id: 'd-win-5',      n: 'A day of burning',    d: 'Win 5 raids.',                           goal: 5,     counter: 'dayWins',       base: { g: 520, i: 200 } },
   { id: 'd-stars-6',    n: 'Six stars',           d: 'Earn 6 stars across your raids.',        goal: 6,     counter: 'dayStars',      base: { g: 400, i: 150 } },
   { id: 'd-stars-12',   n: 'Twelve stars',        d: 'Earn 12 stars across your raids.',       goal: 12,    counter: 'dayStars',      base: { g: 620, i: 240 } },
-  { id: 'd-three-1',    n: 'Nothing left',        d: 'Take a hold apart for all 3 stars.',     goal: 1,     counter: 'dayThreeStars', base: { g: 480, i: 180 } },
+  { id: 'd-three-1',    n: 'Nothing left',        d: 'Take a base apart for all 3 stars.',     goal: 1,     counter: 'dayThreeStars', base: { g: 480, i: 180 } },
   { id: 'd-loot-6k',    n: 'Carts full',          d: 'Carry off 6,000 gold.',                  goal: 6000,  counter: 'dayLootGold',   base: { g: 340, i: 120 } },
-  { id: 'd-loot-20k',   n: 'A season of plunder', d: 'Carry off 20,000 gold.',                 goal: 20000, counter: 'dayLootGold',   base: { g: 560, i: 220 } },
+  { id: 'd-loot-20k',   n: 'A day of looting', d: 'Carry off 20,000 gold.',                 goal: 20000, counter: 'dayLootGold',   base: { g: 560, i: 220 } },
   { id: 'd-upgrade-2',  n: 'Keep building',       d: 'Finish 2 upgrades.',                     goal: 2,     counter: 'dayUpgrades',   base: { g: 300, i: 100 } },
-  { id: 'd-upgrade-5',  n: 'The masons earn it',  d: 'Finish 5 upgrades.',                     goal: 5,     counter: 'dayUpgrades',   base: { g: 520, i: 190 } },
+  { id: 'd-upgrade-5',  n: 'The builders earn it',  d: 'Finish 5 upgrades.',                     goal: 5,     counter: 'dayUpgrades',   base: { g: 520, i: 190 } },
 ];
 
 /** How many a player is given each day. */

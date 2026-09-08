@@ -1838,6 +1838,74 @@ layout that loses the fewest rather than the one that keeps the most gold. There
 are four now: `defence`, `farming`, `war`, `push`. The `slot` column was free
 text rather than an enum, so this needed no migration at all.
 
+## Words games actually use
+
+ALFA, looking at the DEMOLISH button: *"kata yang jarang d gunain di game"* —
+words games do not use. He was right about far more than that one button. The
+game had a **Keep**, a **Rampart**, a **Muster Field**, a **Vault**, a
+**Warband**, a **Scaler**, a **Brazier**, **War Orders** and a **hold**, and
+every one of those is a word a player has to stop and work out. The voice was
+deliberate and it was also a wall in front of the game.
+
+Everything a player reads is plain now:
+
+| was | is |
+| --- | --- |
+| Keep | **Town Hall** |
+| Rampart | **Wall** |
+| Muster Field | **Army Camp** |
+| Vault | **Storage** |
+| War Lab | **Laboratory** |
+| Arrow Tower | **Archer Tower** |
+| Scaler | **Climber** |
+| Snare | **Net Trap** |
+| Warhorn / Firepot | **Rage Horn** / **Bomb** |
+| Bulwark / Edge / Haste | **Guard** / **Blade** / **Revive** |
+| Brazier / Standard / Vow Statue | **Torch** / **Banner** / **Statue** |
+| Ember / Iron Crown | **Crystal** / **Champion** |
+| DEMOLISH | **SELL** |
+| DRILL | **PRACTICE** |
+| FORGE / CARRY | **UNLOCK** / **EQUIP** |
+| War Order | **Quest** |
+| ladder | **leaderboard** |
+| your hold | **your base** |
+| warband | **army** |
+
+### Not one stored key moved
+
+This is the half that mattered. Type keys — `keep`, `wall`, `camp`, `store`,
+`lab`, `snare`, `scaler`, `bulwark`, `ember` — are **database values**. Every
+building row, every saved layout and every frozen raid snapshot names its
+buildings by them, and a raid recorded on launch day is replayed by feeding
+those exact strings back through the simulation. Renaming one would break every
+replay in the game.
+
+So only display names changed. `TYPES.keep.n` is `'Town Hall'`; the key is still
+`keep`. `apps/web/test/plain-words.test.ts` asserts both halves: that no
+player-facing string contains any of the jargon, and that every stored key is
+still there.
+
+**A consequence worth knowing when reading this file:** the sections above were
+written before the rename and still say Keep, Rampart, Vault and hold
+throughout. They are a record of decisions as they were made, and rewriting
+history to match a later naming pass would make them less true, not more. Code
+comments are the same. When one of them says "the Keep", it means the `keep`
+building the player now sees as the Town Hall.
+
+### The guard, and why it exists
+
+The banned list is split in two, because the distinction is the noun and not the
+word. `rampart`, `muster`, `warband`, `vault`, `brazier`, `bulwark`, `demolish`
+and `scaler` may not appear anywhere a player reads. `hold` and `keep` may not be
+**names** — "Walls hold attackers inside cannon range" is plain and clear, while
+"the Keep" as a building is not.
+
+Two things the pass turned up on its own. `BUILD` walks a hand-written list of
+types, so **"UPGRADE TH"** — an abbreviation invented mid-rename — went in as a
+replacement no clearer than what it replaced; it reads `LOCKED` now. And
+`Archer Tower`, two words where `Arrow Tower` had been shorter, collided with
+the count badge in the corner of its card until the name got room to wrap.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

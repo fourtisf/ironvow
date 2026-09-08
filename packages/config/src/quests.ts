@@ -3,7 +3,7 @@ import { countOf, keepLevelOf, type OwnedBuilding } from './economy.js';
 import { TROOP, TROOP_ORDER } from './troops.js';
 
 /**
- * War Orders.
+ * Quests.
  *
  * Ported from the prototype, where they were the closest thing to a tutorial:
  * the first order is "tap the pouch over your Gold Mine", which teaches the
@@ -60,17 +60,17 @@ export interface Quest {
  * in array order, so moving an entry is all that is needed.
  */
 export const QUESTS: readonly Quest[] = [
-  { id: 'q1',  n: 'Collect from the mine',    d: 'Tap the pouch floating over your Gold Mine.',   goal: 3,   metric: { kind: 'counter', name: 'collected' },        reward: { g: 200,  i: 0 } },
+  { id: 'q1',  n: 'Collect from the mine',    d: 'Tap the coins floating over your Gold Mine.',   goal: 3,   metric: { kind: 'counter', name: 'collected' },        reward: { g: 200,  i: 0 } },
   { id: 'q2',  n: 'Build a second mine',      d: 'More mines, more gold while you sleep.',        goal: 2,   metric: { kind: 'buildingCount', type: 'mine' },       reward: { g: 250,  i: 0 } },
   { id: 'q7',  n: 'Build an Iron Forge',      d: 'Your only source of iron. Costs gold alone.',   goal: 1,   metric: { kind: 'buildingCount', type: 'forge' },      reward: { g: 200,  i: 600 } },
-  { id: 'q3',  n: 'Raise a Cannon',           d: 'Defences fire on anyone who raids you.',        goal: 1,   metric: { kind: 'buildingCount', type: 'cannon' },     reward: { g: 200,  i: 200 } },
-  { id: 'q4',  n: 'Train 5 Raiders',          d: 'Open ARMY and queue up your first warband.',    goal: 5,   metric: { kind: 'counter', name: 'trainedTotal' },     reward: { g: 300,  i: 0 } },
-  { id: 'q5',  n: 'Win your first raid',      d: 'Hit RAID and take an enemy hold apart.',        goal: 1,   metric: { kind: 'counter', name: 'wins' },            reward: { g: 500,  i: 300 } },
-  { id: 'q6',  n: 'Keep to level 2',          d: 'Select the Keep and upgrade it.',               goal: 2,   metric: { kind: 'keepLevel' },                        reward: { g: 600,  i: 400 } },
-  { id: 'q8',  n: 'Lay 8 Ramparts',           d: 'Walls stall attackers inside cannon range.',    goal: 8,   metric: { kind: 'buildingCount', type: 'wall' },       reward: { g: 400,  i: 300 } },
-  { id: 'q9',  n: 'Earn 3 stars in one raid', d: 'Flatten an entire enemy hold.',                 goal: 1,   metric: { kind: 'counter', name: 'threeStars' },       reward: { g: 800,  i: 600 } },
+  { id: 'q3',  n: 'Raise a Cannon',           d: 'Defences shoot anyone who attacks you.',        goal: 1,   metric: { kind: 'buildingCount', type: 'cannon' },     reward: { g: 200,  i: 200 } },
+  { id: 'q4',  n: 'Train 5 Raiders',          d: 'Open ARMY and train your first troops.',    goal: 5,   metric: { kind: 'counter', name: 'trainedTotal' },     reward: { g: 300,  i: 0 } },
+  { id: 'q5',  n: 'Win your first raid',      d: 'Hit RAID and take an enemy base apart.',        goal: 1,   metric: { kind: 'counter', name: 'wins' },            reward: { g: 500,  i: 300 } },
+  { id: 'q6',  n: 'Town Hall to level 2',          d: 'Tap your Town Hall and upgrade it.',               goal: 2,   metric: { kind: 'keepLevel' },                        reward: { g: 600,  i: 400 } },
+  { id: 'q8',  n: 'Build 8 Walls',           d: 'Walls hold attackers inside cannon range.',    goal: 8,   metric: { kind: 'buildingCount', type: 'wall' },       reward: { g: 400,  i: 300 } },
+  { id: 'q9',  n: 'Earn 3 stars in one raid', d: 'Destroy an entire enemy base.',                 goal: 1,   metric: { kind: 'counter', name: 'threeStars' },       reward: { g: 800,  i: 600 } },
   { id: 'q10', n: 'Reach 200 trophies',       d: 'Keep raiding to climb.',                        goal: 200, metric: { kind: 'trophies' },                         reward: { g: 1200, i: 1000 } },
-  { id: 'q11', n: 'Keep to level 4',          d: 'A bigger Keep unlocks towers and rams.',        goal: 4,   metric: { kind: 'keepLevel' },                        reward: { g: 1600, i: 1400 } },
+  { id: 'q11', n: 'Town Hall to level 4',          d: 'A bigger Town Hall unlocks towers and rams.',        goal: 4,   metric: { kind: 'keepLevel' },                        reward: { g: 1600, i: 1400 } },
   /*
    * ALFA: "saya ingin armya juga bisa upgrade naik level".
    *
@@ -81,7 +81,7 @@ export const QUESTS: readonly Quest[] = [
    * the Keep 4 order because the Lab needs Keep 3 — an order a player cannot
    * yet act on is worse than no order.
    */
-  { id: 'q13', n: 'Raise a War Lab',          d: 'Troop levels: every one is +12% damage and hit points, for good.', goal: 1, metric: { kind: 'buildingCount', type: 'lab' }, reward: { g: 1400, i: 900 } },
+  { id: 'q13', n: 'Build a Laboratory',          d: 'Troop levels: every one is +12% damage and health, for good.', goal: 1, metric: { kind: 'buildingCount', type: 'lab' }, reward: { g: 1400, i: 900 } },
   { id: 'q12', n: 'Win 15 raids',             d: 'Become the terror of the valley.',              goal: 15,  metric: { kind: 'counter', name: 'wins' },            reward: { g: 2500, i: 2400 } },
 ];
 
@@ -163,12 +163,12 @@ const forgeAt = QUESTS.findIndex(
 const firstIronAt = QUESTS.findIndex((q) => ironNeededBy(q) > 0);
 
 if (forgeAt < 0) {
-  throw new Error('No War Order builds an Iron Forge, which is the only source of iron.');
+  throw new Error('No quest builds an Iron Forge, which is the only source of iron.');
 }
 if (firstIronAt >= 0 && firstIronAt < forgeAt) {
   const q = QUESTS[firstIronAt];
   throw new Error(
-    `War Order ${firstIronAt + 1} ("${q?.n}") needs ${q ? ironNeededBy(q) : 0} iron, but the `
+    `Quest ${firstIronAt + 1} ("${q?.n}") needs ${q ? ironNeededBy(q) : 0} iron, but the `
     + `Iron Forge is only order ${forgeAt + 1}. Iron has no other buildable source, so a `
     + 'player who has spent theirs would be told to buy something they cannot afford.',
   );

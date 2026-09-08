@@ -128,7 +128,7 @@ export function ClanSheet({ player, onClose, onToast, onPlayerChanged, onWarAtta
         )}
         {clan && <Tab id="war" tab={tab} set={setTab}>WAR</Tab>}
         {!clan && <Tab id="find" tab={tab} set={setTab}>FIND</Tab>}
-        <Tab id="ladder" tab={tab} set={setTab}>LADDER</Tab>
+        <Tab id="ladder" tab={tab} set={setTab}>RANKS</Tab>
       </div>
 
       {tab === 'chat' && clan && <ChatTab onToast={onToast} />}
@@ -278,7 +278,7 @@ function MembersTab({
             <div className="qrow" key={r.id}>
               <div className="qi">
                 <h4>{r.name}</h4>
-                <p>{fmt(r.trophies)} trophies · Keep {r.keepLevel}</p>
+                <p>{fmt(r.trophies)} trophies · Town Hall {r.keepLevel}</p>
               </div>
               <button className="btn gold" disabled={busy}
                 onClick={() => void act(() => api.decideClanRequest(r.id, true), `${r.name} is in`)}>
@@ -299,7 +299,7 @@ function MembersTab({
             <h4>{m.name} {m.id === me && <span className="tagYou">YOU</span>}</h4>
             <p>
               <span className={`roleTag ${m.role}`}>{m.role.toUpperCase()}</span>
-              {' '}{fmt(m.trophies)} trophies · Keep {m.keepLevel}
+              {' '}{fmt(m.trophies)} trophies · Town Hall {m.keepLevel}
             </p>
           </div>
           {role === 'leader' && m.id !== me && (
@@ -342,7 +342,7 @@ function MembersTab({
               <p>
                 {spare.length === 0
                   ? 'Train something first — you can only give what you have.'
-                  : 'One tap sends one. They stand in their hold until somebody raids it.'}
+                  : 'One tap sends one. They stand in their base until somebody attacks it.'}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -462,7 +462,7 @@ function FindTab({
         <button className="btn gold" disabled={!canFound} onClick={() => setFounding(true)}>FOUND ONE</button>
       </div>
       {!canFound && (
-        <p className="lead">Reach Keep {CLAN_CREATE_KEEP_LEVEL} to found your own. You can join one right now.</p>
+        <p className="lead">Reach Town Hall {CLAN_CREATE_KEEP_LEVEL} to start your own. You can join one right now.</p>
       )}
 
       {clans.length === 0 && <p className="lead">No clans yet. Found the first one.</p>}
@@ -565,7 +565,7 @@ function LadderTab({ canChallenge, busy, act }: { canChallenge: boolean; busy: b
     void api.clanLadder().then((r) => setRows(r.top)).catch(() => setRows([]));
   }, []);
 
-  if (!rows) return <p className="lead">Reading the ladder…</p>;
+  if (!rows) return <p className="lead">Reading the leaderboard…</p>;
   if (rows.length === 0) return <p className="lead">No clans on the board yet.</p>;
 
   return (
@@ -605,7 +605,7 @@ const MESSAGES: Record<string, string> = {
   cannotAfford: 'Not enough gold to found a clan',
   clanFull: 'That clan is full',
   closed: 'That clan is not taking anyone',
-  keepTooLow: `Reach Keep ${CLAN_CREATE_KEEP_LEVEL} to found a clan`,
+  keepTooLow: `Reach Town Hall ${CLAN_CREATE_KEEP_LEVEL} to start a clan`,
   nameTaken: 'That name or tag is taken',
   notAllowed: 'You do not have the rank for that',
   notInClan: 'You are not in a clan',

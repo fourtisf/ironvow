@@ -82,10 +82,10 @@ export const NEW_BUILDING_GROWTH = 1.55;
 export const RAMPART_COUNT_GROWTH = 1.012;
 
 export const TYPES: Record<BuildingType, BuildingDef> = {
-  keep:   { n: 'Keep',        s: 3, cat: 'core', hp: 1500, hpG: 1.32, base: { g: 0,   i: 0   }, up: { g: 900, i: 260 }, upG: 2.05, countG: NEW_BUILDING_GROWTH, blurb: 'The heart of the hold. Raise it to unlock everything else.' },
+  keep:   { n: 'Town Hall',        s: 3, cat: 'core', hp: 1500, hpG: 1.32, base: { g: 0,   i: 0   }, up: { g: 900, i: 260 }, upG: 2.05, countG: NEW_BUILDING_GROWTH, blurb: 'The heart of your base. Upgrade it to unlock everything else.' },
   mine:   { n: 'Gold Mine',   s: 2, cat: 'eco',  hp: 420,  hpG: 1.24, base: { g: 150, i: 0   }, up: { g: 260, i: 40  }, upG: 1.85, countG: NEW_BUILDING_GROWTH, blurb: 'Digs gold around the clock. Tap the pouch to collect.' },
   forge:  { n: 'Iron Forge',  s: 2, cat: 'eco',  hp: 460,  hpG: 1.24, base: { g: 400, i: 0   }, up: { g: 520, i: 90  }, upG: 1.85, countG: NEW_BUILDING_GROWTH, blurb: 'Smelts iron for archers and rams. Tap the ingot to collect.' },
-  store:  { n: 'Vault',       s: 2, cat: 'eco',  hp: 700,  hpG: 1.28, base: { g: 320, i: 0   }, up: { g: 480, i: 120 }, upG: 1.90, countG: NEW_BUILDING_GROWTH, blurb: 'Raises how much gold and iron you can hold at once.' },
+  store:  { n: 'Storage',       s: 2, cat: 'eco',  hp: 700,  hpG: 1.28, base: { g: 320, i: 0   }, up: { g: 480, i: 120 }, upG: 1.90, countG: NEW_BUILDING_GROWTH, blurb: 'Raises how much gold and iron you can keep at once.' },
   barr:   { n: 'Barracks',    s: 3, cat: 'mil',  hp: 640,  hpG: 1.26, base: { g: 280, i: 60  }, up: { g: 440, i: 140 }, upG: 1.90, countG: NEW_BUILDING_GROWTH, blurb: 'Trains troops, and its level is what unlocks new ones.' },
   /*
    * The Muster Field. See CAMP_NOTE below.
@@ -94,11 +94,11 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
    * is the only building whose point is the ground it occupies. The warband
    * stands on it.
    */
-  camp:   { n: 'Muster Field', s: 4, cat: 'mil',  hp: 700,  hpG: 1.24, base: { g: 300, i: 60  }, up: { g: 400, i: 120 }, upG: 1.88, countG: NEW_BUILDING_GROWTH, blurb: 'Ground for your warband to stand on. More fields, more troops.' },
+  camp:   { n: 'Army Camp', s: 4, cat: 'mil',  hp: 700,  hpG: 1.24, base: { g: 300, i: 60  }, up: { g: 400, i: 120 }, upG: 1.88, countG: NEW_BUILDING_GROWTH, blurb: 'Room for your army. More camps, more troops.' },
   // TUNABLE. Spec S8.3 asks for a lab but does not price one.
-  lab:    { n: 'War Lab',     s: 2, cat: 'mil',  hp: 520,  hpG: 1.26, base: { g: 600, i: 200 }, up: { g: 700, i: 400 }, upG: 1.95, countG: NEW_BUILDING_GROWTH, blurb: 'Makes your troops stronger, not just more numerous.' },
+  lab:    { n: 'Laboratory',     s: 2, cat: 'mil',  hp: 520,  hpG: 1.26, base: { g: 600, i: 200 }, up: { g: 700, i: 400 }, upG: 1.95, countG: NEW_BUILDING_GROWTH, blurb: 'Makes your troops stronger, not just more numerous.' },
   cannon: { n: 'Cannon',      s: 2, cat: 'def',  hp: 560,  hpG: 1.30, base: { g: 220, i: 80  }, up: { g: 340, i: 180 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Slow, heavy shots. Wrecks anything that walks into range.' },
-  tower:  { n: 'Arrow Tower', s: 2, cat: 'def',  hp: 400,  hpG: 1.27, base: { g: 180, i: 120 }, up: { g: 280, i: 220 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Fast arrows with long reach. Melts light troops.' },
+  tower:  { n: 'Archer Tower', s: 2, cat: 'def',  hp: 400,  hpG: 1.27, base: { g: 180, i: 120 }, up: { g: 280, i: 220 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Fast arrows with long reach. Melts light troops.' },
   /*
    * MORTAR_NOTE — TUNABLE, and not in the build document.
    *
@@ -120,7 +120,7 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
    * decision a base layout has ever had.
    */
   mortar: { n: 'Mortar',      s: 3, cat: 'def',  hp: 620,  hpG: 1.30, base: { g: 700, i: 400 }, up: { g: 620, i: 420 }, upG: 1.94, countG: NEW_BUILDING_GROWTH, blurb: 'Lobs a shell into the thickest crowd. Cannot hit what is close.' },
-  wall:   { n: 'Rampart',     s: 1, cat: 'def',  hp: 340,  hpG: 1.35, base: { g: 60,  i: 20  }, up: { g: 90,  i: 60  }, upG: 1.70, countG: RAMPART_COUNT_GROWTH, blurb: 'Blocks the path. Enemies must stop and break it.' },
+  wall:   { n: 'Wall',     s: 1, cat: 'def',  hp: 340,  hpG: 1.35, base: { g: 60,  i: 20  }, up: { g: 90,  i: 60  }, upG: 1.70, countG: RAMPART_COUNT_GROWTH, blurb: 'Blocks the path. Enemies must stop and break through.' },
 
   /*
    * Traps. See traps.ts for what they do and why they are hidden.
@@ -131,7 +131,7 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
    * the guess trivial, and the guess is the whole feature.
    */
   spike:  { n: 'Spike Trap',  s: 1, cat: 'trap', hp: 1, hpG: 1, base: { g: 900,  i: 300 }, up: { g: 700, i: 340 }, upG: 1.80, countG: NEW_BUILDING_GROWTH, blurb: 'Hidden. Springs on whoever walks over it, and hurts everyone around them.' },
-  snare:  { n: 'Snare',       s: 1, cat: 'trap', hp: 1, hpG: 1, base: { g: 700,  i: 240 }, up: { g: 560, i: 280 }, upG: 1.78, countG: NEW_BUILDING_GROWTH, blurb: 'Hidden. Does no damage — holds them still in front of whatever does.' },
+  snare:  { n: 'Net Trap',       s: 1, cat: 'trap', hp: 1, hpG: 1, base: { g: 700,  i: 240 }, up: { g: 560, i: 280 }, upG: 1.78, countG: NEW_BUILDING_GROWTH, blurb: 'Hidden. Does no damage — holds them still in front of whatever does.' },
 
   /*
    * VANITY_NOTE — TUNABLE, and not in the build document.
@@ -149,9 +149,9 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
    * to be looked at, which for a game with no purchases is the honest version
    * of something to spend on.
    */
-  statue:   { n: 'Vow Statue', s: 2, cat: 'vanity', hp: 900, hpG: 1.2, base: { g: 24000, i: 0 }, up: { g: 18000, i: 0 }, upG: 1.90, countG: 1.90, blurb: 'Stone kept for its own sake. Costs a fortune, does nothing.' },
-  brazier:  { n: 'Brazier',    s: 1, cat: 'vanity', hp: 260, hpG: 1.2, base: { g: 4200,  i: 0 }, up: { g: 3200,  i: 0 }, upG: 1.75, countG: 1.55, blurb: 'A fire that burns all night. Purely so the hold looks lived in.' },
-  standard: { n: 'Standard',   s: 1, cat: 'vanity', hp: 220, hpG: 1.2, base: { g: 7500,  i: 0 }, up: { g: 5600,  i: 0 }, upG: 1.80, countG: 1.62, blurb: 'Your colours on a pole. Raiders will not care. You might.' },
+  statue:   { n: 'Statue', s: 2, cat: 'vanity', hp: 900, hpG: 1.2, base: { g: 24000, i: 0 }, up: { g: 18000, i: 0 }, upG: 1.90, countG: 1.90, blurb: 'Just for show. Costs a fortune, does nothing.' },
+  brazier:  { n: 'Torch',    s: 1, cat: 'vanity', hp: 260, hpG: 1.2, base: { g: 4200,  i: 0 }, up: { g: 3200,  i: 0 }, upG: 1.75, countG: 1.55, blurb: 'A fire that burns all night. Just to make your base look lived in.' },
+  standard: { n: 'Banner',   s: 1, cat: 'vanity', hp: 220, hpG: 1.2, base: { g: 7500,  i: 0 }, up: { g: 5600,  i: 0 }, upG: 1.80, countG: 1.62, blurb: 'Your colours on a pole. Attackers will not care. You might.' },
 };
 
 /*

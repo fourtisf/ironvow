@@ -105,7 +105,7 @@ export function Inspector({
   const stock = Math.floor(building.stock);
 
   const detail = rate
-    ? `${rate(building.level)}/min · holding ${fmt(stock)}`
+    ? `${rate(building.level)}/min · ${fmt(stock)} ready`
     : defence
       // A Mortar's dead zone belongs on the same line as its reach: "range 9.2"
       // on its own is the half of the story that flatters it.
@@ -117,7 +117,7 @@ export function Inspector({
           ? `Holds them ${trapSeconds('snare', building.level).toFixed(1)}s · hidden until it springs`
           : `${trapDamage('spike', building.level)} damage · hidden until it springs`
       : building.type === 'camp'
-        ? `${campSlots(building.level)} warband slots`
+        ? `${campSlots(building.level)} army slots`
         : building.type === 'store'
           ? `+${fmt(1400 + building.level * 1500)} storage`
           : def.blurb;
@@ -131,7 +131,7 @@ export function Inspector({
           <br />
           {fmt(hpOf(building.type, building.level))} hit points
           {!atCap && seconds > 0 && ` · next takes ${Math.round(seconds / 60) >= 1 ? `${Math.round(seconds / 60)}m` : `${seconds}s`}`}
-          <br />Drag it on the field to move it.
+          <br />Drag it to move it.
         </p>
       </div>
 
@@ -145,7 +145,7 @@ export function Inspector({
           disabled={atCap || !affordable || noBuilder}
         >
           {atCap
-            ? (isKeep ? 'MAX' : 'KEEP CAP')
+            ? (isKeep ? 'MAX' : 'LOCKED')
             : noBuilder
               ? 'NO BUILDER'
               : <>UPGRADE {cost.g > 0 && <><GoldIcon />{fmt(cost.g)}</>}{cost.i > 0 && <><IronIcon />{fmt(cost.i)}</>}</>}
@@ -155,7 +155,7 @@ export function Inspector({
           Without this a misplaced building is permanent, and because count
           limits are per Keep level, a wrong choice spends that slot for good.
         */}
-        {!isKeep && <button className="btn red" onClick={onDemolish}>DEMOLISH</button>}
+        {!isKeep && <button className="btn red" onClick={onDemolish}>SELL</button>}
         <button className="btn grey" onClick={onClose}>CLOSE</button>
       </div>
     </div>

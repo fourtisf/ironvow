@@ -29,7 +29,7 @@ export function Coach({ objective: o, busy, onGo, onClaim, onNext, onSkipTutoria
     return (
       <button id="coachChip" onClick={() => setFolded(false)} aria-label="Show the guide">
         <span className="pip" />
-        {o.kind === 'rest' ? 'ORDERS DONE' : o.title.toUpperCase()}
+        {o.kind === 'rest' ? 'QUESTS DONE' : o.title.toUpperCase()}
         {o.goal > 0 && <em>{fmt(o.progress)}/{fmt(o.goal)}</em>}
       </button>
     );

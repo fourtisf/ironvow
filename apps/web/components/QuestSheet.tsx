@@ -48,7 +48,7 @@ export function QuestSheet({
     <div className="sheet">
       <div className="sheetHead">
         <div>
-          <h2>WAR ORDERS</h2>
+          <h2>QUESTS</h2>
           <p>Work down the list to grow fast · {done} of {quests.length} done</p>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
@@ -59,7 +59,7 @@ export function QuestSheet({
           <div className="dayHead">
             <div>
               <h3>TODAY</h3>
-              <p>New orders in {untilText(daily.resetsInMs)}</p>
+              <p>New daily quests in {untilText(daily.resetsInMs)}</p>
             </div>
             {daily.streak > 1 && (
               <span className="streak" title="Consecutive days. Raises every reward below.">
@@ -98,7 +98,7 @@ export function QuestSheet({
           <div className="dayHead">
             <div>
               <h3>{allDone ? 'THE LONG LIST' : 'YOUR CAMPAIGN'}</h3>
-              <p>{allDone ? 'Every one of these is behind you.' : 'One-time orders, in order.'}</p>
+              <p>{allDone ? 'Every one of these is behind you.' : 'One-time quests, in order.'}</p>
             </div>
           </div>
         </>
@@ -137,7 +137,7 @@ export function QuestSheet({
       })}
 
       <p className="lead" style={{ marginTop: 10, textAlign: 'center' }}>
-        Rewards go straight into your stores — build a Vault first if you are near the cap.
+        Rewards go straight into your storage — build a Storage first if you are near the limit.
       </p>
     </div>
   );

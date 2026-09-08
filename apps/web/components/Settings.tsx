@@ -48,7 +48,7 @@ const PUSH_COPY: Record<PushState, string> = {
   unavailable: 'Not configured on this server.',
   denied: 'Blocked in your browser settings — you would need to allow it there first.',
   off: 'Off — you will not hear about finished builds or raids.',
-  on: 'On — finished builds and raids on your hold.',
+  on: 'On — finished builds and attacks on your base.',
 };
 
 function Slider({
@@ -105,8 +105,8 @@ export function SettingsSheet({
             <h4>YOUR INVITE CODE</h4>
             <p>
               {invite.invited === 0
-                ? 'Anyone who enters this instead of the access code gets in — and you are paid when their Keep reaches 3.'
-                : `${invite.invited} joined with it · ${invite.paid} reached Keep 3 and paid out`}
+                ? 'Anyone who enters this instead of the access code gets in — and you are paid when their Town Hall reaches 3.'
+                : `${invite.invited} joined with it · ${invite.paid} reached Town Hall 3 and paid out`}
             </p>
           </div>
           <button
@@ -156,7 +156,7 @@ export function SettingsSheet({
 
       {/*
         Saved layouts (S8.7). Four of them now, because the game grew four
-        things worth laying out for: defence rings the Keep and the Vaults,
+        things worth laying out for: defence rings the Town Hall and the Storages,
         farming pushes the mines out where they are cheap to give away, a war
         base is scored on stars alone since no loot moves in a war, and a push
         base is the one that loses the fewest trophies over a season.
@@ -190,7 +190,7 @@ export function SettingsSheet({
       <div className="qrow" style={{ marginTop: 12 }}>
         <div className="qi">
           <h4>Name</h4>
-          <p>Shown on the ladder and to anyone who raids you.</p>
+          <p>Shown on the leaderboard and to anyone who attacks you.</p>
         </div>
         <button className="btn grey" onClick={onRename}>CHANGE</button>
       </div>
@@ -198,8 +198,8 @@ export function SettingsSheet({
       {isGuest && (
         <div className="qrow" style={{ marginTop: 12 }}>
           <div className="qi">
-            <h4>Guest hold</h4>
-            <p>Add an email and this hold follows you to any device.</p>
+            <h4>Guest base</h4>
+            <p>Add an email and this base follows you to any device.</p>
           </div>
           <button className="btn gold" onClick={onClaimAccount}>SAVE IT</button>
         </div>
@@ -226,7 +226,7 @@ export function SettingsSheet({
           <h4>Sign out</h4>
           <p>
             {isGuest
-              ? 'Careful — a guest hold with no email cannot be signed back into.'
+              ? 'Careful — a guest base with no email cannot be signed back into.'
               : 'You can sign back in with an emailed link.'}
           </p>
         </div>
@@ -236,7 +236,7 @@ export function SettingsSheet({
       {/* The one button in the game with no undo, so it asks twice. */}
       <div className="qrow" style={{ marginTop: 12, borderColor: '#7a3c33' }}>
         <div className="qi">
-          <h4>Delete this hold</h4>
+          <h4>Delete this base</h4>
           <p>
             Everything goes — buildings, troops, trophies, raid history. There is
             no way back.

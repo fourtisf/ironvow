@@ -96,7 +96,7 @@ export function BuildSheet({
       <div className="sheetHead">
         <div>
           <h2>BUILD</h2>
-          <p>Everything is capped by your Keep&rsquo;s level</p>
+          <p>Everything is limited by your Town Hall level</p>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
@@ -171,7 +171,7 @@ export function BuildSheet({
         <span className="cnt">{have}/{limit}</span>
         <div className="nm">{TYPES[type].n}</div>
         <CostLine cost={cost} affordable={affordable} />
-        <div className="sub">{locked ? 'RAISE KEEP' : `${TYPES[type].s}×${TYPES[type].s}`}</div>
+        <div className="sub">{locked ? 'LOCKED' : `${TYPES[type].s}×${TYPES[type].s}`}</div>
       </button>
     );
   }
@@ -195,7 +195,7 @@ export interface ProgressionView {
     level: number;
     troops: { type: TroopType; level: number; power: number; upgradeCost: Cost }[];
   };
-  /** The pouch, and what is still locked behind a higher Keep. */
+  /** Battle items, and what is still locked behind a higher Town Hall. */
   items: {
     type: ItemType; n: string; d: string; cost: Cost;
     cap: number; keep: number; held: number; unlocked: boolean;
@@ -237,7 +237,7 @@ function troopLevel(progression: ProgressionView | null, type: TroopType): numbe
   return progression?.lab?.troops.find((x) => x.type === type)?.level ?? 1;
 }
 
-/** The Keep level a War Lab opens at, read from the cap table rather than typed. */
+/** The Town Hall level a Laboratory opens at, read from the cap table rather than typed. */
 const LAB_KEEP_LEVEL = (() => {
   for (let keep = 1; keep <= KEEP_MAX; keep++) if (capOf('lab', keep) > 0) return keep;
   return KEEP_MAX;
@@ -276,7 +276,7 @@ export function ArmySheet({
       <div className="sheetHead">
         <div>
           <h2>ARMY</h2>
-          <p>Warband {player.armyUsed} / {player.armyCap} slots</p>
+          <p>Army {player.armyUsed} / {player.armyCap} slots</p>
         </div>
         {/*
           * Filling a warband was fourteen taps on the same card. This says how
@@ -318,7 +318,7 @@ export function ArmySheet({
               disabled={locked || !room}
             >
               <span className="cnt">{player.army[type] ?? 0}</span>
-              {/* The roster shows the troop, at the level the War Lab has
+              {/* The roster shows the troop, at the level the Laboratory has
                 * taken it to, so the army screen is a barracks rather than a
                 * price list — and says the level out loud, because a plume and
                 * a coat of paint are not a number a player can plan around. */}
@@ -367,7 +367,7 @@ export function ArmySheet({
               <h4>Rank {hero.level}{hero.level >= hero.maxLevel ? ' · highest' : ''}</h4>
               <p>
                 Deployed once per raid, and away for {hero.respawnMinutes} minutes if it falls.
-                Costs no warband room.
+                Takes no army space.
               </p>
               <div className="qbarBg">
                 <div className="qbar" style={{ width: `${(hero.level / hero.maxLevel) * 100}%` }} />
@@ -397,17 +397,17 @@ export function ArmySheet({
         <div className="qrow" style={{ marginTop: 12 }}>
           <div className="qi">
             <h4>A hero awaits</h4>
-            <p>Raise your Keep to level {hero.unlockKeepLevel} to call one.</p>
+            <p>Upgrade your Town Hall to level {hero.unlockKeepLevel} to unlock one.</p>
           </div>
         </div>
       )}
 
-      {/* The War Lab: the answer to "my troops never get stronger". */}
+      {/* The Laboratory: the answer to "my troops never get stronger". */}
       {lab && lab.level > 0 && (
         <>
           <div className="sheetHead" style={{ marginTop: 14 }}>
             <div>
-              <h2>WAR LAB {lab.level}</h2>
+              <h2>LABORATORY {lab.level}</h2>
               <p>Every level is +12% hit points and damage, for good</p>
             </div>
           </div>
@@ -485,7 +485,7 @@ export function ArmySheet({
               <p>
                 {relics.unlocked
                   ? `${relics.shards} shards · won in clan wars, and slowly at a season's close`
-                  : `Open at Keep ${relics.keep}. What the Vowkeeper carries when everything else is finished.`}
+                  : `Unlocks at Town Hall ${relics.keep}. What the Vowkeeper equips when everything else is done.`}
               </p>
             </div>
           </div>
@@ -493,7 +493,7 @@ export function ArmySheet({
           {relics.unlocked && (
             <div className="qrow" style={{ borderColor: '#7a5a24' }}>
               <div className="qi">
-                <h4>CARRYING {relics.carried.filter(Boolean).length} OF {relics.slots}</h4>
+                <h4>EQUIPPED {relics.carried.filter(Boolean).length} OF {relics.slots}</h4>
                 <p>
                   Fewer slots than relics, on purpose. The Vowkeeper returns in{' '}
                   {relics.respawnMinutes} min after falling.
@@ -538,7 +538,7 @@ export function ArmySheet({
                       disabled={r.cost === null || !afford}
                       onClick={() => onForgeRelic(r.type)}
                     >
-                      {r.cost === null ? 'MAX' : `${r.level === 0 ? 'FORGE' : 'RAISE'} ${r.cost}`}
+                      {r.cost === null ? 'MAX' : `${r.level === 0 ? 'UNLOCK' : 'UPGRADE'} ${r.cost}`}
                     </button>
                     {r.level > 0 && !carried && (
                       <button
@@ -550,7 +550,7 @@ export function ArmySheet({
                           onCarryRelic(full ? 0 : Math.max(0, empty), r.type);
                         }}
                       >
-                        CARRY
+                        EQUIP
                       </button>
                     )}
                   </div>
@@ -573,7 +573,7 @@ export function ArmySheet({
         <>
           <div className="sheetHead" style={{ marginTop: 14 }}>
             <div>
-              <h2>THE POUCH</h2>
+              <h2>BATTLE ITEMS</h2>
               <p>Carried into a raid and spent there. Bought before you go, never during.</p>
             </div>
           </div>
@@ -587,7 +587,7 @@ export function ArmySheet({
                   <p>
                     {it.unlocked
                       ? it.d
-                      : `A Keep of level ${it.keep} carries these. ${it.d}`}
+                      : `Unlocks at Town Hall ${it.keep}. ${it.d}`}
                   </p>
                 </div>
                 <span className="qrw">
@@ -613,7 +613,7 @@ export function ArmySheet({
         <>
           <div className="sheetHead" style={{ marginTop: 14 }}>
             <div>
-              <h2>WAR LAB</h2>
+              <h2>LABORATORY</h2>
               <p>Where troops gain levels: +12% hit points and damage each, for good</p>
             </div>
           </div>
@@ -624,7 +624,7 @@ export function ArmySheet({
               <TroopArt type="raider" level={5} size={58} faded />
             </div>
             <div className="qi">
-              <h4>{labUnlocked(player) ? 'Not built yet' : `Raise your Keep to level ${LAB_KEEP_LEVEL}`}</h4>
+              <h4>{labUnlocked(player) ? 'Not built yet' : `Upgrade your Town Hall to level ${LAB_KEEP_LEVEL}`}</h4>
               <p>
                 {labUnlocked(player)
                   ? 'One Lab, and every troop you own can be raised — kept for good, on every raid after.'
@@ -642,16 +642,16 @@ export function ArmySheet({
         * The garrison: what the clan gave you.
         *
         * On the ARMY screen rather than the CLAN one, because this is part of
-        * what your hold fields — it is just the part somebody else paid for.
+        * what your base fields — it is just the part somebody else paid for.
         */}
       {player.garrisonCap > 0 && (
         <>
           <div className="sheetHead" style={{ marginTop: 14 }}>
             <div>
-              <h2>GARRISON</h2>
+              <h2>CLAN TROOPS</h2>
               <p>
                 {garrisonUsed(player.garrison)} / {player.garrisonCap} slots · they
-                defend your hold, and they are spent doing it
+                defend your base, and they are used up doing it
               </p>
             </div>
           </div>
@@ -737,7 +737,7 @@ export function BreachSheet({ report, onClose }: { report: BreachView; onClose: 
           <p>
             {report.side === 'everywhere'
               ? 'No one side gave way. This was an even attack — the fix is not a corner, it is more of everything.'
-              : 'That side of your hold is the thin one. Moving a defence there costs nothing but a builder.'}
+              : 'That side of your base is the weak one. Moving a defence there costs nothing but a builder.'}
           </p>
         </div>
       </div>
@@ -787,7 +787,7 @@ export function BreachSheet({ report, onClose }: { report: BreachView; onClose: 
           <div className="dayHead" style={{ marginTop: 14 }}>
             <div>
               <h3>THE ORDER IT CAME APART</h3>
-              <p>Ramparts left out — they fall by the dozen and say nothing about what went wrong.</p>
+              <p>Walls left out — they fall by the dozen and say nothing about what went wrong.</p>
             </div>
           </div>
           {report.fell.map((f, i) => (
@@ -832,15 +832,15 @@ export function LogSheet({ raids, onClose, onReplay, onReport, onRevenge, onDril
       </div>
 
       {/*
-        A drill against your own walls. Better to find out your layout does not
-        hold while nothing is at stake than to read it in this log afterwards.
+        A practice attack on your own walls. Better to find out your layout does not
+        base while nothing is at stake than to read it in this log afterwards.
       */}
       <div className="qrow" style={{ borderColor: '#e8b23c' }}>
         <div className="qi">
           <h4>Test your defences</h4>
-          <p>Send a practice wave at your own hold. Nothing is at stake.</p>
+          <p>Send a practice attack at your own base. Nothing is at stake.</p>
         </div>
-        <button className="btn gold" onClick={onDrill}>DRILL</button>
+        <button className="btn gold" onClick={onDrill}>PRACTICE</button>
       </div>
 
       {raids.length === 0 && (
@@ -906,7 +906,7 @@ export function ProfileSheet({ p, onClose }: { p: PlayerProfile; onClose: () => 
         <div>
           <h2>{p.name.toUpperCase()}</h2>
           <p>
-            Keep {p.keepLevel} · Vowkeeper {p.heroLevel} · holding since{' '}
+            Town Hall {p.keepLevel} · Vowkeeper {p.heroLevel} · playing since{' '}
             {since.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
           </p>
         </div>
@@ -915,7 +915,7 @@ export function ProfileSheet({ p, onClose }: { p: PlayerProfile; onClose: () => 
 
       <div className="qrow" style={{ borderColor: '#e8b23c' }}>
         <div className="qi">
-          <h4>#{p.rank} ON THE LADDER</h4>
+          <h4>#{p.rank} ON THE LEADERBOARD</h4>
           <p>{p.trophies} trophies now · {p.seasonPeak} at their best this season</p>
         </div>
       </div>
@@ -1048,8 +1048,8 @@ export function LadderSheet({ top, me, total, season, onFind, onOpen, onClose }:
     <div className="sheet">
       <div className="sheetHead">
         <div>
-          <h2>LADDER</h2>
-          <p>{total} hold{total === 1 ? '' : 's'} in the valley</p>
+          <h2>LEADERBOARD</h2>
+          <p>{total} base{total === 1 ? '' : 's'} in the valley</p>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>
@@ -1061,20 +1061,20 @@ export function LadderSheet({ top, me, total, season, onFind, onOpen, onClose }:
         <input
           value={q}
           onChange={(e) => look(e.target.value)}
-          placeholder="Find a hold by name"
+          placeholder="Find a base by name"
           aria-label="Find a player"
         />
       </div>
 
       {hits !== null && (
         hits.length === 0
-          ? <div className="qrow"><div className="qi"><h4>No hold by that name</h4>
+          ? <div className="qrow"><div className="qi"><h4>No base by that name</h4>
               <p>Names are exact. Ask them how theirs is spelled.</p></div></div>
           : hits.map((p) => (
               <div className={`qrow${p.isMe ? ' me' : ''}`} key={p.id}>
                 <div className="qi">
                   <h4>{p.name}</h4>
-                  <p>Keep {p.keepLevel} · {p.trophies} trophies</p>
+                  <p>Town Hall {p.keepLevel} · {p.trophies} trophies</p>
                 </div>
                 <button className="btn grey" onClick={() => onOpen(p.id)}>LOOK</button>
               </div>
@@ -1101,7 +1101,7 @@ export function LadderSheet({ top, me, total, season, onFind, onOpen, onClose }:
         <button className={`qrow tap${p.isMe ? ' me' : ''}`} key={p.id} onClick={() => onOpen(p.id)}>
           <div className="qi">
             <h4>#{p.rank} · {p.name}</h4>
-            <p>Keep {p.keepLevel}</p>
+            <p>Town Hall {p.keepLevel}</p>
           </div>
           <span className="qrw">{p.trophies}</span>
         </button>

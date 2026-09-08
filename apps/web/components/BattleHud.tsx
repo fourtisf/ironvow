@@ -165,7 +165,7 @@ export function BattleHud({
           </button>
         ))}
 
-        {/* The hero sits apart from the warband, because it is not one of them. */}
+        {/* The hero sits apart from the army, because it is not one of them. */}
         {(heroReady || selected === 'hero') && (
           <button
             className={`tcard hero${selected === 'hero' ? ' sel' : ''}${heroReady ? '' : ' out'}`}

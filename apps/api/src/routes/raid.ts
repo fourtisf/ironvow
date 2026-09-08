@@ -30,6 +30,7 @@ import type { BaseSnapshot, BattleArmy, DeployCommand, DeployableType, HeroLoado
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { debitDefender, revengeCutoff, settleRaid, snapshotBase, trophyBand } from '../domain/raid.js';
+import { buildReport, nameOf } from '../domain/report.js';
 import { grant } from '../domain/production.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
@@ -840,6 +841,54 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       tiers: SEASON_TIERS.map((t) => ({ id: t.id, n: t.n, at: t.at, reward: t.reward })),
       resetTo: seasonReset(s.trophies),
       last: s.last,
+    });
+  });
+
+  /**
+   * Why your hold fell.
+   *
+   * The defender could already watch the raid back, and watching is not
+   * understanding: three minutes of somebody else's attack tells you that you
+   * lost, not that all of them came in over the same corner or that the Mortar
+   * you paid four thousand gold for never fired a shot.
+   *
+   * Derived from the stored raid rather than recorded during it — the
+   * simulation is deterministic, so replaying with the timeline on reproduces
+   * the exact fight. Open to both sides: an attacker who wants to know which
+   * of the defender's guns never reached them is welcome to it, and hiding it
+   * from them would not make it secret anyway.
+   */
+  app.get<{ Params: { id: string } }>('/raid/:id/report', async (request, reply) => {
+    const raid = await prisma.raid.findUnique({ where: { id: request.params.id } });
+    if (!raid) return reply.code(404).send({ error: 'noSuchRaid' });
+    if (raid.attackerId !== request.playerId && raid.defenderId !== request.playerId) {
+      return reply.code(403).send({ error: 'notYours' });
+    }
+    if (raid.status !== 'resolved' || !raid.commands) {
+      return reply.code(409).send({ error: 'notReplayable' });
+    }
+
+    const report = buildReport({
+      snapshot: raid.snapshot as unknown as BaseSnapshot,
+      commands: raid.commands as unknown as DeployCommand[],
+      items: (raid.items as unknown as ItemCommand[] | null) ?? [],
+      pouch: parsePouch(raid.pouch),
+      army: raid.army as unknown as BattleArmy,
+      seed: seedToInt32(raid.seed),
+      hero: (raid.hero as unknown as HeroLoadout | null) ?? { level: 1, available: false },
+      troopLevels: (raid.troopLevels as unknown as TroopLevels | null) ?? {},
+    });
+
+    return reply.send({
+      ...report,
+      // Names resolved here so the client is not handed raw type keys to look
+      // up in a table it would then have to keep in step with this one.
+      fell: report.fell.map((f) => ({ ...f, n: nameOf(f.type) })),
+      idle: report.idle.map((f) => ({ ...f, n: nameOf(f.type) })),
+      traps: report.traps.map((f) => ({ ...f, n: nameOf(f.type) })),
+      stars: raid.stars,
+      destroyedPct: raid.destroyedPct,
+      mine: raid.defenderId === request.playerId,
     });
   });
 

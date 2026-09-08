@@ -10,7 +10,7 @@ import {
 } from '@ironvow/config';
 import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, api, type DailyView, type SeasonState } from '../lib/api';
+import { ApiError, api, type BreachView, type DailyView, type SeasonState } from '../lib/api';
 import {
   beginBattle,
   bump,
@@ -40,7 +40,7 @@ import { ClanSheet } from './ClanSheet';
 import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { Coach } from './Coach';
 import { HelpSheet } from './HelpSheet';
-import { ArmySheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
+import { ArmySheet, BreachSheet, BuildSheet, LadderSheet, LogSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Toast } from './Toast';
@@ -99,6 +99,7 @@ export function Game() {
   const [musicLevel, setMusicLevel] = useState(0.35);
   const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
   const [season, setSeason] = useState<SeasonState | null>(null);
+  const [breach, setBreach] = useState<BreachView | null>(null);
   const [push, setPush] = useState<PushState>('off');
   const [layouts, setLayouts] = useState<LayoutSlot[]>([]);
   const [busy, setBusy] = useState(false);
@@ -1201,12 +1202,21 @@ export function Game() {
         />
       )}
 
-      {sheet === 'log' && (
+      {/* Over the log rather than in place of it: the reader came to the log to
+        * look at a raid, and closing the report should put them back there. */}
+      {breach && <BreachSheet report={breach} onClose={() => { sfx.tap(); setBreach(null); }} />}
+
+      {sheet === 'log' && !breach && (
         <LogSheet
           raids={incoming}
           onRevenge={(id) => { void revenge(id); }}
           onDrill={() => { void drill(); }}
           onClose={() => setSheet(null)}
+          onReport={(raidId) => {
+            void api.report(raidId)
+              .then((r) => { sfx.tap(); setBreach(r); })
+              .catch(() => say('No report for that raid'));
+          }}
           onReplay={(raidId) => {
             void api.replay(raidId).then((r) => {
               if (!worldRef.current) return;

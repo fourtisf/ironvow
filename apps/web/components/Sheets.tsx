@@ -19,7 +19,7 @@ import {
   type ItemType,
 } from '@ironvow/config';
 import { fmt, longUntil, until } from '../lib/format';
-import type { SeasonState } from '../lib/api';
+import type { BreachView, SeasonState } from '../lib/api';
 import type { PlayerState } from '../lib/game/types';
 import { GoldIcon, IronIcon } from './icons';
 import { TroopArt } from './TroopArt';
@@ -604,6 +604,106 @@ export interface DefendPromptProps {
   onDrill: () => void;
 }
 
+/**
+ * Why the hold fell.
+ *
+ * Watching a raid back tells a defender that they lost. It does not tell them
+ * that all of them came in over one corner, or that the Mortar they paid four
+ * thousand gold for never fired a shot — and only the second kind of fact can
+ * be acted on this afternoon.
+ *
+ * Ordered by what a player can do about it: the side first, because moving a
+ * building is the cheapest fix there is; then the guns that never fired, which
+ * is a placement problem rather than a balance one; then the traps nobody
+ * found; then the order the hold came apart in.
+ */
+export function BreachSheet({ report, onClose }: { report: BreachView; onClose: () => void }) {
+  const found = report.traps.filter((t) => t.sprung).length;
+  const secs = (n: number) => `${Math.round(n)}s`;
+
+  return (
+    <div className="sheet">
+      <div className="sheetHead">
+        <div>
+          <h2>WHAT WENT WRONG</h2>
+          <p>
+            {report.stars}★ · {Math.round(report.destroyedPct * 100)}% in {secs(report.seconds)}
+          </p>
+        </div>
+        <button className="xbtn" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="qrow" style={{ borderColor: '#e8b23c' }}>
+        <div className="qi">
+          <h4>{report.side === 'everywhere' ? 'THEY CAME FROM ALL OVER' : `THEY CAME FROM THE ${report.side.toUpperCase()}`}</h4>
+          <p>
+            {report.side === 'everywhere'
+              ? 'No one side gave way. This was an even attack — the fix is not a corner, it is more of everything.'
+              : 'That side of your hold is the thin one. Moving a defence there costs nothing but a builder.'}
+          </p>
+        </div>
+      </div>
+
+      {report.idle.length > 0 ? (
+        <>
+          <div className="dayHead" style={{ marginTop: 14 }}>
+            <div>
+              <h3>NEVER FIRED A SHOT</h3>
+              <p>They never walked into these. A gun covering ground nobody crosses is a gun you do not have.</p>
+            </div>
+          </div>
+          {report.idle.map((x, i) => (
+            <div className="qrow" key={`${x.type}${i}`}>
+              <div className="qi"><h4>{x.n} · level {x.level}</h4>
+                <p>Out of the fight for the whole raid.</p></div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <div className="qrow"><div className="qi">
+          <h4>Every defence got a shot off</h4>
+          <p>Nothing was wasted on empty ground. What beat you was strength, not placement.</p>
+        </div></div>
+      )}
+
+      {report.traps.length > 0 && (
+        <>
+          <div className="dayHead" style={{ marginTop: 14 }}>
+            <div>
+              <h3>TRAPS · {found} OF {report.traps.length} FOUND</h3>
+              <p>A trap they never walked over is a trap you paid for and did not use.</p>
+            </div>
+          </div>
+          {report.traps.map((t, i) => (
+            <div className={`qrow${t.sprung ? '' : ' done'}`} key={`${t.type}${i}`}>
+              <div className="qi"><h4>{t.n} · level {t.level}</h4>
+                <p>{t.sprung ? `Sprung at ${secs(t.at ?? 0)}.` : 'Never found.'}</p></div>
+              <span className="qrw">{t.sprung ? 'HIT' : '—'}</span>
+            </div>
+          ))}
+        </>
+      )}
+
+      {report.fell.length > 0 && (
+        <>
+          <div className="dayHead" style={{ marginTop: 14 }}>
+            <div>
+              <h3>THE ORDER IT CAME APART</h3>
+              <p>Ramparts left out — they fall by the dozen and say nothing about what went wrong.</p>
+            </div>
+          </div>
+          {report.fell.map((f, i) => (
+            <div className="qrow" key={`${f.type}${i}`}>
+              <div className="qi"><h4>{i + 1}. {f.n} · level {f.level}</h4>
+                <p>Fell at {secs(f.at)}.</p></div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 export interface LogSheetProps {
   raids: {
     raidId: string;
@@ -617,11 +717,12 @@ export interface LogSheetProps {
   }[];
   onClose: () => void;
   onReplay: (raidId: string) => void;
+  onReport: (raidId: string) => void;
   onRevenge: (raidId: string) => void;
   onDrill: () => void;
 }
 
-export function LogSheet({ raids, onClose, onReplay, onRevenge, onDrill }: LogSheetProps) {
+export function LogSheet({ raids, onClose, onReplay, onReport, onRevenge, onDrill }: LogSheetProps) {
   return (
     <div className="sheet">
       <div className="sheetHead">
@@ -660,7 +761,12 @@ export function LogSheet({ raids, onClose, onReplay, onRevenge, onDrill }: LogSh
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 'none' }}>
             {r.replayable
-              ? <button className="btn grey" onClick={() => onReplay(r.raidId)}>WATCH</button>
+              ? <>
+                  <button className="btn grey" onClick={() => onReplay(r.raidId)}>WATCH</button>
+                  {/* Beside WATCH rather than instead of it: one shows what
+                    * happened, the other says what to do about it. */}
+                  <button className="btn grey" onClick={() => onReport(r.raidId)}>WHY</button>
+                </>
               : <span className="qrw">—</span>}
             {r.avengeable && (
               <button className="btn red" onClick={() => onRevenge(r.raidId)}>HIT BACK</button>

@@ -119,6 +119,27 @@ export interface ClanLadderRow {
   memberCount: number; trophies: number; rank: number; isMine: boolean;
 }
 
+export interface BreachRow {
+  type: BuildingType;
+  /** The building's name, resolved server-side so this file holds no copy. */
+  n: string;
+  level: number;
+}
+
+export interface BreachView {
+  /** A compass point, or "everywhere" when the attack had no one side. */
+  side: string;
+  concentration: number;
+  fell: (BreachRow & { at: number })[];
+  idle: BreachRow[];
+  traps: (BreachRow & { sprung: boolean; at: number | null })[];
+  seconds: number;
+  stars: number;
+  destroyedPct: number;
+  /** True when the hold that fell was the reader's own. */
+  mine: boolean;
+}
+
 export interface SeasonTierView {
   id: string; n: string; at: number; reward: { g: number; i: number };
 }
@@ -319,6 +340,9 @@ export const api = {
 
   /** The running season: the countdown, the band, and the last payout. */
   season: (): Promise<SeasonState> => call('/season'),
+
+  /** Why a hold fell: which side, what never fired, what was never found. */
+  report: (raidId: string): Promise<BreachView> => call(`/raid/${raidId}/report`),
 
   layouts: (): Promise<{
     layouts: { slot: 'defence' | 'farming'; name: string; saved: boolean; buildings: number; savedAt: string | null }[];

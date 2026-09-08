@@ -1697,6 +1697,50 @@ code happened to check last. Snares do not stack; the deepest wins. A cluster is
 a wider net, not a troop frozen solid, which would be a win button rather than a
 trap.
 
+## Why your hold fell
+
+A defender could already watch a raid back, and watching is not understanding.
+Three minutes of somebody else's attack tells you that you lost. It does not
+tell you that every one of them came in over the same corner, or that the Mortar
+you spent four thousand gold on never fired a shot because nobody ever walked
+into its half of the base.
+
+`GET /raid/:id/report` answers that, and the answers are ordered by what a
+player can actually do about them:
+
+1. **Which side they came from**, as one of eight compass points — a corner is
+   different advice from an edge. With a measure of how lopsided it was: the
+   length of the average deploy offset over the average length of the offsets,
+   which is one when every man landed on the same side and near zero when they
+   were spread evenly. Below 0.35 the report says "everywhere" rather than
+   inventing a thin side that is not there.
+2. **Which defences never fired a shot.** The most useful line it has, and the
+   one thing watching cannot show you: a Cannon covering ground nobody crossed
+   looks exactly like a Cannon doing its job until you count its shots. A
+   defence that fired and lost is a balance problem. A defence that never fired
+   is a placement problem, and only one of those is fixable this afternoon.
+3. **Which traps were found and which were not.** A trap they never walked over
+   is a trap you paid for and did not use — and now that traps are hidden, this
+   is the only way to learn whether a guess was a good one.
+4. **The order the hold came apart in.** Ramparts left out: they fall by the
+   dozen and say nothing.
+
+**All of it is derived, none of it is stored.** The raid row already holds the
+frozen snapshot, the seed, the commands, the pouch and the items, and the
+simulation is deterministic — so replaying it with the timeline switched on
+reproduces the exact fight and every event in it. There is no second record that
+could drift from the first, and no migration.
+
+Building names are resolved server-side rather than sent as type keys, so the
+client does not carry a second copy of a table it would then have to keep in
+step.
+
+One test in it was wrong in an instructive way. "A far Cannon never fires"
+failed, because with a full warband and three minutes on the clock the troops
+eventually walk the entire map and every gun on it gets a shot off. True, and
+useless. It takes two raiders against a maxed gun now: they die on the near side
+and the far one never sees anybody.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

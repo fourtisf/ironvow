@@ -52,10 +52,21 @@ function CostLine({ cost, affordable }: { cost: Cost; affordable: boolean }) {
  * there was no way to. A player could reach Keep 9 being told to build
  * something the game would not sell them.
  */
-const BUILDABLE: BuildingType[] = ['mine', 'forge', 'store', 'camp', 'barr', 'lab', 'cannon', 'tower', 'wall'];
+/*
+ * The BUILD sheet, in the order it reads best: economy, then army, then
+ * defence. Not derived from BUILDING_TYPES, because the order is a judgement
+ * and the game's declaration order is not it.
+ *
+ * `apps/web/test/buildable.test.ts` asserts this and VANITY between them cover
+ * every type a player can own. Nothing else would notice a new building that
+ * was never added here: it would simply be unbuildable, with no error anywhere.
+ */
+export const BUILDABLE: BuildingType[] = [
+  'mine', 'forge', 'store', 'camp', 'barr', 'lab', 'cannon', 'tower', 'mortar', 'wall',
+];
 
 /** Bought to be looked at. Shown separately, and only once one is unlocked. */
-const VANITY: BuildingType[] = ['statue', 'brazier', 'standard'];
+export const VANITY: BuildingType[] = ['statue', 'brazier', 'standard'];
 
 export interface BuildSheetProps {
   player: PlayerState;

@@ -38,7 +38,7 @@ function paint(type: 'bomber' | 'raider', fly: boolean, t = 0): string[] {
   const { ctx, log } = recorder();
   const cam = newCamera();
   const vp: Viewport = { w: 400, h: 800, dpr: 2 };
-  const d: Draw = { ctx, cam, vp, t };
+  const d: Draw = { ctx, cam, vp, t, night: 0 };
   drawUnitUncached(d, {
     type, x: 20, y: 20, mine: true, hp: 1, maxHp: 1, moving: false,
     face: 1, swing: 0, flash: 0, born: 0, level: 5, fly,

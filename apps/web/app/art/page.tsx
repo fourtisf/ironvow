@@ -68,7 +68,7 @@ export default function ArtPage() {
     const tick = (now: number) => {
       times.push(now - last); last = now;
       ctx.fillStyle = '#6ea844'; ctx.fillRect(0, 0, 412, 892);
-      for (const u of units) drawUnit({ ctx, cam, vp, t: now / 1000 }, u);
+      for (const u of units) drawUnit({ ctx, cam, vp, t: now / 1000 , night: 0}, u);
       if (++n < 200) requestAnimationFrame(tick);
       else {
         const s = times.slice(2).sort((a, b) => a - b);
@@ -120,7 +120,7 @@ export default function ArtPage() {
         cam.z = 1.5;
         cam.x = -(120 + col * CELL + CELL / 2 - w / 2) / cam.z;
         cam.y = -(30 + row * ROW + ROW / 2 - h / 2) / cam.z + (size * 16);
-        drawBuilding({ ctx, cam, vp, t: 0 }, { type, gx: -size / 2, gy: -size / 2, level }, false);
+        drawBuilding({ ctx, cam, vp, t: 0 , night: 0}, { type, gx: -size / 2, gy: -size / 2, level }, false);
       });
 
       ctx.fillStyle = C.parch;
@@ -144,7 +144,7 @@ export default function ArtPage() {
       for (const [x, y] of run) {
         const link = (has(x + 1, y) ? 1 : 0) | (has(x, y + 1) ? 2 : 0)
           | (has(x - 1, y) ? 4 : 0) | (has(x, y - 1) ? 8 : 0);
-        drawBuilding({ ctx, cam, vp, t: 0 }, { type: 'wall', gx: x - 1, gy: y - 1, level, link }, false);
+        drawBuilding({ ctx, cam, vp, t: 0 , night: 0}, { type: 'wall', gx: x - 1, gy: y - 1, level, link }, false);
       }
     });
     ctx.fillStyle = C.parch;
@@ -165,7 +165,7 @@ export default function ArtPage() {
         cam.z = 1.5;
         cam.x = -(120 + col * CELL + CELL / 2 - w / 2) / cam.z;
         cam.y = -(30 + trow * ROW + ROW / 2 - h / 2) / cam.z;
-        drawUnit({ ctx, cam, vp, t: 0 }, {
+        drawUnit({ ctx, cam, vp, t: 0 , night: 0}, {
           type, x: 0, y: 0, mine: true, hp: 1, maxHp: 1,
           moving: false, face: 1, swing: 0, flash: 0, born: 0, level,
         });

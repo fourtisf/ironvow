@@ -1,7 +1,8 @@
 import { DEF_STAT, DEPLOY_CLEARANCE, HORN_SECONDS, PROD, TH, TROOP, TROOP_ORDER, TW, TYPES, heroStats, isTrap, trapSeconds, type BuildingType } from '@ironvow/config';
 import { isoX, isoY, onScreen, structOnScreen, w2s } from '../render/camera';
 import type { Draw } from '../render/primitives';
-import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx } from '../render/buildings';
+import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx, drawTorchlight, type Renderable } from '../render/buildings';
+import { SKY, nightLevel, type SkyTint } from './daylight';
 import { blitBuilding, blitDeco } from '../render/sprites';
 import { C, PIPH } from '../render/palette';
 import { drawHpBar, isoBox, isoDiamond, roundRect } from '../render/primitives';
@@ -23,12 +24,90 @@ import type { Battle } from '@ironvow/sim';
  */
 
 function draw(w: World, ctx: CanvasRenderingContext2D): Draw {
-  return { ctx, cam: w.cam, vp: w.vp, t: w.t };
+  return { ctx, cam: w.cam, vp: w.vp, t: w.t, night: nightNow(w) };
+}
+
+/** How dark it is right now, part-way through a change of light. */
+function nightNow(w: World): number {
+  return nightLevel(w.skyFrom) * (1 - w.skyMix) + nightLevel(w.phase) * w.skyMix;
+}
+
+/**
+ * The hour, painted over the finished scene.
+ *
+ * On the canvas and not in a stylesheet, and the order is why: the field is
+ * darkened here and the Torches paint light back on top of it. An overlay
+ * sitting above the canvas would fall on the fire as well, and a torch that
+ * cannot outshine the night it stands in is not a light, it is a decal.
+ *
+ * One fill, in the plainest composite there is — see the note on `SKY`. Two
+ * phases are blended for a beat after the hour turns, so a change of light is a
+ * change of light rather than a switch being thrown.
+ */
+let skyGrad: { key: string; grad: CanvasGradient } | null = null;
+
+function skyGradient(ctx: CanvasRenderingContext2D, tint: SkyTint, w: number, h: number): CanvasGradient {
+  // Rebuilt only when the phase or the window changes, not sixty times a second.
+  const key = `${tint.from}|${tint.to}|${w}x${h}`;
+  if (skyGrad?.key !== key) {
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, tint.from);
+    grad.addColorStop(1, tint.to);
+    skyGrad = { key, grad };
+  }
+  return skyGrad.grad;
+}
+
+function paintSky(w: World, ctx: CanvasRenderingContext2D): void {
+  ctx.save();
+  // Screen space: the sky is not somewhere on the map, it is over all of it.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  /*
+   * Device pixels, straight off the canvas.
+   *
+   * `vp.w`/`vp.h` are CSS pixels, and the transform above is the backing
+   * store's own. On a phone at two device pixels to one, filling by those
+   * covered the top-left quarter of the screen and left the rest in daylight —
+   * which read as a rendering glitch rather than as night.
+   */
+  const vw = ctx.canvas.width;
+  const vh = ctx.canvas.height;
+
+  const lay = (tint: SkyTint, weight: number): void => {
+    if (weight <= 0) return;
+    ctx.globalAlpha = weight;
+    ctx.fillStyle = skyGradient(ctx, tint, vw, vh);
+    ctx.fillRect(0, 0, vw, vh);
+  };
+
+  // During a crossfade the outgoing phase is drawn first and the incoming over
+  // it; the rest of the time `skyMix` is 1 and this is a single fill.
+  if (w.skyMix < 1) lay(SKY[w.skyFrom], 1 - w.skyMix);
+  lay(SKY[w.phase], w.skyMix);
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 export function renderFrame(w: World, ctx: CanvasRenderingContext2D): void {
   if (w.mode === 'battle' && w.battle) renderBattle(w, ctx);
   else renderBase(w, ctx);
+}
+
+/**
+ * Everything the hour touches, after the scene and before the HUD.
+ *
+ * Called by both renderers at the very end, because a Torch has to light a
+ * field that is already dark — see `paintSky`. The pools are drawn from the
+ * same painter the flame uses, so a torch cannot be lit in one pass and unlit
+ * in the other.
+ */
+function paintHour(w: World, ctx: CanvasRenderingContext2D, torches: Renderable[]): void {
+  if (w.skyMix >= 1 && w.phase === 'day') return;
+  paintSky(w, ctx);
+  const d = draw(w, ctx);
+  if (d.night <= 0) return;
+  for (const t of torches) drawTorchlight(d, t);
 }
 
 /**
@@ -409,6 +488,17 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     drawBuilding(d, { type: place.type, gx: place.gx, gy: place.gy, level: 1 }, false, 0.55);
   }
 
+  drawAtmosphere(d);
+
+  /*
+   * The hour, over the field and under everything a player acts on.
+   *
+   * The collect pouches and the popups below are drawn after it on purpose:
+   * they are the game talking to the player rather than part of the world, and
+   * a tap target nobody can find at eleven at night is not atmosphere.
+   */
+  paintHour(w, ctx, (w.player?.buildings ?? []).filter((b) => b.type === 'brazier'));
+
   for (const b of w.player?.buildings ?? []) {
     // No pouch over a scaffold: it is not producing anything yet.
     const goingUp = b.completesAt !== null && b.upgradingTo === null;
@@ -416,7 +506,6 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
     if (!structOnScreen(w.cam, w.vp, b.gx, b.gy, TYPES[b.type].s)) continue;
     drawCollectBubble(w, d, b);
   }
-  drawAtmosphere(d);
   drawPopups(w, d);
 }
 
@@ -480,6 +569,19 @@ function renderPreview(w: World, ctx: CanvasRenderingContext2D, d: Draw): void {
     }
   }
   drawAtmosphere(d);
+
+  /*
+   * The preview is under the same sky as everything else.
+   *
+   * It is easy to miss because this path returns early out of `renderBase` —
+   * which is exactly what happened: the first screen's drifting hold and the
+   * base being scouted both stayed at high noon while the player's own field
+   * went dark, and a scout that does not look like the raid it precedes is
+   * worse than no atmosphere at all.
+   */
+  paintHour(w, ctx, snapshot.buildings
+    .filter((b) => b.type === 'brazier')
+    .map((b) => ({ type: b.type, gx: b.gx, gy: b.gy, level: b.level })));
 }
 
 
@@ -815,6 +917,12 @@ function renderBattle(w: World, ctx: CanvasRenderingContext2D): void {
     drawProjectile(d, { x: p.x, y: p.y, kind: p.kind });
   }
   drawAtmosphere(d);
+
+  // A raid at midnight is fought in the dark, by the light of the defender's
+  // own torches. Nothing about how it resolves changes.
+  paintHour(w, ctx, battle.structs
+    .filter((s) => s.t === 'brazier')
+    .map((s) => ({ type: s.t as BuildingType, gx: s.gx, gy: s.gy, level: s.lv })));
 }
 
 /**

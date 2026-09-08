@@ -16,6 +16,15 @@ export interface Draw {
   vp: Viewport;
   /** Animation clock in seconds, for sway, smoke and banners. */
   t: number;
+  /**
+   * How dark it is: 0 in daylight, 1 at night.
+   *
+   * The only thing the canvas is told about the hour, and it exists so a fire
+   * can light the ground it stands on. Read by effect painters only — never by
+   * anything that goes into the sprite cache, which is keyed on shape and would
+   * bake one moment of one day into every copy of a building for good.
+   */
+  night: number;
 }
 
 export type Corner = [number, number];

@@ -216,7 +216,7 @@ function useNear(rank: Near[], cw = W, ch = H) {
       w.vp = { w: u.x * 2, h: u.y * 2, dpr: 2 };
       w.cam.x = 0;
       w.cam.y = 0;
-      drawUnit({ ctx, cam: w.cam, vp: w.vp, t: w.t }, {
+      drawUnit({ ctx, cam: w.cam, vp: w.vp, t: w.t , night: 0}, {
         type: u.type, x: 0, y: 0, mine: true, hp: 1, maxHp: 1,
         moving: false, face: u.face, swing: u.swing, flash: 0, born: 0, level: 9,
       });
@@ -346,7 +346,7 @@ function Figure({ type, level, scale, w: fw, h: fh }: {
     // Feet a little below the middle, so the figure sits on the line rather
     // than floating in the middle of its own box.
     wd.vp = { w: fw, h: fh * 1.42, dpr: 2 };
-    drawUnit({ ctx, cam: wd.cam, vp: wd.vp, t: wd.t }, {
+    drawUnit({ ctx, cam: wd.cam, vp: wd.vp, t: wd.t , night: 0}, {
       type, level, x: 0, y: 0, mine: true, hp: 1, maxHp: 1,
       moving: false, face: 1, swing: 0.35, flash: 0, born: 0,
     });

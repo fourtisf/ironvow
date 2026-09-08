@@ -9,6 +9,8 @@
  * between drawing the trees and not.
  */
 
+import { PHASE_NAME, skyLabel, type SkySetting } from '../lib/game/daylight';
+
 export type PushState = 'unsupported' | 'unavailable' | 'denied' | 'off' | 'on';
 
 export interface LayoutSlot {
@@ -40,6 +42,9 @@ export interface SettingsSheetProps {
   onDeleteAccount: () => void;
   onHelp: () => void;
   onNews: () => void;
+  /** The sky over the field, and what to set it to next. */
+  sky: SkySetting;
+  onSky: () => void;
   onReport: () => void;
   onClose: () => void;
 }
@@ -83,6 +88,7 @@ export function SettingsSheet({
   music, sfx, isGuest, playerName, invite, push, layouts, busy,
   onMusic, onSfx, onPush, onTestPush, onSaveLayout, onApplyLayout,
   onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onNews, onReport, onClose,
+  sky, onSky,
 }: SettingsSheetProps) {
   const canPush = push !== 'unsupported' && push !== 'unavailable' && push !== 'denied';
   return (
@@ -212,6 +218,23 @@ export function SettingsSheet({
           <p>The rules, and the tutorial again if you want it.</p>
         </div>
         <button className="btn grey" onClick={onHelp}>OPEN</button>
+      </div>
+
+      {/*
+        * ALFA asked whether the game had a dark theme, then said what he meant:
+        * "kaya pagi siang sore malam". It follows the clock on the phone by
+        * default — which is the answer to both readings, since the clock says
+        * night when it is night — and can be held on one hour by anybody who
+        * prefers it that way.
+        */}
+      <div className="setRow">
+        <div className="setLabel">
+          <h4>TIME OF DAY</h4>
+          <p>{skyLabel(sky)}</p>
+        </div>
+        <button className="btn grey" onClick={onSky}>
+          {sky === 'auto' ? 'AUTO' : PHASE_NAME[sky].toUpperCase()}
+        </button>
       </div>
 
       <div className="setRow">

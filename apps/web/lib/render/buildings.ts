@@ -1331,6 +1331,7 @@ export function drawBuildingFx(d: Draw, b: Renderable, enemy: boolean): void {
   } else if (b.type === 'brazier') {
     const [px, py] = P(gx + 0.5, gy + 0.5);
     const bowl = py - 26 * z;
+
     // Three tongues on slightly different clocks, so it flickers rather than
     // pulsing. It is the one thing on a maxed base that moves at night.
     for (let i = 0; i < 3; i++) {
@@ -1459,4 +1460,46 @@ export function drawBuilderMark(d: Draw, b: Renderable, size: number): void {
   ctx.fillStyle = '#8fe07a';
   roundRect(ctx, bx - w / 2 + 1.5 * z, top + 1.5 * z, Math.max(0, (w - 3 * z) * progress), h - 3 * z, (h - 3 * z) / 2);
   ctx.fill();
+}
+
+/**
+ * The pool of light a Torch casts, once there is dark to cast it into.
+ *
+ * `TYPES.brazier.blurb` has said "a fire that burns all night" since it was
+ * written, against a game that had no night in it — the Torch was four thousand
+ * gold for a building that did nothing at all. It does something now: at night
+ * the torches are the only part of a base that pushes the dark back, so where
+ * they go becomes a decision rather than decoration.
+ *
+ * Its own painter rather than a branch of `drawBuildingFx`, because of when it
+ * has to happen: the light is added *after* the whole field has been darkened,
+ * and the flame is drawn with the building, long before that.
+ */
+export function drawTorchlight(d: Draw, b: Renderable): void {
+  const { ctx, cam, vp, t, night } = d;
+  if (night <= 0) return;
+  const z = cam.z;
+  const [px, py] = w2s(cam, vp, isoX(b.gx + 0.5, b.gy + 0.5), isoY(b.gx + 0.5, b.gy + 0.5));
+  // Where the fire actually is: the bowl sits well above the cell it stands on.
+  const cy = py - 6 * z;
+
+  // Two clocks, so it breathes unevenly the way a fire does rather than pulsing.
+  const breathe = 0.9 + Math.sin(t * 2.3 + b.gx) * 0.07 + Math.sin(t * 5.9 + b.gy) * 0.035;
+  const reach = 150 * z * breathe;
+
+  const glow = ctx.createRadialGradient(px, cy, 0, px, cy, reach);
+  glow.addColorStop(0, `rgba(255,206,120,${(0.62 * night).toFixed(3)})`);
+  glow.addColorStop(0.4, `rgba(255,158,58,${(0.26 * night).toFixed(3)})`);
+  glow.addColorStop(1, 'rgba(255,130,40,0)');
+
+  ctx.save();
+  // Light adds to what is under it. A plain fill would read as amber paint.
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  // An ellipse: light lies on ground drawn at half height, and a round pool
+  // would float above it.
+  ctx.ellipse(px, cy, reach, reach * 0.5, 0, 0, 6.29);
+  ctx.fill();
+  ctx.restore();
 }

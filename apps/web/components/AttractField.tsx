@@ -5,7 +5,8 @@ import { TH, TW, TYPES, clamp } from '@ironvow/config';
 import { centerOn } from '../lib/render/camera';
 import { renderFrame } from '../lib/game/render';
 import { showcaseHold } from '../lib/game/showcase';
-import { createWorld, decayFx, resizeWorld, showPreview, type World, type WorldEvents } from '../lib/game/world';
+import { watchPhase } from '../lib/game/daylight';
+import { createWorld, decayFx, resizeWorld, setPhase, showPreview, stepSky, type World, type WorldEvents } from '../lib/game/world';
 
 /**
  * The field behind the door.
@@ -57,6 +58,13 @@ export function AttractField() {
      * shows the end of the game rather than the middle of it, and the livery
      * somebody is being invited to build rather than one to attack.
      */
+    /*
+     * The first screen is under the same sky as the game behind it. Somebody
+     * opening a link at eleven at night should not be shown a bright noon and
+     * then dropped into the dark.
+     */
+    const unwatchSky = watchPhase((phase) => setPhase(world, phase));
+
     const snapshot = showcaseHold();
     world.resize = () => resizeWorld(world, canvas, ctx);
     world.resize();
@@ -172,6 +180,7 @@ export function AttractField() {
       );
 
       decayFx(world, dt);
+      stepSky(world, dt);
       renderFrame(world, ctx);
       raf = requestAnimationFrame(frame);
     };
@@ -179,6 +188,7 @@ export function AttractField() {
 
     return () => {
       cancelAnimationFrame(raf);
+      unwatchSky();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
       world.resize = null;

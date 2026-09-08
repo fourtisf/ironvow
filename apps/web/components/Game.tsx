@@ -43,6 +43,7 @@ import { QuestSheet, rewardText, type QuestRow } from './QuestSheet';
 import { Coach } from './Coach';
 import { HelpSheet } from './HelpSheet';
 import { NewsSheet, hasNews } from './NewsSheet';
+import { announceSky, loadSky, nextSky, saveSky, type SkySetting } from '../lib/game/daylight';
 import { ArmySheet, BreachSheet, BuildSheet, LadderSheet, LogSheet, ProfileSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
@@ -103,6 +104,8 @@ export function Game() {
    * because the first one opens itself, and a sheet that opens itself would
    * shut whatever the player had open.
    */
+  /** The sky: the player's own clock by default, or an hour they picked. */
+  const [sky, setSky] = useState<SkySetting>('auto');
   const [news, setNews] = useState<'unread' | 'all' | null>(null);
   /** Shown once a session, however many times the base reloads underneath it. */
   const [newsShown, setNewsShown] = useState(false);
@@ -315,6 +318,10 @@ export function Game() {
   }, [signedIn, mode, musicLevel]);
 
   useEffect(() => () => stopMusic(), []);
+
+  // Read after mount, not during render: there is no localStorage on the
+  // server, and a value guessed there is a hydration mismatch.
+  useEffect(() => setSky(loadSky()), []);
 
   /* --- what changed while they were away ---
    *
@@ -1258,6 +1265,14 @@ export function Game() {
           }}
           onHelp={() => setSheet('help')}
           onNews={() => { setSheet(null); setNews('all'); }}
+          sky={sky}
+          onSky={() => {
+            const next = nextSky(sky);
+            setSky(next);
+            saveSky(next);
+            announceSky(next);
+            sfx.tap();
+          }}
           onReport={() => { setSheet(null); setReportOpen(true); }}
           onDeleteAccount={() => {
             setConfirm({

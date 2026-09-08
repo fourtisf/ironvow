@@ -60,7 +60,7 @@ export function TroopArt({ type, level, size = 56, mine = true, faded = false }:
     const vp: Viewport = { w: size, h: size, dpr };
 
     ctx.globalAlpha = faded ? 0.45 : 1;
-    drawUnit({ ctx, cam, vp, t: 0 }, {
+    drawUnit({ ctx, cam, vp, t: 0 , night: 0}, {
       type, x: 0, y: 0, mine, hp: 1, maxHp: 1,
       moving: false, face: 1, swing: 0, flash: 0, born: 0, level,
     });

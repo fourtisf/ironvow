@@ -1,7 +1,7 @@
 import { TYPES, type BuildingType } from '@ironvow/config';
 import type { DeployableType } from '@ironvow/types';
 import { describe, expect, it } from 'vitest';
-import { ANIMATED, drawBuildingBody, drawBuildingFx } from '../lib/render/buildings';
+import { ANIMATED, drawBuildingBody, drawBuildingFx, drawTorchlight } from '../lib/render/buildings';
 import { drawUnitUncached, type DrawableUnit } from '../lib/render/units';
 import { newCamera, onScreen, structOnScreen, type Viewport } from '../lib/render/camera';
 import { isoBox, type Draw } from '../lib/render/primitives';
@@ -69,11 +69,11 @@ function recorder(): { ctx: CanvasRenderingContext2D; log: string[] } {
   return { ctx, log };
 }
 
-function draw(t: number): { d: Draw; log: string[] } {
+function draw(t: number, night = 0): { d: Draw; log: string[] } {
   const { ctx, log } = recorder();
   const cam = newCamera();
   const vp: Viewport = { w: 400, h: 800, dpr: 2 };
-  return { d: { ctx, cam, vp, t }, log };
+  return { d: { ctx, cam, vp, t, night }, log };
 }
 
 const ALL = Object.keys(TYPES) as BuildingType[];
@@ -87,6 +87,25 @@ describe('building bodies are cacheable', () => {
       drawBuildingBody(b.d, { type, gx: 4, gy: 4, level: 5 }, false);
       expect(a.log).toEqual(b.log);
       expect(a.log.length).toBeGreaterThan(0);
+    });
+  }
+
+  for (const type of ALL) {
+    it(`${type} draws identically whatever hour it is`, () => {
+      /*
+       * The same rule as the clock above, and it exists for the same reason.
+       *
+       * `night` is not in the sprite cache key, so a body painter that read it
+       * would rasterise one hour of one day and hand that bitmap back for every
+       * copy of the building for the rest of the session — a base still lit at
+       * noon, and no error anywhere. Light goes on top of the sprite, in
+       * `drawBuildingFx`, which is not cached.
+       */
+      const day = draw(0, 0);
+      const dark = draw(0, 1);
+      drawBuildingBody(day.d, { type, gx: 4, gy: 4, level: 5 }, false);
+      drawBuildingBody(dark.d, { type, gx: 4, gy: 4, level: 5 }, false);
+      expect(day.log).toEqual(dark.log);
     });
   }
 
@@ -282,5 +301,49 @@ describe('a box has walls on both sides you can see', () => {
     const southX = polys.flat().find(([, y]) => Math.abs(y - bottom) < 0.6)![0];
     expect(spans.some((sp) => sp.lo < southX - 1)).toBe(true);
     expect(spans.some((sp) => sp.hi > southX + 1)).toBe(true);
+  });
+});
+
+describe('a Torch lights the ground, and only after dark', () => {
+  /*
+   * `TYPES.brazier.blurb` promised "a fire that burns all night" against a game
+   * that had no night in it, and the Torch cost four thousand gold for a
+   * building that did nothing. The glow is what makes that sentence true, and
+   * it has to be absent in daylight or the base looks lit at noon.
+   */
+  const torch = (night: number): string[] => {
+    const { d, log } = draw(3.1, night);
+    drawTorchlight(d, { type: 'brazier', gx: 4, gy: 4, level: 1 });
+    return log;
+  };
+
+  it('draws nothing extra in daylight', () => {
+    expect(torch(0).some((c) => c.startsWith('radial#'))).toBe(false);
+  });
+
+  it('pools light at night', () => {
+    expect(torch(1).some((c) => c.startsWith('radial#'))).toBe(true);
+  });
+
+  it('is dimmer at sunset than at midnight', () => {
+    // Both draw a pool; the difference is how much of it there is.
+    expect(torch(0.4).length).toBe(torch(1).length);
+    expect(torch(0.4)).not.toEqual(torch(1));
+  });
+
+  it('leaves every other painter deaf to the hour', () => {
+    /*
+     * The light is added after the field has been darkened, in its own pass.
+     * Nothing drawn with the buildings may look at the clock's hour, or it
+     * would be lit under the night rather than over it — and a building painted
+     * before the darkening cannot outshine it.
+     */
+    for (const type of ALL) {
+      const { d: day, log: dayLog } = draw(3.1, 0);
+      const { d: dark, log: darkLog } = draw(3.1, 1);
+      drawBuildingFx(day, { type, gx: 4, gy: 4, level: 5 }, false);
+      drawBuildingFx(dark, { type, gx: 4, gy: 4, level: 5 }, false);
+      expect(dayLog, type).toEqual(darkLog);
+    }
   });
 });

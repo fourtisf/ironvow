@@ -200,8 +200,18 @@ export function blitBuilding(
     // (0,0) at the canvas origin, where the transform has already been aimed.
     const cam0: Camera = { x: 0, y: 0, z: k, tz: k };
     const vp0: Viewport = { w: 0, h: 0, dpr: vp.dpr };
+    /*
+     * A clock of zero and a night of zero, and both are the same rule.
+     *
+     * This is the rasterisation the cache keeps, keyed on shape alone. Anything
+     * the body painter reads that is not in that key gets baked into the bitmap
+     * and then reused by every copy of the building for the rest of the
+     * session — one frame of an animation, or one hour of one day, frozen for
+     * good. Light belongs on top of the sprite, never inside it.
+     */
     drawBuildingBody(
-      { ctx: c, cam: cam0, vp: vp0, t: 0 }, { type, gx: 0, gy: 0, level, link, pips }, enemy,
+      { ctx: c, cam: cam0, vp: vp0, t: 0, night: 0 },
+      { type, gx: 0, gy: 0, level, link, pips }, enemy,
     );
   };
   blit(ctx, spriteFor(shape, paint, z, vp.dpr), vp.dpr, ax, ay);

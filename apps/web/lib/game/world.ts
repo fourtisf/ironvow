@@ -18,6 +18,7 @@ import {
 } from '@ironvow/config';
 import { createBattle, type Battle } from '@ironvow/sim';
 import type { BattleSpeed } from './eta';
+import { SKY_FADE, type Phase } from './daylight';
 import { sfx } from '../sfx';
 import { PIPH } from '../render/palette';
 import { type Camera, centerOn, clampCam, s2g, frameBase, newCamera, type Viewport } from '../render/camera';
@@ -142,6 +143,16 @@ export interface World {
    */
   watching: boolean;
   /**
+   * The hour on the field. Cosmetic, and only ever read by the renderer — the
+   * simulation resolves a midnight raid exactly as it resolves a midday one,
+   * and two people watching the same shared replay in different time zones
+   * watch the same fight under different skies.
+   */
+  phase: Phase;
+  /** The phase being left behind, and how far out of it: 1 means arrived. */
+  skyFrom: Phase;
+  skyMix: number;
+  /**
    * Where items landed, for the renderer.
    *
    * Kept on the world rather than read back off the battle, because a Firepot
@@ -197,6 +208,9 @@ export function createWorld(events: WorldEvents): World {
     preview: null,
     battleCommands: [],
     watching: false,
+    phase: 'day',
+    skyFrom: 'day',
+    skyMix: 1,
     battleItems: [],
     bursts: [],
     heard: 0,
@@ -778,4 +792,27 @@ export function buildingAtScreen(w: World, sx: number, sy: number) {
     }
   }
   return null;
+}
+
+
+/**
+ * Change the light.
+ *
+ * Kept here rather than assigned from the canvas host so the crossfade cannot
+ * be started halfway: the phase being left and the progress out of it have to
+ * move together, and setting one without the other paints a sky nobody asked
+ * for until the next change.
+ */
+export function setPhase(w: World, phase: Phase): void {
+  if (phase === w.phase) return;
+  // From whatever is actually on screen, which during a fade is not `phase`.
+  w.skyFrom = w.skyMix >= 1 ? w.phase : w.skyFrom;
+  w.phase = phase;
+  w.skyMix = 0;
+}
+
+/** Walk the crossfade forward. Does nothing once it has arrived. */
+export function stepSky(w: World, dt: number): void {
+  if (w.skyMix >= 1) return;
+  w.skyMix = Math.min(1, w.skyMix + dt / SKY_FADE);
 }

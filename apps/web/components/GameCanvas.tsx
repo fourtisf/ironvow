@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { DeployCommand, ItemCommand } from '@ironvow/types';
+import { watchPhase } from '../lib/game/daylight';
 import { attachInput } from '../lib/game/input';
 import { renderFrame } from '../lib/game/render';
 import {
@@ -9,7 +10,9 @@ import {
   decayFx,
   predictProduction,
   resizeWorld,
+  setPhase,
   stepBattle,
+  stepSky,
   type World,
   type WorldEvents,
 } from '../lib/game/world';
@@ -67,6 +70,14 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
     resizeWorld(world, canvas, ctx);
     onReady(world);
 
+    /*
+     * The hour, set when it turns rather than read every frame: a clock that
+     * answers the same four ways all day has no business being asked sixty
+     * times a second. The crossfade out of the old phase is what the loop
+     * advances, not the phase itself.
+     */
+    const unwatchSky = watchPhase((phase) => setPhase(world, phase));
+
     const input = attachInput(world, canvas, (id) => tapRef.current(id));
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
@@ -98,6 +109,7 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
         predictProduction(world, dt);
       }
       decayFx(world, dt);
+      stepSky(world, dt);
       renderFrame(world, ctx);
 
       raf = requestAnimationFrame(frame);
@@ -106,6 +118,7 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
 
     return () => {
       cancelAnimationFrame(raf);
+      unwatchSky();
       input.detach();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);

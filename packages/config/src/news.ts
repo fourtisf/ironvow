@@ -35,6 +35,16 @@ export interface NewsItem {
 /** Newest first, which is also the order they are shown in. */
 export const NEWS: readonly NewsItem[] = [
   {
+    no: 8,
+    at: '2026-09-08',
+    title: 'Morning, day, sunset and night',
+    lines: [
+      'The field now follows the clock on your phone. Your base looks different first thing in the morning than it does at midnight.',
+      'Torches finally do something: at night they are the only thing that lights the ground, so where you put them is a decision.',
+      'You can hold it on one hour instead, in SETTINGS. Day is also the lightest on an older phone.',
+    ],
+  },
+  {
     no: 7,
     at: '2026-09-08',
     title: 'Attack from the air',

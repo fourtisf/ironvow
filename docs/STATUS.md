@@ -2148,6 +2148,76 @@ config. The sweep looks at prose between tags and not at identifiers or string
 literals: `TYPES.brazier` is a database key and `onDemolish` is a prop name,
 and neither is a word anybody is shown.
 
+## Morning, day, sunset and night
+
+ALFA: "apakah ada tema gelap??" — and then, when asked what he meant, "kaya
+pagi siang sore malam". Not a dark theme for the interface. The hour of the day,
+on the field.
+
+The interface has always been dark. What the game did not have was any sense
+that time passes: a base looked identical at seven in the morning and at
+midnight, which is a strange thing for a game whose whole premise is that it
+keeps running while you are away.
+
+`lib/game/daylight.ts` holds four phases and the hours they start on, read from
+the player's own clock. Local time on purpose — the point is that the game
+agrees with the window next to the player, and UTC would put half the world's
+evening at breakfast. `SETTINGS → TIME OF DAY` follows that clock by default and
+can be held on any one hour.
+
+**The light is painted on the canvas, not over it, and that ordering is the
+feature.** The field is darkened first and the Torches paint light back on top
+of it. Done as a DOM layer above the canvas — which is where it started, and
+what the vignette does — the overlay falls on the fire as well, and a torch that
+cannot outshine the night it stands in is not a light, it is a decal.
+
+Which finally gives the Torch something to do. `TYPES.brazier.blurb` has said
+"a fire that burns all night" since it was written, against a game that had no
+night in it: four thousand gold for a building that did nothing. At night the
+torches are the only thing lighting the ground, so where they go is a decision.
+
+No painter reads the clock's hour. `Draw.night` is passed to effect painters
+only, never to `drawBuildingBody`, and `sprites.ts` rasterises with `night: 0`
+pinned — the cache is keyed on shape, so a body painter that looked at the hour
+would bake one moment of one day into every copy of that building for the rest
+of the session, with no error anywhere. `render.test.ts` asserts both halves:
+every body draws identically at `night: 0` and `night: 1`, and the Torch is the
+only thing in the game whose effects answer to the hour at all.
+
+Nothing reaches the simulation. A raid at midnight resolves exactly as it would
+at noon, and two people watching the same shared replay in different time zones
+watch the same fight under different skies.
+
+Three things this cost:
+
+1. **It started as two full-screen passes** — a `multiply` for how much light
+   there is and a `soft-light` for what colour it is, which is how you would
+   actually light a scene. Measured on a throttled browser, night cost 83 ms a
+   frame against day's 33: blend modes the canvas has no fast path for, on a
+   renderer filling every pixel on the CPU. Both are baked into the alpha of one
+   plain gradient now, `source-over`, which is the cheapest thing a canvas can
+   do — 66.7 ms at 4×. Still twice the cost of day, and honest about it: there
+   is no GPU in this container, so this is the pessimistic case, and a real
+   handset composites a translucent rect in hardware. Anyone it does hurt can
+   pin the setting to DAY, which returns to costing nothing at all.
+2. **`fillRect` in CSS pixels covered a quarter of the screen.** The transform
+   is reset to the backing store's own coordinates first, and `vp.w`/`vp.h` are
+   CSS pixels — at two device pixels to one, night fell across the top-left
+   quadrant and the rest stayed at noon. It reads as a rendering glitch, not as
+   a unit mistake.
+3. **The first screen and the scout sheet stayed at high noon**, because both go
+   through `renderPreview`, which returns early out of `renderBase` before the
+   sky is painted. A scout that does not look like the raid it precedes is worse
+   than no atmosphere at all.
+
+Measured, day against night, median frame interval over 180 frames:
+
+| | day | night |
+| --- | --- | --- |
+| no throttle | 16.7 ms | 16.7 ms |
+| 4× — mid-range phone | 33.4 ms | 66.7 ms |
+| 6× — slow phone | 66.7 ms | 100 ms |
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

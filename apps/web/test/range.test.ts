@@ -1,4 +1,4 @@
-import { DEF_STAT, TYPES } from '@ironvow/config';
+import { DEF_STAT, MORTAR_MIN, TYPES } from '@ironvow/config';
 import { describe, expect, it } from 'vitest';
 import { isoX, isoY } from '../lib/render/camera';
 import { rangeRadii } from '../lib/game/render';
@@ -28,7 +28,7 @@ function onRing(dx: number, dy: number, rx: number, ry: number): number {
 describe('the firing envelope a defence draws', () => {
   const CENTRE = [20, 20] as const;
 
-  for (const type of ['cannon', 'tower'] as const) {
+  for (const type of ['cannon', 'tower', 'mortar'] as const) {
     const r = DEF_STAT[type]!(1).rng;
     const { rx, ry } = rangeRadii(r, 1);
 
@@ -58,6 +58,41 @@ describe('the firing envelope a defence draws', () => {
       expect(zoomed.ry).toBeCloseTo(ry * 2, 6);
     });
   }
+
+  /*
+   * The Mortar's dead zone.
+   *
+   * The ring is drawn as a donut — a hole cut out of the wash and a second
+   * dashed line round it — and that hole is the only thing on screen that says
+   * where the building is helpless. If the inner radius stops matching the
+   * simulation's `min`, a player is being shown safe ground that is not safe,
+   * or asked to defend ground that defends itself.
+   */
+  it('a Mortar draws its dead zone at exactly the radius it cannot fire inside', () => {
+    const st = DEF_STAT.mortar!(1);
+    expect(st.min).toBe(MORTAR_MIN);
+    const hole = rangeRadii(st.min!, 1);
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
+      const gx = CENTRE[0] + Math.cos(a) * st.min!;
+      const gy = CENTRE[1] + Math.sin(a) * st.min!;
+      const [dx, dy] = offset(CENTRE[0], CENTRE[1], gx, gy);
+      expect(onRing(dx, dy, hole.rx, hole.ry)).toBeCloseTo(1, 6);
+    }
+  });
+
+  it('a Mortar reaches further than anything else, and is the only one with a hole', () => {
+    for (const type of ['cannon', 'tower'] as const) {
+      expect(DEF_STAT.mortar!(1).rng).toBeGreaterThan(DEF_STAT[type]!(1).rng);
+      expect(DEF_STAT[type]!(1).min).toBeUndefined();
+    }
+  });
+
+  it('the dead zone is smaller than the reach, or the building could never fire', () => {
+    for (let lv = 1; lv <= 9; lv++) {
+      const st = DEF_STAT.mortar!(lv);
+      expect(st.min!).toBeLessThan(st.rng);
+    }
+  });
 
   it('an Arrow Tower reaches further than a Cannon', () => {
     // The thing a player is actually reading off the two rings.

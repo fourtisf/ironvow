@@ -102,6 +102,16 @@ export function generateBase(stage: number, seed = 0): SnapshotBuilding[] {
 
   ring('cannon', about(1 + Math.floor(stage / 2), 1, 6), L.def, 0);
   ring('tower', stage >= 3 ? about(Math.floor(stage / 3), 1, 5) : 0, L.tower, 0.8);
+  /*
+   * Mortars, close in and few.
+   *
+   * Placed inside the Cannon ring rather than outside it, because a Mortar
+   * whose dead zone faces open ground is a free building: the way to beat one
+   * is to walk up to it, and the way to protect one is to make walking up to it
+   * expensive. A generated hold should teach that by being built correctly, not
+   * by being easy.
+   */
+  if (stage >= 5) ring('mortar', about(Math.floor(stage / 4), 1, 3), L.def - 1.4, 2.6);
   ring('mine', about(2 + Math.floor(stage / 3), 2, 6), L.mine, 2.1);
   if (stage >= 2) ring('forge', about(Math.floor(stage / 3), 1, 4), L.forge, 4.0);
 

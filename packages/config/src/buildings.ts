@@ -2,7 +2,7 @@ import { KEEP_MAX } from './world.js';
 import { ipow } from './math.js';
 
 export const BUILDING_TYPES = [
-  'keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab', 'cannon', 'tower', 'wall',
+  'keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab', 'cannon', 'tower', 'mortar', 'wall',
   'statue', 'brazier', 'standard',
 ] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
@@ -93,6 +93,27 @@ export const TYPES: Record<BuildingType, BuildingDef> = {
   lab:    { n: 'War Lab',     s: 2, cat: 'mil',  hp: 520,  hpG: 1.26, base: { g: 600, i: 200 }, up: { g: 700, i: 400 }, upG: 1.95, countG: NEW_BUILDING_GROWTH, blurb: 'Makes your troops stronger, not just more numerous.' },
   cannon: { n: 'Cannon',      s: 2, cat: 'def',  hp: 560,  hpG: 1.30, base: { g: 220, i: 80  }, up: { g: 340, i: 180 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Slow, heavy shots. Wrecks anything that walks into range.' },
   tower:  { n: 'Arrow Tower', s: 2, cat: 'def',  hp: 400,  hpG: 1.27, base: { g: 180, i: 120 }, up: { g: 280, i: 220 }, upG: 1.92, countG: NEW_BUILDING_GROWTH, blurb: 'Fast arrows with long reach. Melts light troops.' },
+  /*
+   * MORTAR_NOTE — TUNABLE, and not in the build document.
+   *
+   * The Cannon and the Arrow Tower both do the same thing: pick the nearest
+   * attacker and shoot it. With only those two on the field there is no reason
+   * an attacker should ever spread out, so the strongest opening in the game is
+   * to dump the entire warband on one tile and walk it in as a block. Nothing
+   * on a defending base costs them anything for it.
+   *
+   * The Mortar is what costs them. It lobs a shell at the thickest part of the
+   * crowd and everything standing near where it lands takes the hit, so a block
+   * of ten raiders is the worst possible shape to be in.
+   *
+   * The dead zone is the other half, and the more important one. A Mortar
+   * cannot hit anything closer than MORTAR_MIN cells, so it is helpless on its
+   * own: walk up to it and it is a building with a lot of hit points. That is
+   * what turns it from "more damage" into a placement problem — it has to sit
+   * behind something, and deciding what goes in front of it is the first real
+   * decision a base layout has ever had.
+   */
+  mortar: { n: 'Mortar',      s: 3, cat: 'def',  hp: 620,  hpG: 1.30, base: { g: 700, i: 400 }, up: { g: 620, i: 420 }, upG: 1.94, countG: NEW_BUILDING_GROWTH, blurb: 'Lobs a shell into the thickest crowd. Cannot hit what is close.' },
   wall:   { n: 'Rampart',     s: 1, cat: 'def',  hp: 340,  hpG: 1.35, base: { g: 60,  i: 20  }, up: { g: 90,  i: 60  }, upG: 1.70, countG: RAMPART_COUNT_GROWTH, blurb: 'Blocks the path. Enemies must stop and break it.' },
 
   /*
@@ -170,6 +191,9 @@ export const CAP: Record<Exclude<BuildingType, 'keep'>, readonly number[]> = {
   lab:    [0,  0,  0,  1,  1,   1,   1,   1,   1,   1],
   cannon: [0,  2,  3,  4,  5,   6,   8,   9,  10,  12],
   tower:  [0,  0,  2,  3,  4,   5,   6,   8,   9,  11],
+  // Late, few, and expensive. A Mortar is meant to be the piece a layout is
+  // built around, not another thing to line the perimeter with.
+  mortar: [0,  0,  0,  0,  1,   1,   2,   2,   3,   4],
   wall:   [0, 20, 40, 65, 95, 130, 170, 215, 265, 320],
   // Vanity opens at Keep 3, by which point a player has somewhere to put it
   // and something to spare. The counts rise slowly: the sink is meant to be
@@ -213,9 +237,49 @@ export function costOf(type: BuildingType, level: number, owned: number): Cost {
 }
 
 /** Defensive fire. Range in cells, cooldown in seconds. */
-export const DEF_STAT: Partial<Record<BuildingType, (lv: number) => { rng: number; dmg: number; cd: number }>> = {
+/**
+ * How far a Mortar cannot reach.
+ *
+ * The dead zone is the whole of what makes a Mortar a placement decision rather
+ * than a damage number: inside this it is a wall with no teeth. See
+ * MORTAR_NOTE.
+ *
+ * The value is set by melee reach, not chosen for feel. A troop attacking a
+ * three-cell building stands at `1.5 + its own range` from the centre — 2.35
+ * for a Raider, 2.65 for a Ram. At 2.6 a Ram demolishing a Mortar was standing
+ * just outside its dead zone, so the Mortar could shoot the thing tearing it
+ * down and the whole mechanic quietly did not exist in the one case that
+ * matters most. 3.4 puts every melee troop under it with room to spare.
+ *
+ * An Archer, at 3.4 range, stands 4.9 out and stays in the Mortar's field. That
+ * is the shape the building should have: get under it or shoot it, but not
+ * both.
+ */
+export const MORTAR_MIN = 3.4;
+/** Everything within this of where the shell lands takes the full hit. */
+export const MORTAR_SPLASH = 1.7;
+
+export interface DefenceStat {
+  rng: number;
+  dmg: number;
+  cd: number;
+  /** Cannot fire at anything closer than this. Absent means no dead zone. */
+  min?: number;
+  /** Damages everything within this of where the shot lands. Absent means one target. */
+  splash?: number;
+}
+
+export const DEF_STAT: Partial<Record<BuildingType, (lv: number) => DefenceStat>> = {
   cannon: (lv) => ({ rng: 4.4, dmg: 30 + lv * 11, cd: 1.05 }),
   tower:  (lv) => ({ rng: 6.2, dmg: 11 + lv * 4.4, cd: 0.42 }),
+  /*
+   * Slow, far, and it hurts. The cooldown is the balance: three seconds is long
+   * enough that walking a spread-out warband through a Mortar's field is
+   * survivable, and short enough that walking a block through it is not.
+   */
+  mortar: (lv) => ({
+    rng: 9.2, dmg: 42 + lv * 16, cd: 3.1, min: MORTAR_MIN, splash: MORTAR_SPLASH,
+  }),
 };
 
 export function isDefensive(type: BuildingType): boolean {

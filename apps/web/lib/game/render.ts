@@ -86,7 +86,18 @@ function rangeRing(
   const cx = gx + size / 2;
   const cy = gy + size / 2;
   const [sx, sy] = w2s(w.cam, w.vp, isoX(cx, cy), isoY(cx, cy));
-  const { rx, ry } = rangeRadii(stat(level).rng, w.cam.z);
+  const st = stat(level);
+  const { rx, ry } = rangeRadii(st.rng, w.cam.z);
+  /*
+   * The dead zone, for a Mortar.
+   *
+   * Drawn as a hole in the ring rather than left to a line of tooltip text,
+   * because the ground a Mortar cannot defend is exactly the ground a player
+   * has to cover with something else, and "where is the gap" is a question you
+   * answer by looking. A ring with no hole in it would be a lie about the one
+   * thing that makes this building interesting.
+   */
+  const hole = st.min ? rangeRadii(st.min, w.cam.z) : null;
 
   const { ctx } = d;
   ctx.save();
@@ -100,8 +111,19 @@ function rangeRing(
      * hole in a defence without counting rings.
      */
     const soft = weight === 'shown';
-    const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(rx, ry));
-    grd.addColorStop(0, soft ? 'rgba(120,200,255,.10)' : 'rgba(120,200,255,.16)');
+    const outer = Math.max(rx, ry);
+    const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, outer);
+    const near = soft ? 'rgba(120,200,255,.10)' : 'rgba(120,200,255,.16)';
+    if (hole) {
+      // Transparent out to the dead zone's edge, so the wash is a ring rather
+      // than a disc and the hole is visible without a second draw.
+      const cut = Math.min(0.98, Math.max(rx > 0 ? hole.rx / rx : 0, ry > 0 ? hole.ry / ry : 0));
+      grd.addColorStop(0, 'rgba(120,200,255,0)');
+      grd.addColorStop(Math.max(0, cut - 0.001), 'rgba(120,200,255,0)');
+      grd.addColorStop(cut, near);
+    } else {
+      grd.addColorStop(0, near);
+    }
     grd.addColorStop(0.72, soft ? 'rgba(120,200,255,.06)' : 'rgba(120,200,255,.09)');
     grd.addColorStop(1, 'rgba(120,200,255,0)');
     ctx.fillStyle = grd;
@@ -120,6 +142,15 @@ function rangeRing(
   ctx.beginPath();
   ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
   ctx.stroke();
+
+  if (hole) {
+    // Red, because it is the one part of a defence's reach that is bad news
+    // for the defender. Same dash, so it reads as the same kind of line.
+    ctx.strokeStyle = `rgba(255,122,99,${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, hole.rx, hole.ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

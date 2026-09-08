@@ -97,6 +97,13 @@ const PLAN: Plan[] = [
   ...quad('tower', 25, 18),
   ...quad('tower', 18, 25),
 
+
+  // Mortars slotted between the Cannons rather than out on a corner of their
+  // own. A Mortar cannot hit anything standing against it, so it needs
+  // something in front of it — here, the two Cannons that flank it. A showcase
+  // hold should be laid out the way a good one is.
+  ...quad('mortar', 20, 22),
+
   // The economy, in its own ring.
   ...quad('store', 18, 14),
   ...quad('mine', 22, 14),
@@ -119,13 +126,31 @@ const PLAN: Plan[] = [
  */
 let cached: BaseSnapshot | null = null;
 
+/**
+ * Plan entries the builder threw away because they did not fit.
+ *
+ * A cap trim is deliberate — the plan may ask for more Ramparts than a Keep 9
+ * permits and the extras are meant to fall off the end. A collision or an
+ * out-of-bounds entry is a mistake in the plan, and it used to be a silent one:
+ * adding a Mortar in a spot that overlapped a Cannon produced a landing page
+ * with no Mortars on it and a test suite that passed. Counted here so a test
+ * can insist on zero.
+ */
+let misplaced = 0;
+
+export function showcaseMisplaced(): number {
+  showcaseHold();
+  return misplaced;
+}
+
 export function showcaseHold(): BaseSnapshot {
   if (cached) return cached;
 
   const buildings: SnapshotBuilding[] = [];
+  misplaced = 0;
   for (const p of PLAN) {
     const s = TYPES[p.type].s;
-    if (p.gx < 2 || p.gy < 2 || p.gx + s > N - 2 || p.gy + s > N - 2) continue;
+    if (p.gx < 2 || p.gy < 2 || p.gx + s > N - 2 || p.gy + s > N - 2) { misplaced++; continue; }
     // A hold cannot own more of something than its Keep permits, and a
     // showcase that breaks the game's own rules is a lie about the game.
     const owned = buildings.filter((b) => b.type === p.type).length;
@@ -133,7 +158,7 @@ export function showcaseHold(): BaseSnapshot {
     if (buildings.some((b) => {
       const bs = TYPES[b.type].s;
       return p.gx < b.gx + bs && p.gx + s > b.gx && p.gy < b.gy + bs && p.gy + s > b.gy;
-    })) continue;
+    })) { misplaced++; continue; }
     buildings.push({ id: `s${buildings.length + 1}`, type: p.type, gx: p.gx, gy: p.gy, level: LV });
   }
 

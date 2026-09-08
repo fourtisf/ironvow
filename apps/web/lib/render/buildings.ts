@@ -89,7 +89,7 @@ export function growthOf(level: number): number {
  * exactly the buildings a player most wants to read the level of.
  */
 const PIP_TIER: Record<string, number> = {
-  keep: 12, barr: 26, camp: 5, lab: 12, mine: 6, forge: 4, store: 2, tower: 4,
+  keep: 12, barr: 26, camp: 5, lab: 12, mine: 6, forge: 4, store: 2, tower: 4, mortar: 4,
 };
 
 export function pipHeightOf(type: BuildingType, level: number): number {
@@ -809,6 +809,85 @@ export function drawBuildingBody(d: Draw, b: Renderable, enemy: boolean): void {
     ctx.strokeStyle = C.line;
     ctx.beginPath(); ctx.ellipse(px, top + 3 * z, (10 + tier) * z, (7 + tier * 0.6) * z, 0, 0, 6.29);
     ctx.fill(); ctx.stroke();
+
+  } else if (b.type === 'mortar') {
+    /*
+     * A squat, wide-mouthed tube sunk in a stone pit.
+     *
+     * Every proportion here is doing one job: making it impossible to mistake
+     * for a Cannon across the base. A Cannon is a raised mount with a muzzle
+     * pointing outward; this is a low pit with a wide mouth pointing at the
+     * sky. A player has to be able to tell at a glance which of their defences
+     * is the one with a hole in its coverage, because that is the building
+     * their layout has to work around.
+     *
+     * The first draft was tall and narrow and read as a chimney.
+     */
+    isoBox(d, gx + 0.06, gy + 0.06, s - 0.12, s - 0.12, 12, C.stone, C.stoneD, '#77848f');
+
+    // The pit: a low ring wall, not a tower. Barely grows with level, because
+    // the thing that should grow is the mouth.
+    const pit = 15 + lv * 0.8;
+    isoBox(d, gx + 0.4, gy + 0.4, s - 0.8, s - 0.8, pit, C.stoneL, C.stoneD, C.stone);
+
+    const [px, py] = P(gx + s / 2, gy + s / 2);
+    const rim = py - pit * z;
+
+    // The barrel: short and fat, drawn as a tapering tube so the mouth is the
+    // widest thing on the building.
+    const bh = 13 + lv * 1.1;
+    const halfLo = 9.5;
+    const halfHi = 13.5;
+    ctx.fillStyle = tier >= 3 ? '#6b5a3a' : '#495663';
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+    ctx.beginPath();
+    ctx.moveTo(px - halfLo * z, rim);
+    ctx.lineTo(px - halfHi * z, rim - bh * z);
+    ctx.lineTo(px + halfHi * z, rim - bh * z);
+    ctx.lineTo(px + halfLo * z, rim);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // Iron bands round it, one more each tier.
+    for (let i = 0; i <= tier; i++) {
+      const f = (i + 1) / (tier + 2);
+      const y = rim - bh * z * f;
+      const hw = (halfLo + (halfHi - halfLo) * f) * z;
+      ctx.strokeStyle = tier >= 3 ? '#8a5c1c' : '#2b3742';
+      ctx.lineWidth = Math.max(1, 2 * z);
+      ctx.beginPath();
+      ctx.moveTo(px - hw, y); ctx.lineTo(px + hw, y);
+      ctx.stroke();
+    }
+
+    // The mouth: the widest, darkest thing on it, and the whole silhouette cue.
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(1.4, 2.2 * z);
+    ctx.fillStyle = '#141c27';
+    ctx.beginPath();
+    ctx.ellipse(px, rim - bh * z, halfHi * z, halfHi * 0.46 * z, 0, 0, 6.29);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = tier >= 2 ? (enemy ? '#7a2418' : '#5a4620') : '#0d141d';
+    ctx.beginPath();
+    ctx.ellipse(px, rim - bh * z + 1.5 * z, halfHi * 0.62 * z, halfHi * 0.28 * z, 0, 0, 6.29);
+    ctx.fill();
+
+    // Shells stacked on the pit wall, where they read as ammunition rather than
+    // as specks. One more pair each tier.
+    for (let i = 0; i <= tier * 2 + 1; i++) {
+      const a2 = 0.55 + i * 0.92;
+      const [bx, by] = P(gx + s / 2 + Math.cos(a2) * 1.16, gy + s / 2 + Math.sin(a2) * 1.16);
+      ctx.fillStyle = '#39434f';
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = Math.max(1, 1.6 * z);
+      ctx.beginPath();
+      ctx.ellipse(bx, by - (pit + 4) * z, 5.2 * z, 5.2 * z, 0, 0, 6.29);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.beginPath();
+      ctx.ellipse(bx - 1.6 * z, by - (pit + 5.6) * z, 2 * z, 2 * z, 0, 0, 6.29);
+      ctx.fill();
+    }
 
   } else if (b.type === 'tower') {
     isoBox(d, gx + 0.12, gy + 0.12, s - 0.24, s - 0.24, 11, C.stone, C.stoneD, '#77848f');

@@ -145,6 +145,11 @@ export interface SimProj {
   tgtStruct: number;
   /** Index into units, or -1. Set means the projectile homes. */
   tgtUnit: number;
+  /**
+   * Damages every attacker within this of where it lands, rather than one.
+   * Absent for an arrow or a cannonball.
+   */
+  splash?: number;
 }
 
 const DT = TICK_SECONDS;
@@ -689,33 +694,68 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
       const stat = DEF_STAT[s.t];
       if (!stat) continue;
       const st = stat(s.lv);
+      const floor = st.min ?? 0;
       let best = -1;
       let bd = 1e9;
-      for (const u of units) {
-        if (u.dead || u.side !== 'atk') continue;
-        const d = dist(s.cx, s.cy, u.x, u.y);
-        if (d < bd) {
-          bd = d;
-          best = u.i;
+
+      if (st.splash === undefined) {
+        // The nearest attacker in range. Cannon and Arrow Tower.
+        for (const u of units) {
+          if (u.dead || u.side !== 'atk') continue;
+          const d = dist(s.cx, s.cy, u.x, u.y);
+          if (d < floor || d > st.rng) continue;
+          if (d < bd) { bd = d; best = u.i; }
+        }
+      } else {
+        /*
+         * A splash weapon aims at the crowd, not at the nearest man.
+         *
+         * For every attacker it could legally hit, count how many others are
+         * standing within the blast of it, and shell whichever gives the
+         * highest count. That is what actually makes a Mortar the answer to a
+         * stacked warband rather than merely a bigger Cannon: the tighter the
+         * block, the better a target every man in it becomes.
+         *
+         * Ties break on distance and then on unit index, so the choice is one
+         * value for one battle state — a tie broken by iteration order would
+         * be a different fight on a different engine.
+         */
+        let bc = -1;
+        for (const u of units) {
+          if (u.dead || u.side !== 'atk') continue;
+          const d = dist(s.cx, s.cy, u.x, u.y);
+          if (d < floor || d > st.rng) continue;
+          let n = 0;
+          for (const o of units) {
+            if (o.dead || o.side !== 'atk') continue;
+            if (dist(u.x, u.y, o.x, o.y) <= st.splash) n++;
+          }
+          if (n > bc || (n === bc && d < bd)) { bc = n; bd = d; best = u.i; }
         }
       }
+
       s.cd -= DT;
-      if (best >= 0 && bd <= st.rng && s.cd <= 0) {
+      if (best >= 0 && s.cd <= 0) {
         const target = units[best]!;
         s.cd = st.cd;
+        const kind = s.t === 'tower' ? 'arrow' : 'ball';
         projs.push({
           x: s.cx, y: s.cy, tx: target.x, ty: target.y,
-          spd: s.t === 'cannon' ? 7 : 11,
+          spd: s.t === 'tower' ? 11 : 7,
           dmg: st.dmg,
-          kind: s.t === 'cannon' ? 'ball' : 'arrow',
+          kind,
           tgtStruct: -1,
-          tgtUnit: best,
+          // A lobbed shell is committed the moment it leaves the barrel: it
+          // lands where it was aimed, so walking out of the way works. A
+          // homing shell would make the dead zone the only counterplay there
+          // is, and there should be two.
+          tgtUnit: st.splash === undefined ? best : -1,
+          splash: st.splash,
         });
         if (wantTimeline) {
           events.push({
             t: tick, k: 'shot', from: 'struct', src: s.i,
-            x: s.cx, y: s.cy, tx: target.x, ty: target.y,
-            kind: s.t === 'cannon' ? 'ball' : 'arrow',
+            x: s.cx, y: s.cy, tx: target.x, ty: target.y, kind,
           });
         }
       }
@@ -736,7 +776,14 @@ export function createBattle(input: SimInput, options: SimOptions = {}): Battle 
         }
       }
       if (dist(p.x, p.y, p.tx, p.ty) < 0.35) {
-        if (p.tgtUnit >= 0) hurtUnit(units[p.tgtUnit]!, p.dmg, tick);
+        if (p.splash !== undefined) {
+          // Everything of theirs standing in it, in index order so the deaths
+          // resolve the same way on every engine.
+          for (const u of units) {
+            if (u.dead || u.side !== 'atk') continue;
+            if (dist(u.x, u.y, p.tx, p.ty) <= p.splash) hurtUnit(u, p.dmg, tick);
+          }
+        } else if (p.tgtUnit >= 0) hurtUnit(units[p.tgtUnit]!, p.dmg, tick);
         else if (p.tgtStruct >= 0) damageStruct(structs[p.tgtStruct]!, p.dmg, tick);
         projs.splice(i, 1);
       } else if (p.x < -4 || p.y < -4 || p.x > N + 4 || p.y > N + 4) {

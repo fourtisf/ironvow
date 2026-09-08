@@ -1,6 +1,6 @@
-import { KEEP_MAX, N, TYPES, capOf } from '@ironvow/config';
+import { BUILDING_TYPES, KEEP_MAX, N, TYPES, capOf } from '@ironvow/config';
 import { describe, expect, it } from 'vitest';
-import { showcaseHold } from '../lib/game/showcase';
+import { showcaseHold, showcaseMisplaced } from '../lib/game/showcase';
 
 /**
  * ALFA: "landing page gamenya yang sudah level semua maximal"
@@ -20,12 +20,30 @@ describe('the hold behind the door', () => {
     expect(hold.keepLevel).toBe(KEEP_MAX);
   });
 
-  it('shows the whole game: economy, defence, army and the things that do nothing', () => {
+  /*
+   * Read off BUILDING_TYPES rather than written out here.
+   *
+   * The hand-written list was the bug: `showcaseHold` silently drops a plan
+   * entry that would overlap something already placed, so adding a Mortar to
+   * the plan in a spot that did not fit produced a hold with no Mortars in it
+   * and a suite that passed. A list derived from the game's own types cannot
+   * quietly stop covering one.
+   */
+  it('shows the whole game: every building the game has', () => {
     const kinds = new Set(hold.buildings.map((b) => b.type));
-    for (const t of ['keep', 'mine', 'forge', 'store', 'barr', 'camp', 'lab',
-      'cannon', 'tower', 'wall', 'statue', 'brazier', 'standard'] as const) {
-      expect(kinds).toContain(t);
-    }
+    for (const t of BUILDING_TYPES) expect(kinds, t).toContain(t);
+  });
+
+  it('threw nothing away: every planned building actually stands', () => {
+    /*
+     * The other half of the same guard, and the one that would have caught it.
+     *
+     * The builder skips a plan entry that overlaps something already placed,
+     * so a badly positioned addition produces a hold that is simply missing it
+     * — no error, no failure, nothing to notice. Trimming to a Keep cap is
+     * deliberate and does not count here; a collision is a mistake and does.
+     */
+    expect(showcaseMisplaced()).toBe(0);
   });
 
   it('owns nothing a Keep of its level could not', () => {

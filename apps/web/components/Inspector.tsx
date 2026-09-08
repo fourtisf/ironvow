@@ -107,7 +107,9 @@ export function Inspector({
   const detail = rate
     ? `${rate(building.level)}/min · holding ${fmt(stock)}`
     : defence
-      ? `${Math.round(defence(building.level).dmg)} damage · range ${defence(building.level).rng}`
+      // A Mortar's dead zone belongs on the same line as its reach: "range 9.2"
+      // on its own is the half of the story that flatters it.
+      ? `${Math.round(defence(building.level).dmg)}${defence(building.level).splash ? ' splash' : ''} damage · range ${defence(building.level).min ? `${defence(building.level).min}–` : ''}${defence(building.level).rng}`
       : building.type === 'camp'
         ? `${campSlots(building.level)} warband slots`
         : building.type === 'store'

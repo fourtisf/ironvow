@@ -1561,6 +1561,74 @@ that applies it skips the debit for a command the battle scheduled itself.
 Old raids need no migration and no version check: `items` is simply absent, so
 they replay as raids where none were used.
 
+## The base half of the base builder
+
+Asked what the game was still missing, the honest answer was that half of it had
+not been built. Attacking had five troops, a hero, a War Lab, four speeds and two
+battle items. Defending had a Cannon and an Arrow Tower — and both do the same
+thing, which is shoot whoever is nearest.
+
+Two consequences, and neither is small. **Laying out a base had no decisions in
+it**: the only choice that changed anything was where the ramparts went. And
+**the best way to attack was always the same**, because nothing on any base ever
+charged an attacker for putting the entire warband on one tile and walking it in
+as a block.
+
+### The Mortar
+
+It lobs a shell at the thickest part of the crowd, and everything standing near
+where it lands takes the hit. Slow — one shell every 3.1 seconds — and long,
+9.2 cells, which is further than anything else on a base reaches.
+
+Two rules make it a building rather than a damage number:
+
+- **It aims at the crowd, not at the nearest man.** For every attacker it could
+  legally hit, the simulation counts how many others are inside the blast of
+  him, and shells whoever gives the highest count. The tighter the block, the
+  better a target every man in it becomes. Ties break on distance and then on
+  unit index, because a tie broken by iteration order is a different fight on a
+  different engine.
+- **It cannot hit anything within 3.4 cells of itself.** On its own it is a
+  building with a lot of hit points: walk up to it and it is helpless. That is
+  what turns it from "more damage" into a placement problem — it has to sit
+  behind something, and choosing what goes in front of it is the first real
+  decision a base layout has ever had.
+
+**3.4 is not a number chosen for feel; a test set it.** A troop attacking a
+three-cell building stands `1.5 + its own range` from the centre — 2.35 for a
+Raider, 2.65 for a Ram. At the 2.6 first drafted, a Ram demolishing a Mortar was
+standing *just outside* its dead zone, so the Mortar could shoot the very thing
+tearing it down and the whole mechanic quietly did not exist in the one case that
+matters most. 3.4 puts every melee troop under it with room to spare. An Archer,
+at 3.4 range, stands 4.9 out and stays in the field: get under it or shoot it,
+but not both.
+
+The shell is committed the moment it leaves the barrel — it lands where it was
+aimed and does not home — so walking out from under one works. Homing would make
+the dead zone the only counterplay there is, and there should be two.
+
+The dead zone is drawn, not merely documented: a Mortar's range ring is a donut,
+with the wash cut away inside the hole and a second dashed line round it in red.
+Ground a Mortar cannot defend is ground the player has to cover with something
+else, and that is a question you answer by looking.
+
+### Two things the tests caught that nothing else would have
+
+**The showcase hold silently threw the Mortars away.** `showcaseHold` skips any
+plan entry that would overlap something already placed — a sensible safety net,
+and a completely silent one. Four Mortars added in a spot that clashed with a
+Cannon produced a landing page with no Mortars on it, and a suite that passed,
+because the test checking "shows the whole game" iterated a hand-written list of
+types. That list is read off `BUILDING_TYPES` now, and the builder counts what it
+discarded so a test can insist the number is zero.
+
+**Two of the sim tests passed for no reason at first.** A deploy inside
+`DEPLOY_CLEARANCE` of a building is refused, so a test that placed troops right
+against a Mortar to prove it could not hit them was proving nothing: no troops
+were ever deployed. Every helper in `packages/sim/test/mortar.test.ts` now
+asserts that the deploys it asked for actually happened before it measures
+anything.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

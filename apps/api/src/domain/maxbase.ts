@@ -1,5 +1,6 @@
 import {
-  BUILDING_TYPES, IN0, IN1, KEEP_MAX, TYPES, capOf, type BuildingType,
+  BUILDING_TYPES, DAY, IN0, IN1, KEEP_MAX, TYPES, buildableAtNight, capOf,
+  type BuildingType, type World,
 } from '@ironvow/config';
 import { cellsFree, type PlacedBuilding } from './placement.js';
 
@@ -34,9 +35,10 @@ export interface PlannedBuilding {
  * behind, so the order matters: place what is hard to fit while there is still
  * room to fit it.
  */
-function coreOrder(): BuildingType[] {
+function coreOrder(world: World): BuildingType[] {
   return BUILDING_TYPES
     .filter((t) => !OUTWORKS.includes(t))
+    .filter((t) => world === DAY || buildableAtNight(t))
     .sort((a, b) => TYPES[b].s - TYPES[a].s);
 }
 
@@ -78,7 +80,15 @@ export interface MaxBase {
   missed: number;
 }
 
-export function maxBase(level = KEEP_MAX): MaxBase {
+/**
+ * `world` decides the catalogue, not the layout.
+ *
+ * The night world has no Laboratory and none of the vanity pieces, so a night
+ * base laid from the day's list would be a base holding buildings the game
+ * would refuse to let anybody build. It reads that from `buildableAtNight`
+ * rather than a list of its own, so the two can never disagree.
+ */
+export function maxBase(level = KEEP_MAX, world: World = DAY): MaxBase {
   const placed: PlacedBuilding[] = [];
   const buildings: PlannedBuilding[] = [];
   const mid = Math.floor((IN0 + IN1) / 2);
@@ -93,7 +103,7 @@ export function maxBase(level = KEEP_MAX): MaxBase {
   // it, and the opening frame centres on whatever base it finds.
   add('keep', mid - 1, mid - 1);
 
-  for (const type of coreOrder()) {
+  for (const type of coreOrder(world)) {
     if (type === 'keep') continue;
     for (let i = 0; i < capOf(type, level); i++) {
       const spot = spiralSpot(type, placed);
@@ -114,7 +124,7 @@ export function maxBase(level = KEEP_MAX): MaxBase {
     x1 = Math.max(x1, b.gx + s - 1); y1 = Math.max(y1, b.gy + s - 1);
   }
 
-  for (const type of OUTWORKS) {
+  for (const type of OUTWORKS.filter((t) => world === DAY || buildableAtNight(t))) {
     let left = capOf(type, level);
     for (let out = 1; left > 0 && out < 14; out++) {
       for (const [gx, gy] of ring(x0 - out, y0 - out, x1 + out, y1 + out)) {

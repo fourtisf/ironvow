@@ -1,4 +1,6 @@
-import { BUILDING_TYPES, IN0, IN1, KEEP_MAX, TYPES, capOf } from '@ironvow/config';
+import {
+  BUILDING_TYPES, IN0, IN1, KEEP_MAX, NIGHT, NIGHT_KEEP_MAX, TYPES, buildableAtNight, capOf,
+} from '@ironvow/config';
 import { describe, expect, it } from 'vitest';
 import { cellsFree, type PlacedBuilding } from '../src/domain/placement.js';
 import { OUTWORKS, maxBase } from '../src/domain/maxbase.js';
@@ -90,5 +92,52 @@ describe('a maxed base', () => {
     expect(small.missed).toBe(0);
     expect(small.buildings.length).toBeLessThan(base.buildings.length);
     for (const b of small.buildings) expect(b.level).toBe(4);
+  });
+});
+
+/**
+ * And the same for the base across the water.
+ *
+ * The night world does not have the whole catalogue, and a maxed night base
+ * holding a Laboratory would be an account in a state no player could reach —
+ * the exact failure this file exists to catch, one world over.
+ */
+describe('a maxed night base', () => {
+  const night = maxBase(NIGHT_KEEP_MAX, NIGHT);
+
+  it('fits on the field', () => {
+    expect(night.missed).toBe(0);
+  });
+
+  it('holds nothing the night world refuses to build', () => {
+    for (const b of night.buildings) {
+      expect(buildableAtNight(b.type), b.type).toBe(true);
+    }
+  });
+
+  it('still builds everything the night world does allow, to its cap', () => {
+    const counts = new Map<string, number>();
+    for (const b of night.buildings) counts.set(b.type, (counts.get(b.type) ?? 0) + 1);
+    for (const type of BUILDING_TYPES.filter(buildableAtNight)) {
+      expect(counts.get(type) ?? 0, type).toBe(capOf(type, NIGHT_KEEP_MAX));
+    }
+  });
+
+  it('places every building where the server would have allowed it', () => {
+    const sofar: PlacedBuilding[] = [];
+    for (const [i, b] of night.buildings.entries()) {
+      const why = cellsFree(b.type, b.gx, b.gy, sofar);
+      expect(why, `${b.type} #${i} at ${b.gx},${b.gy}`).toBeNull();
+      sofar.push({ id: String(i), type: b.type, gx: b.gx, gy: b.gy });
+    }
+  });
+
+  /*
+   * The one that would have gone unnoticed: the two bases are laid by the same
+   * planner, so a night base that came out identical to the day one would mean
+   * the world argument was being ignored rather than that the two agree.
+   */
+  it('is not simply the day base again', () => {
+    expect(night.buildings.length).toBeLessThan(maxBase().buildings.length);
   });
 });

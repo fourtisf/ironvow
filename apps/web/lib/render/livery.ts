@@ -26,11 +26,20 @@ import { isoX, isoY, w2s, type Camera, type Viewport } from './camera';
 export const LIVERIES = ['day', 'night'] as const;
 export type Livery = (typeof LIVERIES)[number];
 
-/** Moonlight on stone: cold, and heavy enough to read across the field. */
-const COLD = 'rgba(46, 62, 116, 0.40)';
+/*
+ * Moonlight on stone: cold, and no heavier than it has to be.
+ *
+ * The first pass was tuned on a five-building starting hold, where a heavy
+ * wash reads as atmosphere. On a finished base — four hundred structures
+ * inside three hundred and twenty ramparts — the same wash flattened thatch,
+ * stone and gilding into one navy mass, and the night sky is painted over all
+ * of it afterwards. Less tint and a wider top-to-bottom range keeps the roofs
+ * telling one building from another, which is the whole job of the art.
+ */
+const COLD = 'rgba(46, 62, 116, 0.30)';
 /** Lit from above by the moon, dark at the footings. */
-const SHEEN_TOP = 'rgba(158, 194, 255, 0.26)';
-const SHEEN_BOTTOM = 'rgba(6, 10, 30, 0.34)';
+const SHEEN_TOP = 'rgba(168, 202, 255, 0.30)';
+const SHEEN_BOTTOM = 'rgba(6, 10, 30, 0.42)';
 
 /**
  * Ramparts and traps carry no lantern.

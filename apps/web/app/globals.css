@@ -343,6 +343,21 @@
   .tcard.hero.sel{border-color:#ffd97a;background:linear-gradient(#6b5220,#40310f)}
 
   /* Builders. Sits under the trophy bar, same visual weight. */
+  /* The way across, under the Town Hall badge — the same question the badge
+     answers, and the badge changes when you cross. Reads as a place rather than
+     a toggle: it names where you are going, not what it does. */
+  /* Below the builder bar at 102, not on top of it. The right-hand column
+     stacks Town Hall (9), trophies (68), builders (102) and this — a browser
+     found the overlap by refusing to click through it. */
+  #crossBtn{position:absolute;top:calc(138px + env(safe-area-inset-top));right:9px;
+    font-size:8.5px;letter-spacing:1.4px;font-family:Arial;font-weight:900;color:#c3d4ea;
+    background:linear-gradient(#2c3d57,#1b2635);border:2px solid #46608a;border-radius:11px;
+    padding:6px 11px;box-shadow:0 3px 0 #0d1420;transition:transform .08s}
+  #crossBtn.night{background:linear-gradient(#3b3168,#241d47);border-color:#6b5aa8;color:#dcd0ff;
+    box-shadow:0 3px 0 #150f2c}
+  #crossBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #0d1420}
+  #crossBtn:disabled{opacity:.6}
+
   #builderBar{position:absolute;top:calc(102px + env(safe-area-inset-top));right:9px;
     display:flex;align-items:center;gap:5px;background:rgba(20,28,40,.82);
     border:2px solid #3d5170;border-radius:11px;padding:4px 10px 4px 6px;font-size:12px}

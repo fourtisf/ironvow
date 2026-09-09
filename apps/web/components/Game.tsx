@@ -12,7 +12,7 @@ import {
 } from '@ironvow/config';
 import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, api, type BreachView, type DailyView, type PlayerProfile, type SeasonState } from '../lib/api';
+import { ApiError, actingIn, api, type BreachView, type DailyView, type PlayerProfile, type SeasonState, type WorldRow } from '../lib/api';
 import {
   beginBattle,
   bump,
@@ -44,6 +44,10 @@ import { Coach } from './Coach';
 import { HelpSheet } from './HelpSheet';
 import { NewsSheet, hasNews } from './NewsSheet';
 import { announceSky, loadSky, nextSky, saveSky, type SkySetting } from '../lib/game/daylight';
+// Aliased: `World` in this file already means the renderer's mutable scene.
+// Two different things called the same thing in one component is how somebody
+// ends up passing a canvas to an API call.
+import { DAY, NIGHT, WORLD_NAME, type World as WorldName } from '@ironvow/config';
 import { ArmySheet, BreachSheet, BuildSheet, LadderSheet, LogSheet, ProfileSheet, type LadderRow, type ProgressionView } from './Sheets';
 import { SettingsSheet, type LayoutSlot } from './Settings';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
@@ -100,6 +104,15 @@ export function Game() {
   const [guestNoteDismissed, setGuestNoteDismissed] = useState(false);
   /** The sky: the player's own clock by default, or an hour they picked. */
   const [sky, setSky] = useState<SkySetting>('auto');
+  /**
+   * Which base is on screen.
+   *
+   * Mirrored from `player.world` rather than owned here, so there is one answer
+   * and it is the server's. What is held locally is only whether a crossing is
+   * in flight, which is a spinner and not a fact about the game.
+   */
+  const [crossing, setCrossing] = useState(false);
+  const [worlds, setWorlds] = useState<WorldRow[] | null>(null);
   /**
    * What's New: 'unread' is the panel a returning player is shown by itself,
    * 'all' is the whole run they asked for from settings. Kept out of `sheet`
@@ -204,6 +217,7 @@ export function Game() {
   const applyPlayer = useCallback((next: PlayerState) => {
     setPlayer(next);
     const world = worldRef.current;
+    const was = world?.player?.world;
     if (world) {
       // Preserve the local bump animation across a server refresh, so a
       // building that was just placed does not stop mid-pop.
@@ -225,17 +239,59 @@ export function Game() {
       }
 
       // The canvas mounts before /me answers, so the first frame has nothing to
-      // frame against. Do it once the hold actually arrives.
-      if (!framed.current && next.buildings.length > 0 && world.mode === 'base') {
+      // frame against. Do it once the hold actually arrives — and again after a
+      // crossing, because the other world is a different base in a different
+      // place and the old framing points at empty ground.
+      const crossed = next.world !== was;
+      if ((!framed.current || crossed) && next.buildings.length > 0 && world.mode === 'base') {
         framed.current = true;
         centerOnKeep(world);
       }
     }
   }, []);
 
+  /**
+   * Cross to the other base.
+   *
+   * The server lays the night world out the first time and answers with the
+   * settled state of whichever base was asked for, so this is one round trip
+   * and not a switch followed by a reload. `actingIn` is set before the call so
+   * every request that follows — collect, build, raid — means the new world.
+   */
+  const crossTo = useCallback(async (world: WorldName) => {
+    if (crossing) return;
+    setCrossing(true);
+    try {
+      actingIn(world);
+      const gone = await api.goTo(world);
+      applyPlayer(gone.player);
+      setSheet(null);
+      setSelectedId(null);
+      /*
+       * The night world is always night. Broadcast rather than saved: the
+       * player's own choice of hour is theirs and is waiting for them when they
+       * come home, which is why this never touches `saveSky`.
+       */
+      announceSky(world === NIGHT ? 'night' : sky);
+      sfx.tap();
+    } catch (e) {
+      // Back where we were, or the next command would be aimed at a world the
+      // player is not actually in.
+      actingIn(player?.world ?? DAY);
+      say(e instanceof ApiError && e.code === 'nightLocked'
+        ? 'The night base opens at Town Hall 4'
+        : 'Could not cross over');
+    } finally {
+      setCrossing(false);
+    }
+  }, [crossing, sky, player?.world]);
+
   const refresh = useCallback(async () => {
     try {
-      applyPlayer(await api.me());
+      const me = await api.me();
+      // Keep the client's idea of where it is standing tied to the server's.
+      actingIn(me.world);
+      applyPlayer(me);
       setSignedIn(true);
       setServerDown(null);
     } catch (e) {
@@ -322,6 +378,27 @@ export function Game() {
   // Read after mount, not during render: there is no localStorage on the
   // server, and a value guessed there is a hydration mismatch.
   useEffect(() => setSky(loadSky()), []);
+
+  /* --- which worlds this hold may stand in --- */
+  useEffect(() => {
+    if (!signedIn) return;
+    void api.worlds().then((r) => setWorlds(r.worlds)).catch(() => undefined);
+    // Re-read on a Town Hall change: the night world opens at a level, and the
+    // door appearing the moment it is unlocked is the whole reward for it.
+  }, [signedIn, player?.keepLevel]);
+
+  /*
+   * The night world is always night, whatever hour it is where the player is.
+   *
+   * Applied here rather than only at the moment of crossing, so a reload while
+   * standing in the night base opens under the right sky — and coming home
+   * restores whatever the player had chosen for themselves, because their own
+   * setting was only ever broadcast over, never saved over.
+   */
+  useEffect(() => {
+    if (!player) return;
+    announceSky(player.world === NIGHT ? 'night' : sky);
+  }, [player?.world, sky, player]);
 
   /* --- what changed while they were away ---
    *
@@ -959,6 +1036,10 @@ export function Game() {
           showGuestNote={showGuestNote}
           highlight={railHighlight}
           onHelp={() => { sfx.tap(); setSheet('help'); }}
+          world={player.world}
+          nightOpen={worlds?.some((w) => w.world === NIGHT && w.open) === true}
+          crossing={crossing}
+          onCross={() => { void crossTo(player.world === NIGHT ? DAY : NIGHT); }}
           onDismissGuestNote={() => {
             setGuestNoteDismissed(true);
             try {

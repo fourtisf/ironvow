@@ -35,6 +35,16 @@ export interface NewsItem {
 /** Newest first, which is also the order they are shown in. */
 export const NEWS: readonly NewsItem[] = [
   {
+    no: 9,
+    at: '2026-09-09',
+    title: 'A second base, at night',
+    lines: [
+      'At Town Hall 4 a new button appears: your Night Base. A whole second base, on its own ground, always after dark.',
+      'Nothing crosses between the two. Its gold, its builders, its Town Hall, its army and its trophies are all its own — what you dig at night is spent at night.',
+      'It is raided too, against other players who have crossed over, on a ladder of its own.',
+    ],
+  },
+  {
     no: 8,
     at: '2026-09-08',
     title: 'Morning, day, sunset and night',

@@ -1,5 +1,6 @@
 'use client';
 
+import { WORLD_NAME, type World } from '@ironvow/config';
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
 import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, RangeIcon, SoundIcon, TrophyIcon } from './icons';
@@ -36,6 +37,11 @@ export interface HudProps {
   onToggleRanges: () => void;
   /** Hidden until the base has a defence to show the reach of. */
   hasDefences: boolean;
+  /** Which base is on screen, and whether the other one may be entered. */
+  world: World;
+  nightOpen: boolean;
+  crossing: boolean;
+  onCross: () => void;
   /** Whether the guest nudge has earned its place on screen yet. */
   showGuestNote: boolean;
   /** Which button the guide is pointing at, if any. */
@@ -47,7 +53,7 @@ export function Hud({
   player, incomingCount, ordersReady, pending, showGuestNote,
   onHome, onBuild, onArmy, onOrders, onLog, onClan, onLadder, onRaid, onCollectAll, onClaimAccount,
   onDismissGuestNote, soundOn, onToggleSound, rangesOn, onToggleRanges, hasDefences,
-  highlight, onHelp,
+  highlight, onHelp, world, nightOpen, crossing, onCross,
 }: HudProps) {
   const hi = (name: string): string => (highlight === name ? ' hi' : '');
   return (
@@ -102,6 +108,27 @@ export function Hud({
           aria-pressed={rangesOn}
         >
           <RangeIcon on={rangesOn} />
+        </button>
+      )}
+
+      {/*
+        * The way across.
+        *
+        * Under the Town Hall badge, because it is the same question — which
+        * base am I looking at — and because the badge already changes when you
+        * cross. Drawn only once the night world is open: a locked door with a
+        * countdown on it is a thing to want, and a thing to want that a new
+        * player cannot act on is just noise on their first screen.
+        */}
+      {nightOpen && (
+        <button
+          id="crossBtn"
+          className={world === 'night' ? 'night' : ''}
+          onClick={onCross}
+          disabled={crossing}
+          aria-label={world === 'night' ? 'Go back to your home base' : 'Go to your night base'}
+        >
+          {crossing ? '…' : WORLD_NAME[world === 'night' ? 'day' : 'night'].toUpperCase()}
         </button>
       )}
 

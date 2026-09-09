@@ -2401,6 +2401,78 @@ somebody else's account.
 Measured on the result: 431 buildings render at a 16.7 ms median frame interval,
 33.3 ms at the 95th — the field is not what costs frames.
 
+## The night world
+
+ALFA: "saya ingin ada kaya 2 dunia, 1 dunia siang khusus yang saat ini, 2 dunia
+berbeda malam kaya coc." A second base like Clash's Builder Base, and he chose
+to have it built whole before release rather than in slices.
+
+`worlds.ts` states the rule everything else hangs on, and it has no exceptions:
+**nothing crosses between worlds.** Gold mined at night cannot pay for a Cannon
+in the day, an army trained in one cannot raid in the other, and the trophies
+are two ladders. The moment one thing leaks, the second world stops being a
+second game and becomes a second pocket for the first — the failure every game
+with two economies eventually has, and unrecoverable once players have spent
+months either side of it.
+
+Separate: buildings, gold and iron, builders, Town Hall level, army and troop
+queue, layouts, trophies, and the production clock. Shared: the account, the
+name, the clan, the hero, seasons and War Orders — those belong to a player
+rather than to a base.
+
+Every row carries a world, defaulted to `day`, so a server that has been up for
+a week comes through the migration untouched and the night world is simply
+empty until somebody crosses. The migration was applied to an empty database as
+well as the live one, because a default that only works on populated tables is
+a deploy that fails at three in the morning.
+
+The night purse lives as columns on `Player` rather than in a table of worlds.
+The day world's economy is already those columns on that row, and moving a live
+server's gold into a new table to make the two symmetrical is a migration with
+nothing to gain and a whole game to lose.
+
+Four things this turned up, in the order they would have hurt:
+
+1. **`/collect` was already wrong for two worlds.** It set gold and iron
+   absolutely against the day columns, so night-mined gold would land in the day
+   purse — the read was the night world, the write was the day one, and the
+   arithmetic was correct the whole way through. That is the shape of every bug
+   this feature can have: nothing crashes, every number stays plausible, and the
+   game is quietly wrong about which pocket it spends from. Money now moves
+   through one helper that names the columns, and nowhere else.
+2. **`nightTickAt` is not a nicety.** Production pays for the time since the
+   last tick, so one shared clock would mean opening the day base silently
+   zeroes whatever the night base had been earning while nobody looked.
+3. **Settlement reads the world off the raid row, never off the request.** It is
+   the one place a leak would be somebody's deliberate work rather than an
+   oversight: taking it from the body would let a client fight at night and be
+   paid in the day.
+4. **The right-hand HUD column was full.** The crossing button landed under the
+   builder bar, which swallowed every tap. A browser found it by refusing to
+   click through — the kind of thing no test would have noticed and every player
+   would have.
+
+Design cuts worth naming. No hero at night: it is levelled with day gold and
+carries relics forged in day wars, so lending it across would make the two
+progressions one. No garrison: clan troops are given to a hold, and a hold is a
+day-world thing. No second Laboratory, because troop levels are one grind and
+not two, and no vanity, because that is a sink for a finished hold. No shields:
+a shield stops somebody being farmed out of a base they spent weeks on, and two
+protections with two clocks on the smaller ladder would leave half its
+population unattackable at any moment. And the night ladder is flat rather than
+staged, because the day swing is tuned against nine stages of progression and
+would throw a player end to end of a smaller pool in an evening.
+
+The client sends the world with every command rather than the server holding a
+"current world". That is state two tabs disagree about: switch on a phone, tap
+COLLECT on a laptop still showing the day base, and the gold lands in the wrong
+world with nothing anywhere to say why.
+
+`worlds.test.ts` tests the rule rather than the feature — that building at night
+never touches the day purse, that the armies and clocks are separate, that a
+night raid moves night gold and the night ladder and leaves every day column
+where it was, and that night work pays no War Orders.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

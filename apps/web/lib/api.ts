@@ -1,4 +1,4 @@
-import type { BuildingType, ItemType, RelicType, TroopType } from '@ironvow/config';
+import { DAY, type BuildingType, type ItemType, type RelicType, type TroopType, type World } from '@ironvow/config';
 import type { DeployCommand, ItemCommand } from '@ironvow/types';
 import type { PlayerState, ScoutedRaid } from './game/types';
 
@@ -23,8 +23,36 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Which base every command means.
+ *
+ * Held here rather than threaded through forty call sites, because it is one
+ * fact about what the player is looking at and every one of those sites would
+ * be a place to forget it. The server never trusts it for anything that pays
+ * out — a raid is settled against the world stored on the raid row — so the
+ * worst a stale value here can do is show the wrong base, not bank into it.
+ */
+let acting: World = DAY;
+
+export function actingIn(world: World): void {
+  acting = world;
+}
+
+export function currentWorld(): World {
+  return acting;
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, {
+  /*
+   * Attached only when it is not the day world, so every request this client
+   * made before the night world existed is byte-identical to the one it makes
+   * now — and `worldOf` on the server reads a missing world as the day one.
+   */
+  let url = BASE + path;
+  if (acting !== DAY && !path.includes('world=')) {
+    url += `${path.includes('?') ? '&' : '?'}world=${acting}`;
+  }
+  const res = await fetch(url, {
     ...init,
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
@@ -36,6 +64,15 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 const post = <T>(path: string, payload?: unknown): Promise<T> =>
   call<T>(path, { method: 'POST', body: JSON.stringify(payload ?? {}) });
+
+export interface WorldRow {
+  world: World;
+  /** Whether the Town Hall is high enough to be let in. */
+  open: boolean;
+  /** Whether the base behind it has been laid down yet. */
+  started: boolean;
+  trophies: number;
+}
 
 export interface CommandResponse {
   player: PlayerState;
@@ -248,6 +285,14 @@ export const api = {
   requestLogin: (email: string, accessCode?: string): Promise<{ ok: true }> => post('/auth/request', { email, accessCode }),
   gate: (): Promise<{ required: boolean }> => call('/auth/gate'),
   invite: (): Promise<{ code: string; invited: number; paid: number }> => call('/invite'),
+
+  /* --- the two worlds --- */
+  worlds: (): Promise<{ worlds: WorldRow[]; nightUnlocksAt: number }> => call('/worlds'),
+  /**
+   * Cross over. The first time into the night world is what lays it out, which
+   * is why this is a command and not just a change of scenery on the client.
+   */
+  goTo: (world: World): Promise<{ world: World; player: PlayerState }> => post('/world', { world }),
   /**
    * Mark What's New read up to a note number.
    *

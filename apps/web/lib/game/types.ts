@@ -1,4 +1,4 @@
-import type { BuildingType, Pouch, QuestCounter, TroopType } from '@ironvow/config';
+import type { BuildingType, Pouch, QuestCounter, TroopType , World } from '@ironvow/config';
 import type { BaseSnapshot, BattleArmy, DeployCommand, HeroLoadout, TroopLevels } from '@ironvow/types';
 
 /** A building on the player's own base, as the server reports it. */
@@ -62,6 +62,8 @@ export interface PlayerState {
   troopLevels: Record<TroopType, number>;
   /** The last What's New note read. Zero on a hold raised before the panel. */
   newsSeen: number;
+  /** Which base these numbers describe. The client never has to guess. */
+  world: World;
   serverTime: string;
 }
 

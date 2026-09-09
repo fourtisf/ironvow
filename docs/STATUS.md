@@ -2253,6 +2253,66 @@ These are `NEXT_PUBLIC_*`, so Next bakes them into the browser bundle at build
 time. Changing one needs `docker compose up -d --build`, not a restart — the
 same trap `NEXT_PUBLIC_API_URL` has always had.
 
+## The game on a monitor
+
+ALFA sent a screenshot of ironvow.xyz in a desktop browser: "perbaiki
+tampilanya". Two things were wrong with it, and both came from the same place —
+a layout tuned on a phone, stretched across 1920 pixels and never looked at
+again.
+
+**The base was a speck.** The opening frame fitted the whole 56-tile plateau,
+so the zoom was decided by the size of the ground rather than by the size of the
+base standing on it. Every viewport from a phone upward computed a zoom below
+`ZOOM_MIN` and was clamped to it, which is exactly why nobody caught it: the
+number was identical everywhere, so nothing looked broken anywhere — a phone
+filled its small screen with the same base a monitor lost in a field of grass.
+
+`centerOnKeep` frames the buildings now, not the ground they stand on. It grows
+with the hold — a maxed base still opens on the whole plateau, because by then
+that is what the base covers — with `HOME_ZOOM_MAX` stopping a three-building
+hold from filling a monitor with one Town Hall.
+
+The margin round it had to become a share of the width rather than 110 pixels.
+Fixed, it took 220 of a 420px phone, more than half the screen, and the fit fell
+straight back to the floor — the very thing the new framing exists to avoid.
+
+Measured, opening zoom by viewport:
+
+| | small base | grown base |
+| --- | --- | --- |
+| 420×900 (phone) | 0.41 → **0.59** | 0.41 |
+| 1920×960 (laptop) | 0.41 → **1.00** | 0.41 → 0.48 |
+| 2560×1440 | 0.41 → **1.00** | 0.41 → 0.89 |
+
+**The HUD was spread across the desk.** The gold sat at x=9 and the Town Hall
+badge at x=1911 — nineteen hundred pixels apart, so reading your own resources
+and your own Town Hall level meant looking at opposite edges of the monitor.
+Everything in the HUD is positioned against `#hud`, so capping and centring that
+one box brings the purse, the badge, the guide, the rail and the collect button
+in together. Done with `left`/`right` and `max()` rather than a transform,
+because a transformed ancestor becomes the containing block for any
+`position:fixed` descendant, and that is a trap to leave lying around for
+whatever gets added in there next.
+
+Sheets were slabs welded to the bottom edge of the window. On a wide screen they
+are a floating panel now, with a border all the way round and clearing the rail
+— so a player can move between BUILD and ARMY without shutting the sheet first,
+which on a phone is a tap either way and on a desktop was navigation plainly
+visible underneath something covering it. Their scrollbar is drawn in the game's
+own palette rather than the browser's grey channel.
+
+One collision this turned up: the What's New panel landed straight across the
+guide. On a phone it covers it anyway; side by side on a monitor they overlap.
+The guide already hides for every sheet — but `news` is deliberately not a
+`sheet`, because it opens itself, so it was missing from that list.
+
+`apps/web/test/framing.test.ts` holds the framing: a bigger screen shows a small
+base bigger, a grown base pulls back, the cap and the floor both hold, a base
+built in a corner is actually looked at, and at four viewport sizes every corner
+of every footprint lands on screen. That last one matters because an isometric
+bounding box is a diamond — its widest point is not a corner of the grid
+rectangle, so "zoom in more" is not a fix if it crops the Barracks.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

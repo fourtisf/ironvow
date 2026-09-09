@@ -98,14 +98,14 @@ export function Game() {
   const [claimSent, setClaimSent] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [guestNoteDismissed, setGuestNoteDismissed] = useState(false);
+  /** The sky: the player's own clock by default, or an hour they picked. */
+  const [sky, setSky] = useState<SkySetting>('auto');
   /**
    * What's New: 'unread' is the panel a returning player is shown by itself,
    * 'all' is the whole run they asked for from settings. Kept out of `sheet`
    * because the first one opens itself, and a sheet that opens itself would
    * shut whatever the player had open.
    */
-  /** The sky: the player's own clock by default, or an hour they picked. */
-  const [sky, setSky] = useState<SkySetting>('auto');
   const [news, setNews] = useState<'unread' | 'all' | null>(null);
   /** Shown once a session, however many times the base reloads underneath it. */
   const [newsShown, setNewsShown] = useState(false);
@@ -1027,7 +1027,13 @@ export function Game() {
         />
       )}
 
-      {player && mode === 'base' && !sheet && !scout && !outcome && (
+      {/*
+        * `news` is in the list because it is not a `sheet`: it opens itself, so
+        * it deliberately sits outside that union. On a phone it covers the
+        * guide anyway; on a monitor the two are side by side and the panel
+        * landed straight across it.
+        */}
+      {player && mode === 'base' && !sheet && !news && !scout && !outcome && (
         <Coach
           objective={objective}
           busy={claimingQuest !== null}

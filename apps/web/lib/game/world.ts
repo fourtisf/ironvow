@@ -247,32 +247,59 @@ export function setMode(w: World, mode: Mode): void {
 }
 
 /**
- * The furthest the opening frame will pull back. Fitting a three-building
- * hold to a desktop window zoomed all the way in, and pulling back to 0.8
- * still showed a Keep the size of a hand with the plateau's edge out of
- * sight. The opening view is the whole plateau, or as much of it as the
- * screen can take.
+ * The closest the opening frame will push in.
+ *
+ * A cap and not a target: `frameBase` fits what is actually there, and this
+ * only stops a hold with three buildings in it from filling a desktop window
+ * with one Town Hall.
  */
-export const HOME_ZOOM_MAX = 0.7;
+export const HOME_ZOOM_MAX = 1;
 
 /**
- * Open on the whole plateau, centred on the Keep.
+ * Open on the base, centred on it.
  *
- * Fit the buildable diamond to what is left of the screen once the HUD has
- * taken its top and bottom, and clamp to the zoom limits: a phone cannot show
- * all 56 tiles across and simply opens as far out as it may.
+ * ALFA, looking at the game on a monitor: "perbaiki tampilanya". It opened on
+ * the whole 56-tile plateau — which is the right frame for a hold that fills
+ * it, and the wrong one for every hold before that. A new base is five
+ * buildings in the middle of an empty field, and fitting the field to a 1920px
+ * window put them on screen at about a fifth of the size they are on a phone:
+ * a game seen through the wrong end of a telescope.
+ *
+ * So the frame is the buildings, not the ground they stand on. It grows with
+ * the base — a maxed hold still opens on the whole plateau, because by then the
+ * plateau is what the base covers — and `HOME_ZOOM_MAX` keeps a small one from
+ * going too far the other way.
  */
 export function centerOnKeep(w: World): void {
   const own = w.player?.buildings ?? [];
-  const keep = own.find((b) => b.type === 'keep');
-  const cx = keep ? keep.gx + TYPES.keep.s / 2 : N / 2;
-  const cy = keep ? keep.gy + TYPES.keep.s / 2 : N / 2;
-  const hudTop = 130;
-  const hudBottom = 130;
-  const fitW = (w.vp.w - 40) / (N * TW);
-  const fitH = (w.vp.h - hudTop - hudBottom) / (N * TH);
-  const z = clamp(Math.min(fitW, fitH, HOME_ZOOM_MAX), ZOOM_MIN, ZOOM_MAX);
-  centerOn(w.cam, cx, cy, z, w.vp.dpr);
+  if (own.length === 0) {
+    centerOn(w.cam, N / 2, N / 2, HOME_ZOOM_MAX, w.vp.dpr);
+    return;
+  }
+  frameBase(
+    w.cam,
+    w.vp,
+    own.map((b) => ({ gx: b.gx, gy: b.gy, size: TYPES[b.type].s })),
+    homeMargin(w.vp.w),
+    HOME_ZOOM_MAX,
+  );
+}
+
+/**
+ * Air left round the base at the opening frame.
+ *
+ * A share of the width rather than a number of pixels. Fixed at the 110 a
+ * desktop wants, it took 220 of a 420px phone — more than half the screen — and
+ * the fit fell back to the zoom floor, which is the very thing this framing
+ * exists to stop happening. The floor keeps a narrow phone from framing the
+ * base flush to both edges; the cap keeps a monitor from leaving a field of
+ * grass round it.
+ *
+ * The margin is for the next building: somewhere to drop it without panning
+ * first.
+ */
+function homeMargin(width: number): number {
+  return clamp(width * 0.1, 40, 110);
 }
 
 /** Show a defender's base, framed, without starting the fight. */

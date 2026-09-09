@@ -1,6 +1,6 @@
-import { BUILDING_TYPES, KEEP_MAX, N, TYPES, capOf } from '@ironvow/config';
+import { BUILDING_TYPES, KEEP_MAX, N, TYPES, buildableAtNight, capOf } from '@ironvow/config';
 import { describe, expect, it } from 'vitest';
-import { showcaseHold, showcaseMisplaced } from '../lib/game/showcase';
+import { nightHold, showcaseHold, showcaseMisplaced } from '../lib/game/showcase';
 
 /**
  * ALFA: "landing page gamenya yang sudah level semua maximal"
@@ -99,5 +99,38 @@ describe('the hold behind the door', () => {
     }
     expect(x1 - x0).toBeLessThanOrEqual(34);
     expect(y1 - y0).toBeLessThanOrEqual(34);
+  });
+});
+
+/**
+ * The night showcase.
+ *
+ * The banner draws it, and a banner is the one picture where being wrong is
+ * expensive: it is the thing people see before they see the game, and a hold
+ * on it holding a building the night world refuses to build is a promise the
+ * game breaks on the first crossing.
+ */
+describe('the hold across the water', () => {
+  it('holds nothing the night world refuses to build', () => {
+    for (const b of nightHold().buildings) {
+      expect(buildableAtNight(b.type), b.type).toBe(true);
+    }
+  });
+
+  it('is the same layout, minus what cannot stand there', () => {
+    const day = showcaseHold();
+    const night = nightHold();
+    expect(night.buildings.length).toBeLessThan(day.buildings.length);
+    for (const b of night.buildings) {
+      expect(day.buildings.some((d) => d.id === b.id && d.gx === b.gx && d.gy === b.gy)).toBe(true);
+    }
+  });
+
+  /* Only the Laboratory, the Statue, the Torch and the Banner come out. */
+  it('keeps every defence, because a night base is raided too', () => {
+    const night = nightHold();
+    for (const type of ['cannon', 'tower', 'mortar', 'airdef', 'wall', 'spike', 'snare'] as const) {
+      expect(night.buildings.some((b) => b.type === type), type).toBe(true);
+    }
   });
 });

@@ -161,6 +161,15 @@ export interface World {
    */
   boat: { gx: number; gy: number } | null;
   /**
+   * Draw the boat even on a previewed field.
+   *
+   * A preview is somebody else's ground — a base being scouted, or the hold
+   * behind the sign-in card — and neither has your boat moored on it. Only the
+   * banner page sets this: a photograph of the night world with no way across
+   * to it is a photograph of a base.
+   */
+  boatAlways: boolean;
+  /**
    * Which stone the structures are cut from, when nothing else can say.
    *
    * Normally the player's own world decides it. A shared replay has no player
@@ -233,6 +242,7 @@ export function createWorld(events: WorldEvents): World {
     battleCommands: [],
     watching: false,
     boat: boatAt(terrain.lakes),
+    boatAlways: false,
     livery: null,
     phase: 'day',
     skyFrom: 'day',

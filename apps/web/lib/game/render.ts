@@ -371,7 +371,7 @@ function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
    * and putting it in the depth sort would cost a slot every frame to answer a
    * question that has one answer.
    */
-  if (w.boat && !w.preview) drawBoat(d, w.boat, w.player?.world === 'night');
+  if (w.boat && (!w.preview || w.boatAlways)) drawBoat(d, w.boat, liveryOf(w) === 'night');
 
   // Scouting: draw the defender's frozen base in enemy livery instead of the
   // player's own, so the layout can actually be studied before committing.

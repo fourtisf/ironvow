@@ -5,7 +5,7 @@ import type { DeployableType } from '@ironvow/types';
 import { centerOn } from '../../lib/render/camera';
 import { renderFrame } from '../../lib/game/render';
 import { drawUnit } from '../../lib/render/units';
-import { openingHold, showcaseHold } from '../../lib/game/showcase';
+import { nightHold, openingHold, showcaseHold } from '../../lib/game/showcase';
 import { createWorld, showPreview, type World, type WorldEvents } from '../../lib/game/world';
 
 /*
@@ -84,6 +84,19 @@ interface Shot {
   opening?: boolean;
   /** Enemy livery. True for the raid banner: that is somebody else's hold. */
   enemy?: boolean;
+  /**
+   * The base across the water, drawn by the game rather than graded into it.
+   *
+   * There is already a night frame on this page, and it fakes it: a daylight
+   * render with a blue multiply over the top and the warmth painted back where
+   * the braziers are. That was the only way to do it when the renderer knew
+   * one hour. It now knows four, and it knows two worlds — cold stone, lit
+   * lanterns, a night sky composited under the torchlight instead of over it —
+   * so this frame asks for the real thing. The difference is not subtle and it
+   * is not decoration: the night base is a feature to announce, and announcing
+   * it with a filter would be advertising a screenshot nobody can reproduce.
+   */
+  night?: boolean;
 }
 
 /**
@@ -100,7 +113,17 @@ function useHold(shot: Shot) {
     const made = world(shot.w, shot.h, canvas);
     if (!made) return;
     const [w, ctx] = made;
-    showPreview(w, shot.opening ? openingHold() : showcaseHold(), shot.enemy ?? false);
+    if (shot.night) {
+      // Set before the render, because the livery is baked into the sprite at
+      // rasterisation time and the sky is painted from the phase.
+      w.livery = 'night';
+      w.phase = 'night';
+      w.skyFrom = 'night';
+      w.skyMix = 1;
+      w.boatAlways = true;
+    }
+    const hold = shot.night ? nightHold() : shot.opening ? openingHold() : showcaseHold();
+    showPreview(w, hold, shot.enemy ?? false);
     centerOn(w.cam, shot.gx, shot.gy, shot.zoom, 2, 0.12);
     renderFrame(w, ctx);
   }, [shot]);
@@ -428,6 +451,98 @@ function Grade({ hairline = true }: { hairline?: boolean }) {
 }
 
 /**
+ * The render, printed a stop and a half up.
+ *
+ * The night world is lit for a phone in a dark room, where the field is the
+ * only thing on screen and the eye adjusts to it. A banner is looked at for
+ * two seconds in a bright feed beside forty other pictures, and at the
+ * renderer's own exposure the hold came out as a silhouette you had to hunt
+ * for — which is the whole subject of the post gone. Lifted here rather than
+ * in the renderer: the game is not too dark, the feed is too bright.
+ */
+function NightExposure({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      /*
+       * Exposure only. The colour is fixed one layer up, not here.
+       *
+       * Two attempts went the other way first. `saturate(1.14)` brightened the
+       * grass into emerald and left a cold blue hold standing in the middle of
+       * a summer afternoon; pulling the saturation down and rotating the hue
+       * toward cyan turned the field olive and took the blue out of the stone
+       * with it — a filter cannot tell a lawn from a roof. Multiplying a blue
+       * over the whole frame can: it scales the green channel down wherever
+       * there is green to scale, which is grass, and leaves stone that is
+       * already blue very nearly alone. That is `NIGHT_COLD`.
+       */
+      filter: 'brightness(1.95) contrast(1.02)',
+    }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The cold, as a multiply rather than a filter.
+ *
+ * Lighter than the `NIGHT` layer above it because that one sits over an
+ * un-lifted daylight render and this one sits over a night render printed a
+ * stop and a half up. Both ends are held off black on purpose: a night post is
+ * about a base, and a base you have to hunt for in the dark is a black
+ * rectangle with a wordmark on it.
+ */
+const NIGHT_COLD: React.CSSProperties = {
+  position: 'absolute', inset: 0, pointerEvents: 'none',
+  mixBlendMode: 'multiply',
+  background: 'linear-gradient(166deg, #b6c4f4 0%, #8b9ada 42%, #5b68a8 100%)',
+};
+
+/**
+ * The grade, for a frame the renderer already made dark.
+ *
+ * `Grade` puts a warm key in the top left, which is a sun — on a night render
+ * it fights the picture instead of lighting it. This is the same three passes
+ * with the temperature turned round: a cold key from above for the moon, the
+ * warmth put back only low and centre where the lanterns actually are, a
+ * deeper vignette because there is no daylight holding the corners up, and the
+ * same grain, which matters more here than anywhere else on the page — a big
+ * dark gradient is exactly where a phone screen bands.
+ */
+function NightGrade({ hairline = true }: { hairline?: boolean }) {
+  return (
+    <>
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'soft-light',
+        background:
+          'radial-gradient(ellipse 76% 66% at 62% 0%, rgba(150,190,255,.52), rgba(150,190,255,0) 62%),'
+          + 'linear-gradient(160deg, rgba(0,0,0,0) 52%, rgba(10,16,52,.48) 100%)',
+      }}
+      />
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'screen',
+        background:
+          'radial-gradient(ellipse 32% 36% at 38% 50%, rgba(255,170,78,.26), rgba(255,170,78,0) 70%),'
+          + 'radial-gradient(ellipse 11% 15% at 80% 78%, rgba(255,190,102,.30), rgba(255,190,102,0) 70%)',
+      }}
+      />
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(ellipse 92% 92% at 42% 46%, rgba(0,0,0,0) 56%, rgba(2,5,18,.40) 100%)',
+      }}
+      />
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundImage: GRAIN, opacity: 0.08, mixBlendMode: 'overlay',
+      }}
+      />
+      {hairline && <div style={HAIRLINE} />}
+    </>
+  );
+}
+
+/**
  * The scrim.
  *
  * Taking the panel off was right — a card on key art is a slide — but the type
@@ -681,7 +796,84 @@ export default function BannerPage() {
       </Frame>
 
       {/*
-        * 5 — thread post 2: it works while you are gone.
+        * 5 — the night world.
+        *
+        * ALFA: "buatkan banner premium yang tema malam itu."
+        *
+        * The one below fakes night with a multiply over a daylight render,
+        * because when it was made that was the only night the game had. This
+        * one is the night world itself: the hold cut from cold stone with a
+        * lantern burning at the front of every building, under a sky the
+        * renderer composites *beneath* the torchlight rather than over it, and
+        * laid out from `nightHold` so nothing stands in it that the night world
+        * would refuse to build.
+        *
+        * The boat is why the picture is framed this wide. It could be a tighter
+        * and better-looking shot of the base alone, and it would be selling the
+        * wrong thing: the base is what you get, the boat is what you *do*, and
+        * a second base nobody knows how to reach is a second base nobody
+        * reaches. So the hold sits left of centre with the water and the boat
+        * out to the right, and the type takes the bottom left, clear of both.
+        */}
+      <Frame id="nightworld" w={W} h={H} note="post — the night base, and the boat">
+        <NightExposure>
+          <HoldDof shot={{ w: W, h: H, gx: 38.1, gy: 24, zoom: 0.62, night: true }} />
+        </NightExposure>
+        <div style={NIGHT_COLD} />
+        <NightGrade />
+        <div style={SCRIM_FOOT} />
+        <div style={SCRIM_LEFT} />
+        <div style={{ position: 'absolute', left: 84, top: 70 }}>
+          <Wordmark width={300} />
+        </div>
+        <div style={{ position: 'absolute', left: 84, bottom: 78, width: 880 }}>
+          <Eyebrow>A SECOND BASE, AFTER DARK</Eyebrow>
+          <div style={{ marginTop: 22 }}>
+            <Line>
+              Take the boat across.
+              <br />
+              Build it all again.
+            </Line>
+          </div>
+          <div style={{ marginTop: 30 }}>
+            <Address />
+          </div>
+        </div>
+      </Frame>
+
+      {/*
+        * 6 — the same world, as a profile header.
+        *
+        * X puts the avatar over the bottom left and crops both edges, so the
+        * base takes the left where it can afford to lose a corner and the type
+        * sits right of centre. Wider than the post because a 3:1 crop of the
+        * same camera would have put the boat outside the frame.
+        */}
+      <Frame id="nightheader" w={1500} h={500} note="X profile header — night world">
+        <NightExposure>
+          <HoldDof shot={{ w: 1500, h: 500, gx: 35.6, gy: 24.6, zoom: 0.5, night: true }} />
+        </NightExposure>
+        <div style={NIGHT_COLD} />
+        <NightGrade hairline={false} />
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'linear-gradient(90deg, rgba(4,8,22,.42) 0%, rgba(4,8,22,0) 26%,'
+            + ' rgba(4,8,22,.56) 56%, rgba(4,8,22,.94) 100%)',
+        }}
+        />
+        <div style={{
+          position: 'absolute', right: 96, top: '50%', transform: 'translateY(-50%)',
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 20,
+        }}
+        >
+          <Wordmark width={400} />
+          <Eyebrow>A SECOND BASE, AFTER DARK</Eyebrow>
+          <Address />
+        </div>
+      </Frame>
+
+      {/*
+        * 7 — thread post 2: it works while you are gone.
         *
         * The one thing about the game that is true when nobody is looking, so
         * the picture is the hold at dusk with its own fires on. The renderer

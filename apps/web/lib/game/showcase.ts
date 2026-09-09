@@ -1,4 +1,4 @@
-import { KEEP_MAX, N, TYPES, capOf, type BuildingType } from '@ironvow/config';
+import { KEEP_MAX, N, TYPES, buildableAtNight, capOf, type BuildingType } from '@ironvow/config';
 import type { BaseSnapshot, SnapshotBuilding } from '@ironvow/types';
 
 /**
@@ -182,6 +182,31 @@ export function showcaseHold(): BaseSnapshot {
     pool: { g: 0, i: 0 },
   };
   return cached;
+}
+
+/**
+ * The same hold, across the water.
+ *
+ * The showcase plan with everything the night world refuses to build taken
+ * out — no Laboratory, no Statue, no Torch, no Banner. It reads that from
+ * `buildableAtNight` rather than a list of its own, so a picture of the night
+ * base can never hold a building a player could not put there.
+ *
+ * The layout is deliberately the same one. The two worlds are the same game
+ * played twice, and a night base laid out differently for a photograph would
+ * be selling a place that does not exist.
+ */
+let nightCached: BaseSnapshot | null = null;
+
+export function nightHold(): BaseSnapshot {
+  if (nightCached) return nightCached;
+  const day = showcaseHold();
+  nightCached = {
+    ...day,
+    defenderId: 'showcase-night',
+    buildings: day.buildings.filter((b) => buildableAtNight(b.type)),
+  };
+  return nightCached;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { BaseSnapshot, BattleArmy, DeployCommand, HeroLoadout, ItemCommand, TroopLevels } from '@ironvow/types';
-import { parsePouch } from '@ironvow/config';
+import { asWorld, parsePouch, type World } from '@ironvow/config';
 import type { Raid } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 
@@ -37,6 +37,14 @@ export interface ShareCard {
   destroyedPct: number;
   loot: { g: number; i: number };
   at: string;
+  /**
+   * Which base was fought over.
+   *
+   * The two worlds are painted in different stone, and a viewer with no
+   * account has no player record to read it from — so the replay has to carry
+   * it or a night raid replays as a daytime one.
+   */
+  world: World;
 }
 
 /** Everything needed to replay the fight in a browser. */
@@ -107,6 +115,7 @@ export function cardOf(raid: Raid, attackerName: string): ShareCard {
     destroyedPct: raid.destroyedPct,
     loot: { g: Number(raid.lootGold), i: Number(raid.lootIron) },
     at: (raid.resolvedAt ?? raid.createdAt).toISOString(),
+    world: asWorld(raid.world),
   };
 }
 

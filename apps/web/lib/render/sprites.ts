@@ -3,6 +3,7 @@ import { isoX, isoY, w2s, type Camera, type Viewport } from './camera';
 import { drawBuildingBody } from './buildings';
 import type { Draw } from './primitives';
 import { hasCanopy, paintDecoBase, paintDecoCanopy, type Deco } from './deco';
+import { paintNightLivery, type Livery } from './livery';
 
 /**
  * Sprite cache for the static art: buildings and the treeline.
@@ -186,7 +187,7 @@ function blit(
  */
 export function blitBuilding(
   d: Draw, type: BuildingType, level: number, enemy: boolean, ax: number, ay: number,
-  link = 0, pips = true,
+  link = 0, pips = true, livery: Livery = 'day',
 ): void {
   const { ctx, cam, vp } = d;
   const z = cam.z;
@@ -194,7 +195,9 @@ export function blitBuilding(
   // nothing on every other type and at most sixteen sprites on that one.
   // `pips` belongs in the key like everything else that changes the picture:
   // bounds are measured once per shape, and a badge is part of the silhouette.
-  const shape = `b|${type}|${level}|${enemy ? 1 : 0}|${link}|${pips ? 1 : 0}`;
+  // The livery is in the key, so the two worlds keep separate bitmaps and
+  // neither ever has to be repainted when the player crosses over.
+  const shape = `b|${type}|${level}|${enemy ? 1 : 0}|${link}|${pips ? 1 : 0}|${livery}`;
   const paint: Painter = (c, k) => {
     // The art is translation-invariant, so a camera at the origin puts grid
     // (0,0) at the canvas origin, where the transform has already been aimed.
@@ -213,6 +216,7 @@ export function blitBuilding(
       { ctx: c, cam: cam0, vp: vp0, t: 0, night: 0 },
       { type, gx: 0, gy: 0, level, link, pips }, enemy,
     );
+    if (livery === 'night') paintNightLivery(c, k, type);
   };
   blit(ctx, spriteFor(shape, paint, z, vp.dpr), vp.dpr, ax, ay);
 }

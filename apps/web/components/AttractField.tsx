@@ -36,6 +36,7 @@ const NOWHERE: WorldEvents = {
   onPlacementChanged: () => undefined,
   onPlacementCommit: () => undefined,
   onCameraMoved: () => undefined,
+  onBoard: () => undefined,
 };
 
 export function AttractField() {

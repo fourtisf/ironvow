@@ -1,4 +1,5 @@
 import { TYPES, ZOOM_MAX, ZOOM_MIN, clamp } from '@ironvow/config';
+import { boatHit } from '../render/boat';
 import { clampCam, s2g } from '../render/camera';
 import {
   buildingAtScreen,
@@ -221,6 +222,21 @@ export function attachInput(
     if (wasDragging) return;
 
     void gx; void gy;
+
+    /*
+     * The boat first.
+     *
+     * It floats out past the plateau where no building can be, so the order
+     * only matters at the far zoom levels where a hull can overlap the apron's
+     * trees — but a tap that lands on both should take the one that goes
+     * somewhere.
+     */
+    if (w.boat && !w.preview && w.mode === 'base'
+      && boatHit({ ctx: null as never, cam: w.cam, vp: w.vp, t: w.t, night: 0 }, w.boat, ptr.sx, ptr.sy)) {
+      w.events.onBoard();
+      return;
+    }
+
     const b = buildingAtScreen(w, ptr.sx, ptr.sy);
     onTapBuilding(b?.id ?? null);
   };

@@ -15,7 +15,7 @@ import { beginBattle, createWorld, useItemAt, type World } from '../lib/game/wor
 const EVENTS = () => ({
   onSelect: vi.fn(), onModeChange: vi.fn(), onToast: vi.fn(),
   onPlayerChanged: vi.fn(), onBattleEnd: vi.fn(),
-  onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(),
+  onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(), onBoard: vi.fn(),
 });
 
 function raiding(pouch: Record<string, number> = { horn: 1, firepot: 1 }): World {

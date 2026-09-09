@@ -254,6 +254,8 @@ export interface ShareCard {
   destroyedPct: number;
   loot: { g: number; i: number };
   at: string;
+  /** Which of the two bases it was fought over, so the art matches. */
+  world: World;
 }
 
 /** A shared fight in full, as handed to somebody with no account. */

@@ -59,6 +59,7 @@ export function GameCanvas({ events, onReady, onTapBuilding }: GameCanvasProps) 
       onPlacementChanged: () => eventsRef.current.onPlacementChanged(),
       onPlacementCommit: () => eventsRef.current.onPlacementCommit(),
       onCameraMoved: () => eventsRef.current.onCameraMoved(),
+      onBoard: () => eventsRef.current.onBoard(),
     };
 
     const world = createWorld(forward);

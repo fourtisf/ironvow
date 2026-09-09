@@ -17,7 +17,7 @@ import { beginBattle, createWorld, showPreview, stepBattle, type World } from '.
 const EVENTS = () => ({
   onSelect: vi.fn(), onModeChange: vi.fn(), onToast: vi.fn(),
   onPlayerChanged: vi.fn(), onBattleEnd: vi.fn(),
-  onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(),
+  onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(), onBoard: vi.fn(),
 });
 
 function b(id: string, type: SnapshotBuilding['type'], gx: number, gy: number, level = 3): SnapshotBuilding {

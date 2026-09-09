@@ -39,9 +39,10 @@ export const NEWS: readonly NewsItem[] = [
     at: '2026-09-09',
     title: 'A second base, at night',
     lines: [
-      'At Town Hall 4 a new button appears: your Night Base. A whole second base, on its own ground, always after dark.',
+      'There is a boat on the water past the edge of your ground. From Town Hall 4, touch it and it takes you across to your Night Base.',
+      'A whole second base, on its own ground, always after dark, and built in its own stone — the same halls and towers, cut cold and lit by lantern.',
       'Nothing crosses between the two. Its gold, its builders, its Town Hall, its army and its trophies are all its own — what you dig at night is spent at night.',
-      'It is raided too, against other players who have crossed over, on a ladder of its own.',
+      'It is raided too, against other players who have crossed over, on a ladder of its own. The boat is waiting there to bring you home.',
     ],
   },
   {

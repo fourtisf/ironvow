@@ -1,5 +1,6 @@
 'use client';
 
+import { NIGHT } from '@ironvow/config';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmt } from '../lib/format';
 import { api, type SharedReplay } from '../lib/api';
@@ -40,6 +41,9 @@ export function WatchReplay({ shareId }: { shareId: string }) {
    * hands over its world on mount, and the fetch lands whenever it lands.
    */
   const start = useCallback((world: World, r: SharedReplay) => {
+    // Nobody watching a shared link is signed in, so the replay itself is the
+    // only thing that knows which of the two bases this fight was over.
+    world.livery = r.world === NIGHT ? 'night' : 'day';
     beginBattle(world, {
       raidId: '', seed: r.seed, snapshot: r.snapshot, army: r.army,
       hero: r.hero, troopLevels: r.troopLevels, pouch: r.pouch,
@@ -78,6 +82,7 @@ export function WatchReplay({ shareId }: { shareId: string }) {
           onSelect: noop, onModeChange: noop, onToast: noop, onPlayerChanged: noop,
           onBattleEnd: () => setEnded(true),
           onPlacementChanged: noop, onPlacementCommit: noop, onCameraMoved: noop,
+          onBoard: noop,
         }}
         onReady={(w) => {
           worldRef.current = w;

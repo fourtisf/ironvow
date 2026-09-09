@@ -19,7 +19,7 @@ function world(w: number, h: number): World {
   const world = createWorld({
     onSelect: vi.fn(), onModeChange: vi.fn(), onToast: vi.fn(),
     onPlayerChanged: vi.fn(), onBattleEnd: vi.fn(),
-    onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(),
+    onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(), onBoard: vi.fn(),
   });
   world.vp = { w, h, dpr: 2 };
   return world;

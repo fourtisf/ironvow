@@ -23,6 +23,8 @@ import { sfx } from '../sfx';
 import { PIPH } from '../render/palette';
 import { type Camera, centerOn, clampCam, s2g, frameBase, newCamera, type Viewport } from '../render/camera';
 import { generateTerrain, type Terrain } from '../render/terrain';
+import { boatAt } from '../render/boat';
+import type { Livery } from '../render/livery';
 import type { BaseSnapshot, BattleKind, DeployableType, DeployCommand, ItemCommand } from '@ironvow/types';
 import type { FloatingText, Mode, Placement, PlayerState, ScoutedRaid } from './types';
 
@@ -45,6 +47,8 @@ export interface WorldEvents {
   onPlayerChanged: () => void;
   /** A battle reached an end condition. */
   onBattleEnd: (commands: DeployCommand[], items: ItemCommand[]) => void;
+  /** The boat on the water was tapped: cross to the other base. */
+  onBoard: () => void;
   /**
    * The ghost moved or its footprint changed colour. The placement bar is
    * React, the ghost is not, and without this the bar kept saying Blocked —
@@ -148,6 +152,22 @@ export interface World {
    * and two people watching the same shared replay in different time zones
    * watch the same fight under different skies.
    */
+  /**
+   * Where the boat sits, or null on a field with no water in view.
+   *
+   * Computed once from the terrain rather than every frame: the lakes never
+   * move, and a boat whose position is recomputed against a changing camera is
+   * a boat nobody can tap twice.
+   */
+  boat: { gx: number; gy: number } | null;
+  /**
+   * Which stone the structures are cut from, when nothing else can say.
+   *
+   * Normally the player's own world decides it. A shared replay has no player
+   * — that is the point of it — so the page watching one sets this from the
+   * replay instead, or a night raid would be watched in daylight art.
+   */
+  livery: Livery | null;
   phase: Phase;
   /** The phase being left behind, and how far out of it: 1 means arrived. */
   skyFrom: Phase;
@@ -185,10 +205,14 @@ export interface World {
 }
 
 export function createWorld(events: WorldEvents): World {
+  // Generated before the world literal so the boat can be put on the water it
+  // actually made, rather than at a guessed coordinate that a different seed
+  // would leave sitting on dry land.
+  const terrain = generateTerrain();
   return {
     cam: newCamera(),
     vp: { w: 1, h: 1, dpr: 1 },
-    terrain: generateTerrain(),
+    terrain,
     t: 0,
     now: Date.now(),
     resize: null,
@@ -208,6 +232,8 @@ export function createWorld(events: WorldEvents): World {
     preview: null,
     battleCommands: [],
     watching: false,
+    boat: boatAt(terrain.lakes),
+    livery: null,
     phase: 'day',
     skyFrom: 'day',
     skyMix: 1,

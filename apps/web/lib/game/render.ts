@@ -4,10 +4,12 @@ import type { Draw } from '../render/primitives';
 import { ANIMATED, drawBuilderMark, drawBuilding, drawBuildingFx, drawTorchlight, type Renderable } from '../render/buildings';
 import { SKY, nightLevel, type SkyTint } from './daylight';
 import { blitBuilding, blitDeco } from '../render/sprites';
+import type { Livery } from '../render/livery';
 import { C, PIPH } from '../render/palette';
 import { drawHpBar, isoBox, isoDiamond, roundRect } from '../render/primitives';
 import { drawAtmosphere } from '../render/atmosphere';
 import { drawTerrain } from '../render/terrain';
+import { drawBoat } from '../render/boat';
 import { drawProjectile, drawUnit } from '../render/units';
 import type { DeployableType } from '@ironvow/types';
 import type { ClientBuilding } from './types';
@@ -360,6 +362,16 @@ export function musterOf(w: World): Muster {
 function renderBase(w: World, ctx: CanvasRenderingContext2D): void {
   const d = draw(w, ctx);
   drawTerrain(d, w.terrain);
+
+  /*
+   * The boat, on the water, and the way across.
+   *
+   * Drawn straight after the terrain rather than sorted with the buildings: it
+   * floats out on the apron, nothing on the plateau can ever be in front of it,
+   * and putting it in the depth sort would cost a slot every frame to answer a
+   * question that has one answer.
+   */
+  if (w.boat && !w.preview) drawBoat(d, w.boat, w.player?.world === 'night');
 
   // Scouting: draw the defender's frozen base in enemy livery instead of the
   // player's own, so the layout can actually be studied before committing.
@@ -936,7 +948,7 @@ function drawStruct(
   gx: number, gy: number, aim?: number, recoil?: number, link = 0,
 ): void {
   const [ax, ay] = w2s(w.cam, w.vp, isoX(gx, gy), isoY(gx, gy));
-  blitBuilding(d, type, level, enemy, ax, ay, link, w.levelPips);
+  blitBuilding(d, type, level, enemy, ax, ay, link, w.levelPips, liveryOf(w));
   if (ANIMATED.has(type)) {
     drawBuildingFx(d, { type, gx, gy, level, aim, recoil }, enemy);
   }
@@ -1061,4 +1073,15 @@ function drawCoachMarker(d: Draw, gx: number, gy: number, size: number, type: Bu
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+}
+
+/**
+ * Which set of art this field is painted in.
+ *
+ * Tied to where the player is standing rather than to the hour, and that is
+ * deliberate: a home base at midnight is the same base it was at noon, seen in
+ * the dark. The base across the water is a different place.
+ */
+function liveryOf(w: World): Livery {
+  return w.livery ?? (w.player?.world === 'night' ? 'night' : 'day');
 }

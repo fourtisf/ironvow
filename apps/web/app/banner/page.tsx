@@ -51,6 +51,7 @@ const NOWHERE: WorldEvents = {
   onPlacementChanged: () => undefined,
   onPlacementCommit: () => undefined,
   onCameraMoved: () => undefined,
+  onBoard: () => undefined,
 };
 
 function world(w: number, h: number, canvas: HTMLCanvasElement): [World, CanvasRenderingContext2D] | null {

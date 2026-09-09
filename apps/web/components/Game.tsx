@@ -796,6 +796,13 @@ export function Game() {
     onPlacementChanged: () => setPlaceTick((t) => t + 1),
     onPlacementCommit: () => { void confirmPlacement(); },
     onCameraMoved: () => { if (objectiveRef.current === 'camera') markTutorial('camera'); },
+    /*
+     * The boat is the crossing, and it is the same crossing as the button in
+     * the corner: one action, two ways of reaching it. Tapping the boat while
+     * standing in the night world sails home, which is what a boat on a shore
+     * ought to do in both directions.
+     */
+    onBoard: () => { void crossTo(player?.world === NIGHT ? DAY : NIGHT); },
   };
 
   const onTapBuilding = useCallback((id: string | null) => {

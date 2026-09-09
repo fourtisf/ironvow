@@ -60,7 +60,7 @@ describe('being hit is visible', () => {
   const world = (): World => createWorld({
     onSelect: vi.fn(), onModeChange: vi.fn(), onToast: vi.fn(),
     onPlayerChanged: vi.fn(), onBattleEnd: vi.fn(),
-    onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(),
+    onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(), onBoard: vi.fn(),
   });
 
   const battle = (structHp: number[], unitHp: number[], dead: boolean[] = []) => ({
@@ -114,7 +114,7 @@ describe('a raid keeps running while the window is in the background', () => {
     const w = createWorld({
       onSelect: vi.fn(), onModeChange: vi.fn(), onToast: vi.fn(),
       onPlayerChanged: vi.fn(), onBattleEnd: vi.fn(),
-      onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(),
+      onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(), onBoard: vi.fn(),
     });
     w.battle = createBattle({
       snapshot: generateOpponent(4, 'ai', 'Test', 3),

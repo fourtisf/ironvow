@@ -23,7 +23,7 @@ function world(): World {
   return createWorld({
     onSelect: vi.fn(), onModeChange: vi.fn(), onToast: vi.fn(),
     onPlayerChanged: vi.fn(), onBattleEnd: vi.fn(),
-    onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(),
+    onPlacementChanged: vi.fn(), onPlacementCommit: vi.fn(), onCameraMoved: vi.fn(), onBoard: vi.fn(),
   });
 }
 

@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { NEWS_LATEST } from '@ironvow/config';
 import { bump } from '../lib/count.js';
+import { worldOf } from '../lib/world.js';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../lib/env.js';
 import { SESSION_COOKIE, consumeLoginLink, createLoginLink, issueSession, playerIdFromRequest, requireAuth, revokeSession } from '../lib/auth.js';
@@ -330,9 +331,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true });
   });
 
-  /** Who am I, plus the settled state of my base. */
+  /** Who am I, plus the settled state of the base I am standing in. */
   app.get('/me', { preHandler: requireAuth }, async (request, reply) => {
-    const player = await loadPlayer(request.playerId!);
+    const player = await loadPlayer(request.playerId!, new Date(), worldOf(request));
     return reply.send(serialise(player));
   });
 
@@ -411,6 +412,8 @@ export function serialise(p: Awaited<ReturnType<typeof loadPlayer>>) {
     counters: p.counters,
     claimedQuests: p.claimedQuests,
     newsSeen: p.newsSeen,
+    /** Which base these numbers describe. The client never has to guess. */
+    world: p.world,
     serverTime: new Date().toISOString(),
   };
 

@@ -1,5 +1,6 @@
 import {
   BUILDING_TYPES,
+  DAY,
   TROOP,
   TROOP_TYPES,
   cancelRefund,
@@ -24,6 +25,8 @@ import { collectStock, grant } from '../domain/production.js';
 import { nextFinishAt, nextPosition } from '../domain/queue.js';
 import { requireAuth } from '../lib/auth.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
+import { setPurse, spend } from '../lib/purse.js';
+import { worldOf } from '../lib/world.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
 import { serialise } from './auth.js';
 
@@ -56,29 +59,27 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
   /** Buy and place a new building. */
   app.post('/build', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = buildSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
     const { type, gx, gy } = parsed.data;
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const plan = planBuild(player, type as BuildingType, gx, gy);
       if (!plan.ok) return plan;
 
       await tx.player.update({
         where: { id: player.id },
-        data: {
-          gold: { decrement: BigInt(plan.value.cost.g) },
-          iron: { decrement: BigInt(plan.value.cost.i) },
-        },
+        data: spend(world, plan.value.cost),
       });
       // The building goes on the map immediately, occupying its cells, but a
       // timed one does not work until the builder is finished with it.
       const created = await tx.building.create({
         data: {
-          playerId: player.id, type, gx, gy, level: 1,
+          playerId: player.id, world, type, gx, gy, level: 1,
           completesAt: plan.value.seconds > 0
             ? new Date(Date.now() + plan.value.seconds * 1000)
             : null,
@@ -89,7 +90,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
       return {
         ok: true as const,
         value: { buildingId: created.id, cost: plan.value.cost, seconds: plan.value.seconds },
-        player: await settleAndLoad(tx, player.id),
+        player: await settleAndLoad(tx, player.id, new Date(), world),
       };
     }, COMMAND_TX);
 
@@ -99,12 +100,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
   /** Raise a building one level. Nothing may exceed the Keep. */
   app.post('/upgrade', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = idSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const plan = planUpgrade(player, parsed.data.buildingId);
       if (!plan.ok) return plan;
@@ -143,7 +145,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
           data: { level: plan.value.toLevel },
         });
       }
-      return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };
+      return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id, new Date(), world) };
     }, COMMAND_TX);
 
     if (!result.ok) return refuse(reply, result);
@@ -159,12 +161,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
    * construction rather than by careful handling.
    */
   app.post('/move', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = moveSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const plan = planMove(player, parsed.data.buildingId, parsed.data.gx, parsed.data.gy);
       if (!plan.ok) return plan;
@@ -173,7 +176,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
         where: { id: plan.value.buildingId },
         data: { gx: plan.value.gx, gy: plan.value.gy },
       });
-      return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };
+      return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id, new Date(), world) };
     }, COMMAND_TX);
 
     if (!result.ok) return refuse(reply, result);
@@ -182,12 +185,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
   /** Bank a producer's stock, or every producer's at once. */
   app.post('/collect', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = collectSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const outcome = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const collected = collectStock({
         gold: player.gold,
@@ -202,11 +206,23 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
       await tx.player.update({
         where: { id: player.id },
         data: {
-          gold: collected.gold,
-          iron: collected.iron,
+          /*
+           * The world's own purse, and this is an absolute set rather than an
+           * increment — `collectStock` has already clamped to the storage cap.
+           * Written as a literal `gold:` it moved night-mined gold into the day
+           * pocket: the read was the night purse, the write was the day one,
+           * and the arithmetic was correct all the way through.
+           */
+          ...setPurse(world, { g: Number(collected.gold), i: Number(collected.iron) }),
           // One per producer emptied, matching how the prototype counted taps.
-          collected: { increment: collected.cleared.length },
-          dayCollected: { increment: collected.cleared.length },
+          // Day only: a War Order paid for night collecting is a reward earned
+          // in a world where it cannot be spent.
+          ...(world === DAY
+            ? {
+              collected: { increment: collected.cleared.length },
+              dayCollected: { increment: collected.cleared.length },
+            }
+            : {}),
         },
       });
       await tx.building.updateMany({
@@ -216,7 +232,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
       return {
         collected: collected.collected,
         wasted: collected.wasted,
-        player: await settleAndLoad(tx, player.id),
+        player: await settleAndLoad(tx, player.id, new Date(), world),
       };
     }, COMMAND_TX);
 
@@ -233,12 +249,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
    * is there to pace someone still growing.
    */
   app.post('/finish', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = idSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const b = player.buildings.find((x) => x.id === parsed.data.buildingId);
       if (!b) return { ok: false as const, error: 'unknownBuilding' as const };
@@ -252,7 +269,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
       await tx.player.update({
         where: { id: player.id },
-        data: { gold: { decrement: BigInt(cost) } },
+        data: spend(world, { g: cost, i: 0 }),
       });
       // Backdating rather than clearing the columns keeps one completion path:
       // settleAndLoad applies the level, exactly as it would have on its own.
@@ -261,7 +278,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
         data: { completesAt: new Date(Date.now() - 1000) },
       });
 
-      return { ok: true as const, value: { cost }, player: await settleAndLoad(tx, player.id) };
+      return { ok: true as const, value: { cost }, player: await settleAndLoad(tx, player.id, new Date(), world) };
     }, COMMAND_TX);
 
     if (!result.ok) return refuse(reply, result);
@@ -270,12 +287,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
   /** Tear a building down and get half of what went into it back. */
   app.post('/demolish', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = idSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const plan = planDemolish(player, parsed.data.buildingId);
       if (!plan.ok) return plan;
@@ -296,7 +314,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
       return {
         ok: true as const,
         value: { ...plan.value, wasted: credited.wasted },
-        player: await settleAndLoad(tx, player.id),
+        player: await settleAndLoad(tx, player.id, new Date(), world),
       };
     }, COMMAND_TX);
 
@@ -306,12 +324,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
   /** Stop a builder mid-job and get everything back. */
   app.post('/cancel', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = idSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const plan = planCancelBuild(player, parsed.data.buildingId);
       if (!plan.ok) return plan;
@@ -339,7 +358,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
       return {
         ok: true as const,
         value: { ...plan.value, wasted: credited.wasted },
-        player: await settleAndLoad(tx, player.id),
+        player: await settleAndLoad(tx, player.id, new Date(), world),
       };
     }, COMMAND_TX);
 
@@ -354,12 +373,13 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
    * cancelling the first of ten does not leave nine waiting on a ghost.
    */
   app.post('/train/cancel', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = z.object({ jobId: z.string().min(1).max(40) }).safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const job = player.queueJobs.find((j) => j.id === parsed.data.jobId);
       if (!job) return { ok: false as const, error: 'noSuchJob' as const };
@@ -393,7 +413,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
       return {
         ok: true as const,
         value: { jobId: job.id, type: job.type, refund, wasted: credited.wasted },
-        player: await settleAndLoad(tx, player.id),
+        player: await settleAndLoad(tx, player.id, new Date(), world),
       };
     }, COMMAND_TX);
 
@@ -403,6 +423,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
   /** Queue troops. Sequential, with absolute finish times. */
   app.post('/train', async (request, reply) => {
+    const world = worldOf(request);
     const parsed = trainSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
     const { type, count } = parsed.data;
@@ -426,7 +447,7 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
         }
         const finishesAt = nextFinishAt(pending, type as TroopType, new Date());
         const job = await tx.trainJob.create({
-          data: { playerId: player.id, type, finishesAt, position: nextPosition(pending) },
+          data: { playerId: player.id, world, type, finishesAt, position: nextPosition(pending) },
           select: { id: true, position: true },
         });
         pending.push({ id: job.id, type: type as TroopType, finishesAt, position: job.position });
@@ -445,12 +466,12 @@ export async function baseRoutes(app: FastifyInstance): Promise<void> {
 
       await tx.player.update({
         where: { id: player.id },
-        data: { gold: { decrement: spentG }, iron: { decrement: spentI } },
+        data: spend(world, { g: Number(spentG), i: Number(spentI) }),
       });
       return {
         ok: true as const,
         value: { queued, type },
-        player: await settleAndLoad(tx, player.id),
+        player: await settleAndLoad(tx, player.id, new Date(), world),
       };
     }, COMMAND_TX);
 

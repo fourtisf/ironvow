@@ -14,6 +14,7 @@ import { pushRoutes } from './routes/push.js';
 import { questRoutes } from './routes/quests.js';
 import { raidRoutes } from './routes/raid.js';
 import { shareRoutes } from './routes/share.js';
+import { worldRoutes } from './routes/worlds.js';
 import { upgradeRoutes } from './routes/upgrades.js';
 import { warRoutes } from './routes/war.js';
 import { feedbackRoutes } from './routes/feedback.js';
@@ -98,6 +99,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(raidRoutes);
   // Its own plugin: raidRoutes authenticates everything inside it.
   await app.register(shareRoutes);
+  await app.register(worldRoutes);
   await app.register(questRoutes);
   await app.register(upgradeRoutes);
   await app.register(opsRoutes);

@@ -1,4 +1,7 @@
 import {
+  NIGHT,
+  buildableAtNight,
+  type World,
   KEEP_MAX,
   buildSeconds,
   buildersFree,
@@ -32,6 +35,15 @@ import { cellsFree, type PlacedBuilding } from './placement.js';
  */
 
 export interface PlayerView {
+  /**
+   * Which base this is.
+   *
+   * Every plan below reads it, because the two worlds do not build the same
+   * things and do not spend the same gold. It lives on the view rather than
+   * being passed alongside so a caller cannot hand `planBuild` one world's
+   * buildings and another world's world.
+   */
+  world: World;
   gold: bigint;
   iron: bigint;
   buildings: OwnedBuildingRow[];
@@ -71,6 +83,7 @@ export type CommandError =
   | 'atKeepCap'
   | 'atMaxLevel'
   | 'outOfBounds'
+  | 'notInThisWorld'
   | 'overlaps'
   | 'notInteger'
   | 'barracksTooLow'
@@ -111,6 +124,12 @@ export function planBuild(
   if (!(type in TYPES)) return fail('unknownType');
   // The Keep is created with the base and can never be built again.
   if (type === 'keep') return fail('atCountLimit');
+  /*
+   * The night world builds a shorter catalogue: no second Laboratory, because
+   * troop levels are one grind and not two, and no vanity, because that is a
+   * sink for a finished hold and the night world is by definition not one.
+   */
+  if (player.world === NIGHT && !buildableAtNight(type)) return fail('notInThisWorld');
 
   const keepLevel = keepLevelOf(player.buildings.map((b) => ({ type: b.type, level: b.level })));
   const owned = countOf(player.buildings.map((b) => ({ type: b.type, level: b.level })), type);
@@ -303,6 +322,7 @@ export const ERROR_MESSAGE: Record<CommandError, string> = {
   atKeepCap: 'Nothing can go above your Town Hall level.',
   atMaxLevel: 'Already at the highest level.',
   outOfBounds: 'That spot is off the map.',
+  notInThisWorld: 'That cannot be built here.',
   overlaps: 'That spot is blocked.',
   notInteger: 'Buildings sit on whole tiles.',
   barracksTooLow: 'You need a higher Barracks level.',

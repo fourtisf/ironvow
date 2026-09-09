@@ -391,8 +391,10 @@ export async function settleAndLoad(
 }
 
 /** Convenience wrapper for read-only routes. */
-export async function loadPlayer(playerId: string, now = new Date()): Promise<LoadedPlayer> {
-  return prisma.$transaction(async (tx) => settleAndLoad(tx, playerId, now));
+export async function loadPlayer(
+  playerId: string, now = new Date(), world: World = DAY,
+): Promise<LoadedPlayer> {
+  return prisma.$transaction(async (tx) => settleAndLoad(tx, playerId, now, world));
 }
 
 /** Barracks level a player currently fields, for the army sheet. */

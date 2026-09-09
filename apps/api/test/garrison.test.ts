@@ -46,7 +46,7 @@ describe.skipIf(!hasDatabase)('clan donation', () => {
     const taker = await makePlayer('taker');
     await clanOf(giver, taker);
     await db.troop.update({
-      where: { playerId_type: { playerId: giver, type: 'raider' } }, data: { count: 5 },
+      where: { playerId_world_type: { playerId: giver, world: 'day', type: 'raider' } }, data: { count: 5 },
     });
     const before = await db.player.findUniqueOrThrow({ where: { id: giver } });
 
@@ -55,7 +55,7 @@ describe.skipIf(!hasDatabase)('clan donation', () => {
     expect(res.json().count).toBe(3);
 
     const mine = await db.troop.findUniqueOrThrow({
-      where: { playerId_type: { playerId: giver, type: 'raider' } },
+      where: { playerId_world_type: { playerId: giver, world: 'day', type: 'raider' } },
     });
     expect(mine.count).toBe(2);
     const theirs = await db.player.findUniqueOrThrow({ where: { id: taker } });
@@ -72,7 +72,7 @@ describe.skipIf(!hasDatabase)('clan donation', () => {
     const b = await makePlayer('b');
     await clanOf(a);
     await db.troop.update({
-      where: { playerId_type: { playerId: a, type: 'raider' } }, data: { count: 5 },
+      where: { playerId_world_type: { playerId: a, world: 'day', type: 'raider' } }, data: { count: 5 },
     });
     expect((await give(a, b, 'raider', 1)).statusCode).toBe(409);
     // A hold that can garrison itself is a hold with a second warband.
@@ -91,7 +91,7 @@ describe.skipIf(!hasDatabase)('clan donation', () => {
     const taker = await makePlayer('taker');
     await clanOf(giver, taker);
     await db.troop.update({
-      where: { playerId_type: { playerId: giver, type: 'raider' } }, data: { count: 20 },
+      where: { playerId_world_type: { playerId: giver, world: 'day', type: 'raider' } }, data: { count: 20 },
     });
     // A Keep-1 garrison holds ten slots; a Raider is one each.
     const cap = garrisonSlots(1);

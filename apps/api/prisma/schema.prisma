@@ -108,6 +108,28 @@ model Player {
   /// Consecutive days the player has opened the game. Raises the daily reward.
   streakDays    Int      @default(0)
 
+  /// The night world: its own purse, its own crew, its own ladder.
+  ///
+  /// Held as columns rather than in a table of worlds because the day world's
+  /// economy is already these columns on this row, and moving a live server's
+  /// gold into a new table to make the two symmetrical is a migration with
+  /// nothing to gain and a whole game to lose. See worlds.ts in @ironvow/config.
+  ///
+  /// The night Town Hall level is not here: it is read off the night Keep, the
+  /// same way the day one is, so the two cannot disagree.
+  nightGold     BigInt @default(0)
+  nightIron     BigInt @default(0)
+  nightBuilders Int    @default(2)
+  nightTrophies Int    @default(0)
+  /// The night world's own production clock.
+  ///
+  /// Its own, and this is not a nicety: production is paid out for the time
+  /// since the last tick, so one shared clock would mean opening the day base
+  /// silently zeroes what the night base had been earning while nobody looked.
+  nightTickAt   DateTime @default(now())
+  /// Null until the player first crosses over, which is what lays the base out.
+  nightStartedAt DateTime?
+
   /// The last What's New note this player has read, by its number.
   ///
   /// A new hold is created already caught up — see NEWS_LATEST — because the
@@ -138,6 +160,12 @@ model Player {
 model Building {
   id       String @id @default(cuid())
   playerId String
+  /// day | night. Which base this stands in.
+  ///
+  /// Defaulted rather than backfilled: every building that existed before the
+  /// night world did stands in the day one, which is exactly what the default
+  /// says. See worlds.ts in @ironvow/config.
+  world    String @default("day")
   /// keep | mine | forge | store | barr | cannon | tower | wall
   type     String
   gx       Int
@@ -173,6 +201,8 @@ model Building {
 model Layout {
   id        String   @id @default(cuid())
   playerId  String
+  /// day | night. A layout is a base's arrangement, so it belongs to one.
+  world     String   @default("day")
   /// defence | farming | war | push. Free text rather than an enum, which is
   /// why adding the last two needed no migration at all.
   slot      String
@@ -183,8 +213,8 @@ model Layout {
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  @@unique([playerId, slot])
-  @@index([playerId])
+  @@unique([playerId, world, slot])
+  @@index([playerId, world])
 }
 
 /// A browser push endpoint (spec S8.4: notifications for finished builds and
@@ -212,6 +242,8 @@ model PushSubscription {
 model Troop {
   id       String @id @default(cuid())
   playerId String
+  /// day | night. An army trained in one world cannot raid in the other.
+  world    String @default("day")
   /// raider | archer | lancer | ram
   type     String
   count    Int    @default(0)
@@ -221,13 +253,15 @@ model Troop {
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  @@unique([playerId, type])
-  @@index([playerId])
+  @@unique([playerId, world, type])
+  @@index([playerId, world])
 }
 
 model TrainJob {
   id         String   @id @default(cuid())
   playerId   String
+  /// day | night. Each world trains its own army, in its own queue.
+  world      String   @default("day")
   type       String
   /// Absolute finish time, resolved lazily on read like production.
   finishesAt DateTime
@@ -235,7 +269,7 @@ model TrainJob {
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  @@index([playerId, position])
+  @@index([playerId, world, position])
 }
 
 model Raid {
@@ -275,6 +309,10 @@ model Raid {
   /// from every raid recorded before items existed.
   items Json?
 
+  /// day | night. Which world was raided — the attacker's army, the loot and
+  /// the trophies all belong to that world and never cross to the other.
+  world       String  @default("day")
+
   /// Set for a war attack: the war, and the roster seat whose frozen base
   /// was fought. A war raid takes no loot and moves no trophies.
   warId       String?
@@ -312,6 +350,8 @@ model Raid {
   @@index([defenderId, createdAt])
   @@index([attackerId, createdAt])
   @@index([attackerId, status])
+  /// Night matchmaking reads this: open raids in one world only.
+  @@index([world, status])
   @@index([warId])
 }
 

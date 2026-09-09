@@ -33,6 +33,7 @@ import { resolveQueue } from '../domain/queue.js';
 import type { OwnedBuildingRow, PlayerView } from '../domain/commands.js';
 import { prisma, type Tx } from './prisma.js';
 import { settleInvite } from '../domain/invites.js';
+import { DAY, NIGHT, type World } from '@ironvow/config';
 
 /**
  * Loading a player is a settlement, not a read.
@@ -46,6 +47,15 @@ export interface LoadedPlayer extends PlayerView {
   id: string;
   name: string;
   isGuest: boolean;
+  /**
+   * Which base this is.
+   *
+   * Carried on the object rather than left to the caller to remember, because
+   * every number below it — the purse, the crew, the trophies, the buildings —
+   * belongs to exactly one world, and a caller that has forgotten which is a
+   * caller about to spend the wrong gold.
+   */
+  world: World;
   trophies: number;
   /** The highest trophy total this season. What the season pays on. */
   seasonPeak: number;
@@ -109,13 +119,41 @@ export class PlayerNotFound extends Error {
   }
 }
 
-/** Settle production and the training queue, then return the current state. */
-export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()): Promise<LoadedPlayer> {
+/**
+ * Settle production and the training queue, then return the current state.
+ *
+ * `world` is the base being looked at, and it scopes almost everything: the
+ * buildings, the army, the queue, the purse, the crew, the trophies and the
+ * production clock. Nothing crosses between the two — see worlds.ts in
+ * @ironvow/config for why that rule has no exceptions.
+ *
+ * What is not scoped is what belongs to the player rather than to a base: the
+ * name, the hero, the relics, the streak, and the War Orders. Those settle once
+ * whichever world asked.
+ */
+export async function settleAndLoad(
+  tx: Tx, playerId: string, now = new Date(), world: World = DAY,
+): Promise<LoadedPlayer> {
+  const night = world === NIGHT;
   const player = await tx.player.findUnique({
     where: { id: playerId },
-    include: { buildings: true, troops: true, queue: { orderBy: { position: 'asc' } } },
+    include: {
+      buildings: { where: { world } },
+      troops: { where: { world } },
+      queue: { where: { world }, orderBy: { position: 'asc' } },
+    },
   });
   if (!player) throw new PlayerNotFound(playerId);
+
+  /*
+   * Each world keeps its own production clock.
+   *
+   * Sharing one would mean opening the day base pays out the night base's
+   * accrual against a clock it never earned against — and then resets it, so
+   * whatever was owed there is gone with nothing to show it ever existed.
+   */
+  const tickAt = night ? player.nightTickAt : player.lastTickAt;
+  const tickField = night ? 'nightTickAt' : 'lastTickAt';
 
   /* --- the day, before anything reads a daily counter ---
    *
@@ -180,7 +218,7 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
       level: b.level,
       stock: b.stock,
     }));
-  const accrual = accrueProduction({ lastTickAt: player.lastTickAt, now, buildings: producers });
+  const accrual = accrueProduction({ lastTickAt: tickAt, now, buildings: producers });
   if (accrual.updated.length > 0) {
     await Promise.all(
       accrual.updated.map((u) => tx.building.update({ where: { id: u.id }, data: { stock: u.stock } })),
@@ -190,8 +228,8 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
       if (row) row.stock = u.stock;
     }
   }
-  if (accrual.elapsedSeconds > 0 || player.lastTickAt.getTime() !== now.getTime()) {
-    await tx.player.update({ where: { id: playerId }, data: { lastTickAt: now } });
+  if (accrual.elapsedSeconds > 0 || tickAt.getTime() !== now.getTime()) {
+    await tx.player.update({ where: { id: playerId }, data: { [tickField]: now } });
   }
 
   /* --- training queue --- */
@@ -212,22 +250,30 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
 
   if (resolved.finished.length > 0) {
     await tx.trainJob.deleteMany({ where: { id: { in: resolved.finished.map((j) => j.id) } } });
-    // A troop counts as trained when it leaves the queue, not when it is
-    // ordered, so a cancelled or still-cooking job never scores a War Order.
-    await tx.player.update({
-      where: { id: playerId },
-      data: {
-        trainedTotal: { increment: resolved.finished.length },
-        dayTrained: { increment: resolved.finished.length },
-      },
-    });
-    player.trainedTotal += resolved.finished.length;
+    /*
+     * A troop counts as trained when it leaves the queue, not when it is
+     * ordered, so a cancelled or still-cooking job never scores a War Order.
+     *
+     * Day only. War Orders are a day-world thing, and a night army counting
+     * toward them would let a player finish "train 200 troops" in a world where
+     * the reward is spent somewhere the troops can never go.
+     */
+    if (!night) {
+      await tx.player.update({
+        where: { id: playerId },
+        data: {
+          trainedTotal: { increment: resolved.finished.length },
+          dayTrained: { increment: resolved.finished.length },
+        },
+      });
+      player.trainedTotal += resolved.finished.length;
+    }
     for (const type of TROOP_ORDER) {
       const gained = resolved.gained[type];
       if (!gained) continue;
       await tx.troop.upsert({
-        where: { playerId_type: { playerId, type } },
-        create: { playerId, type, count: gained },
+        where: { playerId_world_type: { playerId, world, type } },
+        create: { playerId, world, type, count: gained },
         update: { count: { increment: gained } },
       });
       army[type] = (army[type] ?? 0) + gained;
@@ -250,9 +296,15 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
   const queueTypes = resolved.pending.map((j) => j.type);
   const keepLevel = keepLevelOf(owned);
 
-  // The denormalised keepLevel column exists so matchmaking can filter without
-  // a join; keep it honest whenever we are here anyway.
-  if (player.keepLevel !== keepLevel) {
+  /*
+   * The denormalised keepLevel column exists so matchmaking can filter without
+   * a join; keep it honest whenever we are here anyway.
+   *
+   * The day world's, and only the day world's. The night Town Hall level is
+   * read off the night Keep every time and stored nowhere, so the two can never
+   * be written over each other — night matchmaking bands on night trophies.
+   */
+  if (!night && player.keepLevel !== keepLevel) {
     await tx.player.update({ where: { id: playerId }, data: { keepLevel } });
     player.keepLevel = keepLevel;
     /*
@@ -264,6 +316,10 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
      */
     await settleInvite(tx, playerId);
   }
+
+  // Its own crew: a builder shared between worlds would mean an upgrade at
+  // night blocking one in the day — two games taking turns rather than two.
+  const crew = night ? player.nightBuilders : player.builders;
 
   const counters = Object.fromEntries(
     QUEST_COUNTERS.map((k) => [k, player[k]]),
@@ -287,9 +343,19 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
       ? player.heroReadyAt
       : null,
     troopLevels,
-    gold: player.gold,
-    iron: player.iron,
-    trophies: player.trophies,
+    /*
+     * The purse, the crew and the ladder of the world being looked at.
+     *
+     * This is the join where the whole feature is either honest or not: every
+     * price check, every reward and every trophy swing downstream reads these
+     * fields and has no idea which world it is in. Pick the wrong one here and
+     * gold mined at night pays for a Cannon in the day, with nothing anywhere
+     * to say it happened.
+     */
+    world,
+    gold: night ? player.nightGold : player.gold,
+    iron: night ? player.nightIron : player.iron,
+    trophies: night ? player.nightTrophies : player.trophies,
     seasonPeak: player.seasonPeak,
     keepLevel,
     garrison: parseGarrison(player.garrison),
@@ -307,12 +373,13 @@ export async function settleAndLoad(tx: Tx, playerId: string, now = new Date()):
     army,
     queue: queueTypes,
     queueJobs: resolved.pending,
+    // Derived from this world's own buildings, so both are already per-world.
     storageCap: storageCapOf(owned),
-    builders: player.builders,
+    builders: crew,
     buildersFree: buildersFree(buildings.map((b) => ({
       type: b.type, level: b.level, completesAt: b.completesAt, upgradingTo: b.upgradingTo,
-    })), player.builders),
-    buildersTotal: player.builders,
+    })), crew),
+    buildersTotal: crew,
     armyCap: armyCapOf(owned),
     armyUsed: armyUsedOf(army, queueTypes),
     counters,

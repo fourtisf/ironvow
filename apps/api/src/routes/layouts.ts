@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { cellsFree, type PlacedBuilding } from '../domain/placement.js';
 import { requireAuth } from '../lib/auth.js';
+import { worldOf } from '../lib/world.js';
 import { lockPlayer, settleAndLoad } from '../lib/player.js';
 import { COMMAND_TX, prisma } from '../lib/prisma.js';
 import { serialise } from './auth.js';
@@ -50,8 +51,9 @@ export async function layoutRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
 
   app.get('/layouts', async (request, reply) => {
+    const world = worldOf(request);
     const layouts = await prisma.layout.findMany({
-      where: { playerId: request.playerId! },
+      where: { playerId: request.playerId!, world },
       orderBy: { slot: 'asc' },
     });
     return reply.send({
@@ -74,13 +76,16 @@ export async function layoutRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
     const slot = parsed.data.slot;
 
-    const player = await prisma.$transaction((tx) => settleAndLoad(tx, request.playerId!));
+    // A layout is one base's arrangement, so it is saved into the world the
+    // player is standing in and can never be applied to the other one.
+    const world = worldOf(request);
+    const player = await prisma.$transaction((tx) => settleAndLoad(tx, request.playerId!, new Date(), world));
     const positions: SavedPosition[] = player.buildings.map((b) => ({ id: b.id, gx: b.gx, gy: b.gy }));
     const name = parsed.data.name?.trim() || DEFAULT_NAMES[slot];
 
     await prisma.layout.upsert({
-      where: { playerId_slot: { playerId: player.id, slot } },
-      create: { playerId: player.id, slot, name, positions: positions as unknown as object },
+      where: { playerId_world_slot: { playerId: player.id, world, slot } },
+      create: { playerId: player.id, world, slot, name, positions: positions as unknown as object },
       update: { name, positions: positions as unknown as object, savedAt: new Date() },
     });
 
@@ -99,12 +104,13 @@ export async function layoutRoutes(app: FastifyInstance): Promise<void> {
     const parsed = slotSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
+    const world = worldOf(request);
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const player = await settleAndLoad(tx, request.playerId!);
+      const player = await settleAndLoad(tx, request.playerId!, new Date(), world);
 
       const layout = await tx.layout.findUnique({
-        where: { playerId_slot: { playerId: player.id, slot: parsed.data.slot } },
+        where: { playerId_world_slot: { playerId: player.id, world, slot: parsed.data.slot } },
       });
       if (!layout) return { ok: false as const, error: 'noSuchLayout' as const };
 

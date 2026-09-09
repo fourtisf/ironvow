@@ -20,6 +20,7 @@ import {
   troopPower,
   troopUpgradeCost,
   type TroopType,
+  DAY,
 } from '@ironvow/config';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -286,9 +287,11 @@ export async function upgradeRoutes(app: FastifyInstance): Promise<void> {
           iron: { decrement: BigInt(plan.value.cost.i) },
         },
       });
+      // The Laboratory stands in the day world and nowhere else, so the levels
+      // it buys are the day army's. See worlds.ts in @ironvow/config.
       await tx.troop.upsert({
-        where: { playerId_type: { playerId: player.id, type } },
-        create: { playerId: player.id, type, count: 0, level: plan.value.toLevel },
+        where: { playerId_world_type: { playerId: player.id, world: DAY, type } },
+        create: { playerId: player.id, world: DAY, type, count: 0, level: plan.value.toLevel },
         update: { level: plan.value.toLevel },
       });
       return { ok: true as const, value: plan.value, player: await settleAndLoad(tx, player.id) };

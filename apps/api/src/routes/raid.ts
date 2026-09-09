@@ -17,6 +17,7 @@ import {
   stageFromTrophies,
   type BuildingType,
   type TroopType,
+  type World,
 } from '@ironvow/config';
 import {
   garrisonName,
@@ -526,7 +527,9 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         const n = spent[type];
         if (!n) continue;
         await tx.troop.update({
-          where: { playerId_type: { playerId: attacker.id, type } },
+          // The army that fought, which is the one belonging to the world the
+          // raid was in — a night attack must not eat the day warband.
+          where: { playerId_world_type: { playerId: attacker.id, world: raid.world as World, type } },
           data: { count: Math.max(0, (attacker.army[type] ?? 0) - n) },
         });
       }

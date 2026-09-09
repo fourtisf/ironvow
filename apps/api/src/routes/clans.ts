@@ -25,6 +25,7 @@ import {
   validTag,
   type ClanRole,
   type JoinPolicy,
+  DAY,
 } from '@ironvow/config';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
@@ -464,7 +465,9 @@ export async function clanRoutes(app: FastifyInstance): Promise<void> {
         where: { id: request.playerId! }, select: { name: true },
       });
       const mine = await tx.troop.findUnique({
-        where: { playerId_type: { playerId: request.playerId!, type } },
+        // Clan troops are given from, and to, the day base: the garrison
+        // defends a hold, and a clan has one hold per member.
+        where: { playerId_world_type: { playerId: request.playerId!, world: DAY, type } },
         select: { count: true },
       });
       const have = mine?.count ?? 0;
@@ -478,7 +481,7 @@ export async function clanRoutes(app: FastifyInstance): Promise<void> {
       const count = Math.min(parsed.data.count, room);
 
       await tx.troop.update({
-        where: { playerId_type: { playerId: request.playerId!, type } },
+        where: { playerId_world_type: { playerId: request.playerId!, world: DAY, type } },
         data: { count: have - count },
       });
       garrison[type] = (garrison[type] ?? 0) + count;

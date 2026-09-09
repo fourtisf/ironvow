@@ -25,3 +25,4 @@ export * from './seasons.js';
 export * from './relics.js';
 export * from './traps.js';
 export * from './news.js';
+export * from './worlds.js';

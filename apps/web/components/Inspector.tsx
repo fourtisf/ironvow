@@ -1,6 +1,7 @@
 'use client';
 
-import { KEEP_MAX, TYPES, campSlots, buildSeconds, costOf, countOf, finishNowCost, hpOf, DEF_STAT, PROD, isTrap, trapDamage, trapSeconds } from '@ironvow/config';
+import { KEEP_MAX, TYPES, buildSeconds, costOf, countOf, finishNowCost, hpOf, PROD } from '@ironvow/config';
+import { buildingDetail, defenceTarget } from '../lib/game/stats';
 import { useEffect, useState } from 'react';
 import { fmt, until } from '../lib/format';
 import type { ClientBuilding, PlayerState } from '../lib/game/types';
@@ -101,33 +102,29 @@ export function Inspector({
   }
 
   const rate = PROD[building.type];
-  const defence = DEF_STAT[building.type];
   const stock = Math.floor(building.stock);
 
+  /*
+   * The same line the BUILD sheet prints, so the two cannot drift.
+   *
+   * They had. This worked a Storage out from `1400 + level * 1500` while
+   * `CAPACITY` in config says `12000 + level * 12000` — a level 1 Storage was
+   * reported as holding 2,900 when it holds 24,000. Nothing was wrong with the
+   * game; the screen describing it was making the number up.
+   */
   const detail = rate
-    ? `${rate(building.level)}/min · ${fmt(stock)} ready`
-    : defence
-      // A Mortar's dead zone belongs on the same line as its reach: "range 9.2"
-      // on its own is the half of the story that flatters it.
-      ? `${Math.round(defence(building.level).dmg)}${defence(building.level).splash ? ' splash' : ''} damage · range ${defence(building.level).min ? `${defence(building.level).min}–` : ''}${defence(building.level).rng}`
-      : isTrap(building.type)
-        // A trap has no range and no rate. What a player wants to know is what
-        // it does when somebody finds it, and that they cannot see it coming.
-        ? building.type === 'snare'
-          ? `Holds them ${trapSeconds('snare', building.level).toFixed(1)}s · hidden until it springs`
-          : `${trapDamage('spike', building.level)} damage · hidden until it springs`
-      : building.type === 'camp'
-        ? `${campSlots(building.level)} army slots`
-        : building.type === 'store'
-          ? `+${fmt(1400 + building.level * 1500)} storage`
-          : def.blurb;
+    // Only the inspector knows what is sitting in the thing waiting to be
+    // collected, so that half stays here.
+    ? `${buildingDetail(building.type, building.level)} · ${fmt(stock)} ready`
+    : buildingDetail(building.type, building.level);
+  const target = defenceTarget(building.type, building.level);
 
   return (
     <div id="insp">
       <div className="info">
         <h3>{def.n} · LEVEL {building.level}</h3>
         <p>
-          {detail}
+          {detail}{target === null ? '' : ` · ${target.toLowerCase()}`}
           <br />
           {fmt(hpOf(building.type, building.level))} hit points
           {!atCap && seconds > 0 && ` · next takes ${Math.round(seconds / 60) >= 1 ? `${Math.round(seconds / 60)}m` : `${seconds}s`}`}

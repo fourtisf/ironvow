@@ -154,3 +154,28 @@ export const RangeIcon = ({ on }: { on: boolean }) => (
     <path d="M19.4 2.6a10.5 10.5 0 0 1 0 14.8" opacity={on ? 0.8 : 0.28} />
   </svg>
 );
+
+/**
+ * Hit points and damage a second, for the cards where a player is choosing.
+ *
+ * Drawn rather than labelled "HP" and "DPS": the two numbers sit side by side
+ * on a card barely wider than a thumb, and two glyphs read faster than two
+ * abbreviations in any language.
+ */
+export const HeartIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em">
+    <path
+      d="M12 20S3.5 14.4 3.5 9.2A4.7 4.7 0 0 1 12 6.6a4.7 4.7 0 0 1 8.5 2.6C20.5 14.4 12 20 12 20z"
+      fill="#e05b4a" stroke="#7d2a20" strokeWidth="1.4" strokeLinejoin="round"
+    />
+    <path d="M8.4 8.2a2.6 2.6 0 0 1 2.2-1.4" fill="none" stroke="#ff9c8c" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+export const BladeIcon = () => (
+  <svg viewBox="0 0 24 24" width="1em" height="1em">
+    <path d="M18.6 3.4l2 2-9 9-2.6.6.6-2.6z" fill="#dbe6f2" stroke="#4c5c6e" strokeWidth="1.4" strokeLinejoin="round" />
+    <path d="M9.6 12.4l2 2" fill="none" stroke="#4c5c6e" strokeWidth="1.2" />
+    <path d="M7.6 15l1.4 1.4-3.2 3.2-2.2.8.8-2.2z" fill="#c08a3e" stroke="#6b4a1c" strokeWidth="1.3" strokeLinejoin="round" />
+  </svg>
+);

@@ -103,6 +103,14 @@
   .card .cost.no{color:#ff7a63}
   .card .cost svg{width:13px;height:13px}
   .card .sub{font-size:8px;font-family:Arial;font-weight:900;letter-spacing:.9px;color:#8fa6c4}
+  /* What the thing actually does. Sits under the price, because the price is
+     the question the player asked and this is the answer they needed. */
+  .card .stat{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;
+    font-size:9.5px;font-family:Arial;font-weight:900;color:#c3d4ea;line-height:1.3;text-align:center}
+  .card .stat span{display:flex;align-items:center;gap:3px}
+  .card .stat svg{width:12px;height:12px;display:block;flex:none}
+  .card .trait{font-size:8px;font-family:Arial;font-weight:900;letter-spacing:.4px;color:#8fb2d8;
+    text-align:center;line-height:1.3;padding:0 2px;overflow-wrap:anywhere}
   .card .cnt{position:absolute;top:5px;right:6px;font-size:8.5px;font-family:Arial;font-weight:900;color:#8fa6c4}
   /* The troop's War Lab level, opposite the count it owns: what you have on
      one corner, how strong it is on the other. */

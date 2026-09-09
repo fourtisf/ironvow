@@ -23,8 +23,9 @@ import {
 import { fmt, longUntil, until } from '../lib/format';
 import type { BreachView, PlayerHit, PlayerProfile, RelicsView, SeasonState } from '../lib/api';
 import type { PlayerState } from '../lib/game/types';
-import { GoldIcon, IronIcon } from './icons';
+import { BladeIcon, GoldIcon, HeartIcon, IronIcon } from './icons';
 import { TroopArt } from './TroopArt';
+import { buildingDetail, defenceTarget, troopCardStats } from '../lib/game/stats';
 
 /**
  * The build and army sheets.
@@ -171,10 +172,35 @@ export function BuildSheet({
         <span className="cnt">{have}/{limit}</span>
         <div className="nm">{TYPES[type].n}</div>
         <CostLine cost={cost} affordable={affordable} />
+        {/* What it does, at the level it would be built at. A Cannon and an
+          * Air Defence used to differ by their price and their name, and the
+          * one that cannot touch anything on foot said so nowhere. */}
+        <div className="stat">{buildingDetail(type, 1)}</div>
+        {defenceTarget(type, 1) !== null && <div className="trait">{defenceTarget(type, 1)}</div>}
         <div className="sub">{locked ? 'LOCKED' : `${TYPES[type].s}×${TYPES[type].s}`}</div>
       </button>
     );
   }
+}
+
+/**
+ * Hit points and damage a second, plus the one thing that is not a number.
+ *
+ * On the card rather than behind a tap: the choice being made is right here,
+ * and a stat sheet a player has to go and find is a stat sheet that only the
+ * players who already know the game will read.
+ */
+function TroopStats({ type, level }: { type: TroopType; level: number }) {
+  const s = troopCardStats(type, level);
+  return (
+    <>
+      <div className="stat">
+        <span title="Hit points"><HeartIcon />{fmt(s.hp)}</span>
+        <span title="Damage a second"><BladeIcon />{fmt(s.dps)}</span>
+      </div>
+      <div className="trait">{s.trait}</div>
+    </>
+  );
 }
 
 export interface CrewView {
@@ -326,6 +352,10 @@ export function ArmySheet({
               <TroopArt type={type} level={troopLevel(progression, type)} size={52} />
               <div className="nm">{def.n}</div>
               <CostLine cost={def.cost} affordable={affordable} />
+              {/* What the card was missing: whether the thing is any good.
+                * Cost and training time describe what it takes to have one,
+                * and say nothing about what having one is worth. */}
+              <TroopStats type={type} level={troopLevel(progression, type)} />
               <div className="sub">
                 {locked ? `BARRACKS ${TROOP_UNLOCK[type]}` : `${def.sp} SLOT${def.sp > 1 ? 'S' : ''} · ${def.tt}s`}
               </div>

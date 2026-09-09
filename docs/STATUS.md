@@ -2313,6 +2313,56 @@ of every footprint lands on screen. That last one matters because an isometric
 bounding box is a diamond — its widest point is not a corner of the grid
 rectangle, so "zoom in more" is not a fix if it crops the Barracks.
 
+## What the cards were not saying
+
+ALFA, looking at the ARMY sheet: "harusnya kasih tau hp damage dll". A troop
+card said what a Raider costs, how many slots it takes and how long it trains
+for — and nothing at all about whether it is any good. Choosing between a Raider
+and an Archer was choosing between two prices.
+
+The BUILD sheet was worse. A Cannon and an Air Defence differed by their cost
+and their name, and the fact that one of them cannot touch anything on foot
+appeared nowhere on the screen. That is the single most expensive thing a
+player can not know: the strongest gun in the game, bought for a threat they do
+not have yet.
+
+`lib/game/stats.ts` is now the one place that answers "what does this do", and
+everything in it is derived rather than typed:
+
+- **Troops** get hit points and damage a second, at the level the Laboratory has
+  taken them to. Per second and not per swing, because an Archer hits for 21 to
+  a Raider's 16 — which reads as slightly better — while swinging every 0.70s to
+  the Raider's 0.80. The real gap is half again, and per-swing damage is the
+  number that flatters a slow unit.
+- **Traits** come off the flags the simulation branches on, not a written line
+  per troop: flies, climbs, goes for walls, goes for defences, shoots flyers. A
+  troop cannot be added without one, and the sentence cannot contradict the
+  unit.
+- **Buildings** get their rate, their damage and range, their capacity or their
+  hit points, and a gun says what it can reach.
+
+Two bugs fell out of writing it.
+
+**The inspector was inventing Storage capacity.** It worked the number out from
+`1400 + level * 1500` while the game fills a Storage from `CAPACITY`, which is
+`12000 + level * 12000` — so a level 1 Storage was reported as holding 2,900
+against a real 24,000. Nothing was wrong with the game; the screen describing it
+was making the number up, and a player planning around it was planning around
+fiction. The inspector and the BUILD card share one function now, which is why
+this could not have been caught by reading either alone.
+
+**And one I shipped into the screenshot myself:** `defenceHits` answers
+`'ground'` for anything without a `DEF_STAT` — a sane default for the
+simulation, where a Gold Mine never fires so the answer never matters, and
+nonsense the moment it becomes a label. "Hits ground only" went onto the
+Storage, the Walls and the Laboratory. It reads `DEF_STAT` directly now, and
+`stats.test.ts` walks every building type asserting a non-gun says nothing at
+all.
+
+`plain-words.test.ts` sweeps the derived lines too. They are the only text on a
+card that says what a thing does, they are generated rather than written down,
+and that puts them exactly where the next rename would miss them.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

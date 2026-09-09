@@ -1,4 +1,5 @@
-import { ITEM, NEWS, QUESTS, RELIC, SEASON_TIERS, TROOP, TYPES } from '@ironvow/config';
+import { BUILDING_TYPES, ITEM, NEWS, QUESTS, RELIC, SEASON_TIERS, TROOP, TROOP_ORDER, TYPES } from '@ironvow/config';
+import { buildingDetail, defenceTarget, troopTrait } from '../lib/game/stats';
 import { SECTIONS as HELP } from '../components/HelpSheet';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,6 +62,19 @@ function facing(): { where: string; text: string; isName: boolean }[] {
   for (const s of HELP) {
     out.push({ where: `HELP.${s.h}`, text: s.h, isName: false });
     for (const l of s.lines) out.push({ where: `HELP.${s.h}`, text: l, isName: false });
+  }
+  /*
+   * Derived text is text. `troopTrait` and `buildingDetail` are the only lines
+   * on a card that say what a thing does, and they are generated rather than
+   * written down — which puts them exactly where a rename would miss them.
+   */
+  for (const t of TROOP_ORDER) {
+    out.push({ where: `troopTrait(${t})`, text: troopTrait(t), isName: false });
+  }
+  for (const b of BUILDING_TYPES) {
+    out.push({ where: `buildingDetail(${b})`, text: buildingDetail(b, 1), isName: false });
+    const target = defenceTarget(b, 1);
+    if (target !== null) out.push({ where: `defenceTarget(${b})`, text: target, isName: false });
   }
   for (const n of NEWS) {
     // The one note that is *about* the rename has to print the words it

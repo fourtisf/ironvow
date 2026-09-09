@@ -1206,6 +1206,7 @@ export function Game() {
           sfx={sfxLevel}
           isGuest={player.isGuest}
           playerName={player.name}
+          playerId={player.id}
           invite={invite}
           onMusic={(v) => {
             setMusicLevel(v);

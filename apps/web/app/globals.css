@@ -85,6 +85,13 @@
   @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
   .sheetHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .sheetHead h2{font-size:15px;letter-spacing:2px;color:#f2e4c4}
+  /* The hold's id, for whoever runs the server. Monospace because it is a
+     string to be copied exactly, not a word to be read. */
+  .idChip{margin-top:5px;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    font-size:9px;letter-spacing:.2px;color:#7f97b8;background:rgba(13,20,32,.6);
+    border:1px solid #2f425e;border-radius:7px;padding:3px 7px;user-select:all;
+    max-width:100%;overflow-wrap:anywhere;text-align:left}
+  .idChip:active{color:#ffd97a}
   .sheetHead p{font-size:10px;font-family:Arial;font-weight:700;color:#8fa6c4;letter-spacing:.3px;margin-top:4px}
   .xbtn{width:32px;height:32px;border-radius:10px;background:#31435f;font-size:16px;line-height:1;color:#c3d4ea;flex:none}
 

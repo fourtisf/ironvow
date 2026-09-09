@@ -27,6 +27,8 @@ export interface SettingsSheetProps {
   sfx: number;
   isGuest: boolean;
   playerName: string;
+  /** This hold's id. Shown so the operator can name it to a script. */
+  playerId: string;
   /** This player's own invitation code, or null until `/invite` answers. */
   invite: { code: string; invited: number; paid: number } | null;
   push: PushState;
@@ -87,7 +89,7 @@ function Slider({
 }
 
 export function SettingsSheet({
-  music, sfx, isGuest, playerName, invite, push, layouts, busy,
+  music, sfx, isGuest, playerName, playerId, invite, push, layouts, busy,
   onMusic, onSfx, onPush, onTestPush, onSaveLayout, onApplyLayout,
   onRename, onClaimAccount, onLogout, onDeleteAccount, onHelp, onNews, onReport, onClose,
   sky, onSky,
@@ -98,7 +100,22 @@ export function SettingsSheet({
       <div className="sheetHead">
         <div>
           <h2>SETTINGS</h2>
+          {/*
+            * The id under the name, and tappable to copy.
+            *
+            * Nothing in the game needs it, which is why it was nowhere: it is
+            * for whoever runs the server, who has to name one hold to a script
+            * against a database where the only other handle is a display name
+            * somebody can change.
+            */}
           <p>Playing as {playerName}</p>
+          <button
+            className="idChip"
+            title="Copy this hold's id"
+            onClick={() => { void navigator.clipboard?.writeText(playerId).catch(() => undefined); }}
+          >
+            {playerId}
+          </button>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>
       </div>

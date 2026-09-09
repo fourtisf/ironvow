@@ -3,7 +3,7 @@
 import { WORLD_NAME, type World } from '@ironvow/config';
 import { fmt } from '../lib/format';
 import type { PlayerState } from '../lib/game/types';
-import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, RangeIcon, SoundIcon, TrophyIcon } from './icons';
+import { ArmyIcon, BuilderIcon, BuildIcon, ClanIcon, GoldIcon, HomeIcon, IronIcon, LadderIcon, LogIcon, OrdersIcon, RaidIcon, RangeIcon, SettingsIcon, SoundIcon, TrophyIcon } from './icons';
 
 /**
  * The resource bar, the Keep badge and the bottom rail.
@@ -32,6 +32,8 @@ export interface HudProps {
   onDismissGuestNote: () => void;
   soundOn: boolean;
   onToggleSound: () => void;
+  /** Opens the settings sheet, which is where this hold's id is. */
+  onSettings: () => void;
   /** Whether every defence is showing what it covers. */
   rangesOn: boolean;
   onToggleRanges: () => void;
@@ -52,7 +54,7 @@ export interface HudProps {
 export function Hud({
   player, incomingCount, ordersReady, pending, showGuestNote,
   onHome, onBuild, onArmy, onOrders, onLog, onClan, onLadder, onRaid, onCollectAll, onClaimAccount,
-  onDismissGuestNote, soundOn, onToggleSound, rangesOn, onToggleRanges, hasDefences,
+  onDismissGuestNote, soundOn, onToggleSound, onSettings, rangesOn, onToggleRanges, hasDefences,
   highlight, onHelp, world, nightOpen, crossing, onCross,
 }: HudProps) {
   const hi = (name: string): string => (highlight === name ? ' hi' : '');
@@ -163,6 +165,19 @@ export function Hud({
         aria-pressed={soundOn}
       >
         <SoundIcon on={soundOn} />
+      </button>
+
+      {/*
+        ALFA: "harusnya ada logo seting agar bisa liat uidnya."
+
+        And he was right that there was no way in. Settings opened off the
+        speaker, which is a button that says it mutes the sound — so the sheet
+        holding the hold's id, the invitation code, the saved layouts and the
+        account itself was reachable only by pressing something that promised
+        to do a different thing. The speaker now mutes, and this opens settings.
+      */}
+      <button id="settingsBtn" onClick={onSettings} aria-label="Settings">
+        <SettingsIcon />
       </button>
 
       {/* Tapping twelve pouches one at a time is a chore, not a decision. */}

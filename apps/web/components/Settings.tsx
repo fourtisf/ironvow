@@ -9,6 +9,7 @@
  * between drawing the trees and not.
  */
 
+import { useState } from 'react';
 import { PHASE_NAME, skyLabel, type SkySetting } from '../lib/game/daylight';
 import { SocialRow } from './Social';
 import { TELEGRAM_URL, X_URL } from '../lib/links';
@@ -95,6 +96,12 @@ export function SettingsSheet({
   sky, onSky,
 }: SettingsSheetProps) {
   const canPush = push !== 'unsupported' && push !== 'unavailable' && push !== 'denied';
+  /*
+   * Copying to the clipboard is the one action in this sheet that changes
+   * nothing on screen, so without a word back it is impossible to tell it
+   * worked. It stays said: there is nothing to undo and no reason to hide it.
+   */
+  const [copied, setCopied] = useState(false);
   return (
     <div className="sheet">
       <div className="sheetHead">
@@ -112,9 +119,14 @@ export function SettingsSheet({
           <button
             className="idChip"
             title="Copy this hold's id"
-            onClick={() => { void navigator.clipboard?.writeText(playerId).catch(() => undefined); }}
+            onClick={() => {
+              void navigator.clipboard?.writeText(playerId).catch(() => undefined);
+              setCopied(true);
+            }}
           >
-            {playerId}
+            <b>PLAYER ID</b>
+            <span>{playerId}</span>
+            <em>{copied ? 'COPIED' : 'TAP TO COPY'}</em>
           </button>
         </div>
         <button className="xbtn" onClick={onClose}>✕</button>

@@ -125,6 +125,8 @@ export function Game() {
   const [progression, setProgression] = useState<ProgressionView | null>(null);
   const [sfxLevel, setSfxLevel] = useState(1);
   const [musicLevel, setMusicLevel] = useState(0.35);
+  /** The mix to restore when the speaker is pressed a second time. */
+  const beforeMute = useRef({ sfx: 1, music: 0.35 });
   const [ladder, setLadder] = useState<{ top: LadderRow[]; me: LadderSheetMe; total: number } | null>(null);
   const [season, setSeason] = useState<SeasonState | null>(null);
   const [breach, setBreach] = useState<BreachView | null>(null);
@@ -1033,7 +1035,37 @@ export function Game() {
           onCollectAll={() => { void collectAll(); }}
           onClaimAccount={() => { setClaimOpen(true); setClaimSent(false); setClaimError(null); }}
           soundOn={sfxLevel > 0 || musicLevel > 0}
+          /*
+           * A speaker that mutes, which is what it has always looked like.
+           *
+           * It used to open the settings sheet instead — so the one control
+           * labelled "turn sound off" did not turn the sound off, and the
+           * sheet had no button of its own. Both halves of that are fixed
+           * here and in the gear beside it.
+           *
+           * The levels either side of a mute are remembered, so unmuting puts
+           * back the mix the player chose rather than slamming both sliders
+           * to full.
+           */
           onToggleSound={() => {
+            sfx.tap();
+            if (sfxLevel > 0 || musicLevel > 0) {
+              beforeMute.current = { sfx: sfxLevel, music: musicLevel };
+              setSfxLevel(0); setSfxVolume(0);
+              setMusicLevel(0); setMusicVolume(0);
+              return;
+            }
+            const back = beforeMute.current;
+            const s = back.sfx > 0 ? back.sfx : 1;
+            const m = back.music > 0 ? back.music : 0.35;
+            setSfxLevel(s); setSfxVolume(s);
+            setMusicLevel(m); setMusicVolume(m);
+            unlockAudio(); unlockMusic();
+            // The rail this hangs off only exists outside a battle, so there
+            // is no fight to score here.
+            startMusic('base');
+          }}
+          onSettings={() => {
             sfx.tap();
             setSheet('settings');
             // Made on first read on the server, so this is also what creates

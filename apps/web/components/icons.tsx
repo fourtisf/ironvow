@@ -44,6 +44,29 @@ export const HomeIcon = () => (
   </svg>
 );
 
+/**
+ * The gear, and the reason there is one.
+ *
+ * Everything a player might want that is not a game action lives behind it —
+ * their own hold's id most of all, which the operator has to be able to read
+ * off a screen and paste into a script. It used to open off the speaker, so
+ * the only way to find it was to press a button that says it mutes the sound.
+ */
+export const SettingsIcon = () => (
+  /*
+   * A cog with teeth, not a disc with spokes.
+   *
+   * The first attempt was a circle with eight radial ticks, which is the
+   * shape of a gear right up until it is drawn at twenty pixels — at which
+   * point it is the shape of a sun, and the button beside the daylight
+   * setting looked like a second daylight setting.
+   */
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#ffd97a" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53h.08A1.7 1.7 0 0 0 10.1 2.97V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
 export const BuildIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#8fe07a" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 21h18M5 21V9l7-5 7 5v12M10 21v-6h4v6" />

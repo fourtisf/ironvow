@@ -2363,6 +2363,44 @@ all.
 card that says what a thing does, they are generated rather than written down,
 and that puts them exactly where the next rename would miss them.
 
+## A finished hold, on demand
+
+ALFA wanted his own account taken to the top of everything — a maxed base to
+look at, to record, and to check the late game against without playing to it.
+
+`apps/api/scripts/max-player.ts` does it, and `src/domain/maxbase.ts` holds the
+part worth testing. Every limit is read from `@ironvow/config`, so "max" means
+what the game means by max: `capOf` for how many of each, `KEEP_MAX` for the
+level, `storageCapOf` for the purse, `armyCapOf` for the warband,
+`MAX_BUILDERS`, `HERO_MAX_LEVEL`, `TROOP_MAX_LEVEL`, `RELIC_MAX_LEVEL`. Nothing
+is typed in twice.
+
+Placement goes through `cellsFree` — the same function `POST /build` runs on
+every single build — so the base it writes is one the server would have accepted
+a piece at a time. That is the whole reason the layout lives in `domain/` with a
+test rather than inside the script: its output goes straight into the database,
+skipping every check the game normally applies, and an overlapping footprint or
+a wall off the edge would put a live account into a state the game has no way to
+reach and no way to describe. Nothing would fail. It would simply look wrong.
+
+The layout is a spiral outward from the Town Hall, biggest footprints first — a
+4×4 Army Camp cannot squeeze into the gaps a hundred 2×2 buildings leave behind
+— with the walls and traps laid in rings outside the core, because a wall inside
+the base blocks nothing and a trap under a building is never stepped on. 431
+buildings, 838 cells, and the field takes all of it with nothing missed.
+
+Two things it deliberately does not touch. **Trophies**, because they place a
+player in matchmaking and on the ladder against real people, and a maxed base at
+an unearned rank is somebody else's problem to run into. And **the tutorial**,
+which lives in the browser rather than the database.
+
+It refuses to guess who: an exact name or an id, or it exits. On a live server
+the difference between "the most recent player" and the one you meant is
+somebody else's account.
+
+Measured on the result: 431 buildings render at a 16.7 ms median frame interval,
+33.3 ms at the 95th — the field is not what costs frames.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

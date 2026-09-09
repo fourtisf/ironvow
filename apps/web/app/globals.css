@@ -596,7 +596,18 @@
 
   /* ---------- the door's footer ---------- */
   .doorFoot{margin-top:14px;padding-top:12px;border-top:1px solid rgba(232,178,60,.22)}
-  .doorFoot .social{display:flex;gap:8px;margin-bottom:9px}
+  /* Shared by the door, the settings row and the shared-replay card. The door
+     is the only one that wants a bottom margin — the others sit in a row that
+     already has its own spacing. */
+  .social{display:flex;gap:8px}
+  .doorFoot .social{margin-bottom:9px}
+  /* In a settings row and on the watch card the chips size to their content
+     rather than stretching: `flex:1` across a whole sheet is a pair of very
+     wide buttons with a tiny glyph adrift in each. */
+  .setRow .social .sbtn,.watchCard .social .sbtn{flex:none;min-width:52px}
+  /* Centred: everything else on this card is, and a pair of chips shoved left
+     under a full-width button reads as a mistake. */
+  .watchCard .social{margin-top:9px;justify-content:center}
   .sbtn{flex:1;display:flex;align-items:center;justify-content:center;padding:10px;border-radius:12px;
     background:linear-gradient(#31435f,#22304a);border:2px solid #46608a;color:#dbe6f5;
     text-decoration:none;box-shadow:0 3px 0 #1b2635;transition:transform .08s,border-color .12s,color .12s}

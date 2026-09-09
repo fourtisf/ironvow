@@ -2218,6 +2218,41 @@ Measured, day against night, median frame interval over 180 frames:
 | 4× — mid-range phone | 33.4 ms | 66.7 ms |
 | 6× — slow phone | 66.7 ms | 100 ms |
 
+## Where to find the project
+
+ALFA sent the two accounts: an X handle and a Telegram channel. Neither is
+written down anywhere in this repository, and that is deliberate — `links.ts`
+reads them from `NEXT_PUBLIC_X_URL` and `NEXT_PUBLIC_TG_URL`, which
+`docker-compose.yml` fills from `X_URL` and `TELEGRAM_URL` in the deployment's
+own `.env`. The accounts belong to whoever runs the server, not to the code, and
+a handle baked into a build is a handle that outlives whoever owned it.
+
+So no code change was needed to turn the first screen's dimmed SOON chips into
+real links: setting the two variables and rebuilding does it. Verified with the
+real addresses in a browser — both render as links, open in a new tab, and carry
+`rel="noreferrer noopener"`.
+
+What was missing is where else they appear, which was nowhere:
+
+- **The shared-replay card.** The one page in the game a stranger reaches
+  without an account is the one the launch thread will send people to, and the
+  only thing on it was a door. Somebody who watched a whole raid and is not
+  ready to sign up now has somewhere to go.
+- **Settings.** The links were only ever on the first screen, which a player
+  sees once and then never again. A player already inside had no way to reach
+  the people who run the game.
+
+One `SocialRow` renders all three, because three copies would eventually
+disagree about what an unconfigured address looks like — and the one that
+guesses wrong is the one a stranger sees. The first screen keeps the dimmed
+SOON chip (a place marked "soon" says more than an empty row, and an unfinished
+card reads as a deploy that did not land); the other two draw nothing at all
+rather than promise something in a settings sheet.
+
+These are `NEXT_PUBLIC_*`, so Next bakes them into the browser bundle at build
+time. Changing one needs `docker compose up -d --build`, not a restart — the
+same trap `NEXT_PUBLIC_API_URL` has always had.
+
 ## Numbers that need sign-off
 
 These are marked `TUNABLE` in `packages/config`. The spec describes the

@@ -10,6 +10,8 @@
  */
 
 import { PHASE_NAME, skyLabel, type SkySetting } from '../lib/game/daylight';
+import { SocialRow } from './Social';
+import { TELEGRAM_URL, X_URL } from '../lib/links';
 
 export type PushState = 'unsupported' | 'unavailable' | 'denied' | 'off' | 'on';
 
@@ -244,6 +246,21 @@ export function SettingsSheet({
         </div>
         <button className="btn grey" onClick={onNews}>READ</button>
       </div>
+
+      {/*
+        * The links were only ever on the first screen, which a player sees once
+        * and then never again. Somebody already inside had no way to find the
+        * people who run the game.
+        */}
+      {(X_URL !== '' || TELEGRAM_URL !== '') && (
+        <div className="setRow">
+          <div className="setLabel">
+            <h4>THE PROJECT</h4>
+            <p>News, and the people who play it.</p>
+          </div>
+          <SocialRow soon={false} />
+        </div>
+      )}
 
       <div className="setRow">
         <div className="setLabel">

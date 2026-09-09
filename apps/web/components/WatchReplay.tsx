@@ -5,6 +5,7 @@ import { fmt } from '../lib/format';
 import { api, type SharedReplay } from '../lib/api';
 import { GameCanvas } from './GameCanvas';
 import { StarIcon, GoldIcon, IronIcon } from './icons';
+import { SocialRow } from './Social';
 import { beginBattle, type World } from '../lib/game/world';
 
 /**
@@ -109,6 +110,7 @@ export function WatchReplay({ shareId }: { shareId: string }) {
           <h2>NOTHING HERE</h2>
           <p>{error}</p>
           <a className="btn gold big" href="/">PLAY IRONVOW</a>
+          <SocialRow soon={false} />
         </div>
       )}
 
@@ -123,6 +125,13 @@ export function WatchReplay({ shareId }: { shareId: string }) {
             Build a base of your own, and find out whether anybody can do that to it.
           </p>
           <a className="btn gold big" href="/">PLAY IRONVOW</a>
+          {/*
+            * The only page in the game a stranger reaches without an account,
+            * and until now the only thing on it was a door. Somebody who
+            * watched a whole raid and is not ready to sign up should still have
+            * somewhere to go.
+            */}
+          <SocialRow soon={false} />
         </div>
       )}
     </div>

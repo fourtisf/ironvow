@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import type { BaseSnapshot } from '@ironvow/types';
 import { api } from '../lib/api';
 import { fmt } from '../lib/format';
-import { GoldIcon, IronIcon, StarIcon, TelegramIcon, XIcon } from './icons';
-import { CONTRACT, TELEGRAM_URL, X_URL, builtAtLabel, shortAddress } from '../lib/links';
+import { GoldIcon, IronIcon, StarIcon } from './icons';
+import { CONTRACT, builtAtLabel, shortAddress } from '../lib/links';
+import { SocialRow } from './Social';
 
 /**
  * Scout and result modals.
@@ -273,25 +274,16 @@ function Wordmark() {
 function DoorFooter() {
   const [copied, setCopied] = useState(false);
 
-  /*
-   * A button with no address configured is still drawn — dimmed and saying
-   * SOON, like the contract chip beside it. Hiding it left the card looking
-   * unfinished and, worse, looking like the deploy had not landed; a place
-   * marked "soon" says more than an empty row. It becomes a real link the
-   * moment `X_URL` or `TELEGRAM_URL` is set.
-   */
-  const social = (url: string, label: string, icon: React.ReactNode) => (
-    url === ''
-      ? <span className="sbtn soon" aria-label={`${label}: coming soon`}>{icon}<em>SOON</em></span>
-      : <a className="sbtn" href={url} target="_blank" rel="noreferrer noopener" aria-label={`The project on ${label}`}>{icon}</a>
-  );
-
   return (
     <div className="doorFoot">
-      <div className="social">
-        {social(X_URL, 'X', <XIcon />)}
-        {social(TELEGRAM_URL, 'Telegram', <TelegramIcon />)}
-      </div>
+      {/*
+        * A button with no address configured is still drawn here — dimmed and
+        * saying SOON, like the contract chip beside it. Hiding it left the card
+        * looking unfinished and, worse, looking like the deploy had not landed;
+        * a place marked "soon" says more than an empty row. This is the only
+        * screen that wants that, which is what `soon` selects.
+        */}
+      <SocialRow />
 
       {CONTRACT === '' ? (
         <div className="ca soon"><b>CA</b><span>COMING SOON</span></div>

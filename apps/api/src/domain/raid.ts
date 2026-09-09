@@ -1,4 +1,8 @@
 import {
+  DAY,
+  NIGHT,
+  NIGHT_TROPHY_LOSS,
+  NIGHT_TROPHY_WIN,
   REVENGE_COOLDOWN_HOURS,
   TROPHY_BAND_MAX,
   TROPHY_BAND_START,
@@ -12,6 +16,7 @@ import {
   TROOP_ORDER,
   type BuildingType,
   type Garrison,
+  type World,
 } from '@ironvow/config';
 import { mulberry } from '@ironvow/sim';
 import type { BaseSnapshot, DefendWaveUnit } from '@ironvow/types';
@@ -142,8 +147,11 @@ export function settleRaid(args: {
   defenderIron: bigint;
   defenderTrophies: number;
   now: Date;
+  /** Which world was raided. The night ladder is flatter and grants no shield. */
+  world?: World;
 }): Settlement {
   const { stars, simLoot, defenderGold, defenderIron, defenderTrophies, now } = args;
+  const world = args.world ?? DAY;
   const stage = stageFromTrophies(defenderTrophies);
 
   const loot = {
@@ -151,9 +159,27 @@ export function settleRaid(args: {
     i: Math.min(simLoot.i, Number(defenderIron)),
   };
 
-  const trophyDelta = stars >= 1 ? trophyWin(stage, stars) : trophyLoss(stage);
+  /*
+   * The night ladder is flat rather than staged.
+   *
+   * A smaller pool of players is a shorter ladder, and the day world's swing —
+   * which is tuned against nine stages of progression — would throw somebody
+   * from one end of the night ladder to the other in an evening.
+   */
+  const trophyDelta = world === NIGHT
+    ? (stars >= 1 ? NIGHT_TROPHY_WIN : -NIGHT_TROPHY_LOSS)
+    : (stars >= 1 ? trophyWin(stage, stars) : trophyLoss(stage));
 
-  const hours = shieldHoursFor(stars);
+  /*
+   * No shields at night, on purpose.
+   *
+   * A shield exists to stop a player being farmed while they sleep out of a
+   * base they have spent weeks on. The night world is raided for its own loot
+   * and its own ladder, and shielding it as well would mean two protections to
+   * reason about, two clocks, and half the night population unattackable at any
+   * moment on a ladder that is already the smaller one.
+   */
+  const hours = world === NIGHT ? 0 : shieldHoursFor(stars);
   return {
     stars,
     trophyDelta,

@@ -176,6 +176,78 @@ describe.skipIf(!hasDatabase)('the night world', () => {
     expect(Number(after.nightGold)).toBeGreaterThan(NIGHT_START_GOLD);
   });
 
+  it('raids the night world and pays into it, never the day one', async () => {
+    /*
+     * The end-to-end version of the rule. A night raid must move night gold and
+     * the night ladder and touch neither day column — and the world has to come
+     * off the raid row rather than the request, or a client could fight at night
+     * and be paid in the day.
+     */
+    const { id, cookie } = await crossed();
+    await db.troop.updateMany({ where: { playerId: id, world: 'night', type: 'raider' }, data: { count: 8 } });
+    // Standing somewhere on the night ladder already: a loss from zero clamps
+    // at zero, so the assertion below would be measuring the clamp.
+    await db.player.update({ where: { id }, data: { nightTrophies: 200 } });
+
+    // Somebody to raid: a second hold that has also crossed over, with loot.
+    const themId = await makePlayer('Quarry', { keepLevel: NIGHT_UNLOCK_KEEP, trophies: 4000 });
+    await db.building.updateMany({ where: { playerId: themId, type: 'keep' }, data: { level: NIGHT_UNLOCK_KEEP } });
+    const theirCookie = await loginAs(app, themId);
+    await app.inject({ method: 'POST', url: '/world', headers: { cookie: theirCookie }, payload: { world: 'night' } });
+    await db.player.update({
+      where: { id: themId },
+      data: { nightGold: 40_000n, nightIron: 40_000n, nightTrophies: 200 },
+    });
+
+    const before = await db.player.findUniqueOrThrow({
+      where: { id }, select: { gold: true, trophies: true, raids: true, nightTrophies: true },
+    });
+
+    const found = await app.inject({
+      method: 'POST', url: '/raid/find', headers: { cookie }, payload: { world: 'night' },
+    });
+    expect(found.statusCode).toBe(200);
+    const scout = found.json();
+    const raid = await db.raid.findUniqueOrThrow({ where: { id: scout.raidId } });
+    expect(raid.world).toBe('night');
+    // The hero is the day world's and does not cross over.
+    expect((raid.hero as { available: boolean }).available).toBe(false);
+
+    const done = await app.inject({
+      method: 'POST', url: `/raid/${scout.raidId}/submit`, headers: { cookie },
+      payload: { commands: [], clientChecksum: 'x', clientStars: 0 },
+    });
+    expect(done.statusCode).toBe(200);
+
+    const after = await db.player.findUniqueOrThrow({
+      where: { id }, select: { gold: true, trophies: true, raids: true, nightTrophies: true },
+    });
+    // A loss: the night ladder moved and nothing in the day world did.
+    expect(after.nightTrophies).not.toBe(before.nightTrophies);
+    expect(after.trophies).toBe(before.trophies);
+    expect(after.gold).toBe(before.gold);
+    // War Orders are day-world things and a night raid scores none.
+    expect(after.raids).toBe(before.raids);
+  });
+
+  it('never offers a night opponent who has not crossed over', async () => {
+    const { cookie } = await crossed();
+    // A hold that exists, is in band, and has no night base at all.
+    await makePlayer('Daylighter', { keepLevel: NIGHT_UNLOCK_KEEP, trophies: 0 });
+
+    const found = await app.inject({
+      method: 'POST', url: '/raid/find', headers: { cookie }, payload: { world: 'night' },
+    });
+    expect(found.statusCode).toBe(200);
+    const raid = await db.raid.findUniqueOrThrow({ where: { id: found.json().raidId } });
+    if (raid.defenderId !== null) {
+      const them = await db.player.findUniqueOrThrow({
+        where: { id: raid.defenderId }, select: { nightStartedAt: true },
+      });
+      expect(them.nightStartedAt).not.toBeNull();
+    }
+  });
+
   it('reports which worlds are open', async () => {
     const cookie = await loginAs(app, await makePlayer('Peering', { keepLevel: 1 }));
     const shut = (await app.inject({ method: 'GET', url: '/worlds', headers: { cookie } })).json();

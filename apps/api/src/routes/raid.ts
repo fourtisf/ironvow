@@ -15,6 +15,10 @@ import {
   respawnWith,
   heroUnlocked,
   stageFromTrophies,
+  DAY,
+  NIGHT,
+  keepLevelOf,
+  asWorld,
   type BuildingType,
   type TroopType,
   type World,
@@ -41,6 +45,8 @@ import { COMMAND_TX, prisma } from '../lib/prisma.js';
 import { pushRaided } from '../lib/push.js';
 import { recordWarAttack } from '../lib/war.js';
 import { serialise } from './auth.js';
+import { worldOf } from '../lib/world.js';
+import { credit, setPurse, trophyField } from '../lib/purse.js';
 
 /**
  * Raiding.
@@ -123,17 +129,22 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: 'badRequest' });
 
     const now = new Date();
+    const world = worldOf(request);
+    const night = world === NIGHT;
     const result = await prisma.$transaction(async (tx) => {
       await lockPlayer(tx, request.playerId!);
-      const me = await settleAndLoad(tx, request.playerId!, now);
+      const me = await settleAndLoad(tx, request.playerId!, now, world);
 
-      // Expire any raid this player left open, then enforce one at a time.
+      /*
+       * One open raid per world, not per player. Scouting a night base must not
+       * throw away the day scout a player was still deciding about.
+       */
       await tx.raid.updateMany({
-        where: { attackerId: me.id, status: 'open', expiresAt: { lte: now } },
+        where: { attackerId: me.id, world, status: 'open', expiresAt: { lte: now } },
         data: { status: 'expired' },
       });
       const open = await tx.raid.findFirst({
-        where: { attackerId: me.id, status: 'open' },
+        where: { attackerId: me.id, world, status: 'open' },
         orderBy: { createdAt: 'desc' },
       });
 
@@ -148,11 +159,11 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         }
         gold -= BigInt(SCOUT_REROLL_COST);
         await tx.raid.update({ where: { id: open.id }, data: { status: 'expired' } });
-        await tx.player.update({ where: { id: me.id }, data: { gold } });
+        await tx.player.update({ where: { id: me.id }, data: setPurse(world, { g: Number(gold), i: Number(me.iron) }) });
       }
 
       const recent = await tx.raid.findMany({
-        where: { attackerId: me.id, createdAt: { gte: revengeCutoff(now) } },
+        where: { attackerId: me.id, world, createdAt: { gte: revengeCutoff(now) } },
         select: { defenderId: true },
       });
       // Raids against generated holds carry no defender id and exclude nobody.
@@ -168,11 +179,26 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         opponent = await tx.player.findFirst({
           where: {
             id: { notIn: [...excluded] },
-            trophies: { gte: band.lo, lte: band.hi },
-            OR: [{ shieldUntil: null }, { shieldUntil: { lte: now } }],
+            /*
+             * Banded on the ladder of the world being raided, and at night the
+             * pool is only players who have actually crossed over — a hold with
+             * no night base is not a night opponent, it is an empty field.
+             *
+             * No shield clause at night: the night world grants none. See
+             * `settleRaid`.
+             */
+            ...(night
+              ? {
+                nightStartedAt: { not: null },
+                nightTrophies: { gte: band.lo, lte: band.hi },
+              }
+              : {
+                trophies: { gte: band.lo, lte: band.hi },
+                OR: [{ shieldUntil: null }, { shieldUntil: { lte: now } }],
+              }),
           },
-          include: { buildings: true },
-          orderBy: { trophies: 'asc' },
+          include: { buildings: { where: { world } } },
+          orderBy: night ? { nightTrophies: 'asc' } : { trophies: 'asc' },
         });
       }
       /*
@@ -191,13 +217,17 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         const raid = await tx.raid.create({
           data: {
             attackerId: me.id,
+            world,
             defenderId: null,
             seed: BigInt(seed),
             snapshot: snapshot as unknown as object,
             army: armyOf(me.army) as unknown as object,
             hero: {
               level: me.heroLevel,
-              available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+              // The hero does not cross over: it is levelled with day gold and carries
+              // relics forged in day wars, and lending it to the night ladder
+              // would make the two progressions one.
+              available: !night && heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
               relics: me.relics,
               carried: me.carried,
             } satisfies HeroLoadout as unknown as object,
@@ -206,7 +236,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
             expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
           },
         });
-        return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id) };
+        return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id, now, world) };
       }
 
       const withBuildings = opponent as typeof opponent & {
@@ -220,14 +250,28 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       // Rolled before the snapshot, because the snapshot is what freezes where
       // the garrison stands and a replay has to land them in the same spots.
       const seed = randomSeed();
+      const defenceRows = withBuildings.buildings.map((b) => ({
+        type: b.type as BuildingType, level: b.level,
+      }));
       const snapshot = snapshotBase({
         seed,
-        garrison: parseGarrison(withBuildings.garrison),
+        /*
+         * No garrison at night. Clan troops are given to a clanmate's hold, and
+         * a hold is a day-world thing — there is one per member and it is the
+         * one the clan can see. Reading the day garrison into a night snapshot
+         * would defend the night base with troops nobody sent there.
+         */
+        garrison: night ? {} : parseGarrison(withBuildings.garrison),
         id: withBuildings.id,
         name: withBuildings.name,
-        keepLevel: withBuildings.keepLevel,
-        gold: withBuildings.gold,
-        iron: withBuildings.iron,
+        /*
+         * Read off this world's own Keep rather than the denormalised column,
+         * which is the day world's and would describe a night base by the size
+         * of a hold on the other side of the game.
+         */
+        keepLevel: night ? keepLevelOf(defenceRows) : withBuildings.keepLevel,
+        gold: night ? withBuildings.nightGold : withBuildings.gold,
+        iron: night ? withBuildings.nightIron : withBuildings.iron,
         buildings: withBuildings.buildings
           // A building still going up is scaffolding: it does not defend, does
           // not hold loot, and is not something an attacker can knock over. One
@@ -241,6 +285,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       const raid = await tx.raid.create({
         data: {
           attackerId: me.id,
+          world,
           defenderId: withBuildings.id,
           seed: BigInt(seed),
           snapshot: snapshot as unknown as object,
@@ -249,7 +294,10 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           // the lab mid-raid would change what a replay is allowed to field.
           hero: {
             level: me.heroLevel,
-            available: heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
+            // The hero does not cross over: it is levelled with day gold and carries
+              // relics forged in day wars, and lending it to the night ladder
+              // would make the two progressions one.
+              available: !night && heroUnlocked(me.keepLevel) && me.heroReadyAt === null,
             relics: me.relics,
             carried: me.carried,
           } satisfies HeroLoadout as unknown as object,
@@ -258,7 +306,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           expiresAt: new Date(now.getTime() + RAID_EXPIRY_MINUTES * 60_000),
         },
       });
-      return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id) };
+      return { kind: 'new' as const, raid, player: await settleAndLoad(tx, me.id, now, world) };
     }, COMMAND_TX);
 
 
@@ -421,6 +469,18 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       if (!raid) return { kind: 'notFound' as const };
       if (raid.attackerId !== request.playerId) return { kind: 'notYours' as const };
       if (raid.status !== 'open') return { kind: 'alreadyResolved' as const, raid };
+
+      /*
+       * Read off the raid, never off the request.
+       *
+       * The world decides which purse is credited, which ladder moves and which
+       * army is spent. Taking it from the body would let a client fight a night
+       * raid and be paid into the day world — the one place in this feature
+       * where a leak would be somebody's deliberate work rather than an
+       * oversight.
+       */
+      const world = asWorld(raid.world);
+      const night = world === NIGHT;
       if (raid.expiresAt.getTime() <= now.getTime()) {
         await tx.raid.update({ where: { id: raid.id }, data: { status: 'expired' } });
         return { kind: 'expired' as const };
@@ -431,7 +491,9 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       const ids = [raid.attackerId, ...(raid.defenderId ? [raid.defenderId] : [])].sort();
       for (const id of ids) await lockPlayer(tx, id);
 
-      const attacker = await settleAndLoad(tx, raid.attackerId, now);
+      // Settled in the world the raid was fought in, so the purse, the army
+      // and the storage this settlement clamps against are all that world's.
+      const attacker = await settleAndLoad(tx, raid.attackerId, now, world);
       const snapshot = raid.snapshot as unknown as BaseSnapshot;
       // The frozen warband, not the current one: the client fought with what it
       // had when the raid opened, and a replay must be able to do the same.
@@ -474,7 +536,10 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       const defender = raid.defenderId
         ? await tx.player.findUnique({
             where: { id: raid.defenderId },
-            select: { gold: true, iron: true, trophies: true },
+            select: {
+              gold: true, iron: true, trophies: true,
+              nightGold: true, nightIron: true, nightTrophies: true,
+            },
           })
         : null;
       if (raid.defenderId && !defender) return { kind: 'notFound' as const };
@@ -496,10 +561,13 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
           stars: sim.stars,
           simLoot: sim.loot,
           // Against a generated hold the pool is the cap, so pass it through.
-          defenderGold: defender?.gold ?? BigInt(snapshot.pool.g),
-          defenderIron: defender?.iron ?? BigInt(snapshot.pool.i),
-          defenderTrophies: defender?.trophies ?? stageFromTrophies(attacker.trophies) * 120,
+          defenderGold: (night ? defender?.nightGold : defender?.gold) ?? BigInt(snapshot.pool.g),
+          defenderIron: (night ? defender?.nightIron : defender?.iron) ?? BigInt(snapshot.pool.i),
+          defenderTrophies: night
+            ? (defender?.nightTrophies ?? attacker.trophies)
+            : (defender?.trophies ?? stageFromTrophies(attacker.trophies) * 120),
           now,
+          world,
         });
 
       /*
@@ -544,31 +612,31 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
       await tx.player.update({
         where: { id: attacker.id },
         data: {
-          gold: credited.gold,
-          iron: credited.iron,
-          trophies: Math.max(0, attacker.trophies + settlement.trophyDelta),
-          // The season is paid on the highest total reached, so the watermark
-          // moves here, in the same write that moved the trophies. A losing
-          // raid leaves it exactly where it was, which is the point of it.
-          seasonPeak: peakAfter(
-            attacker.seasonPeak,
-            Math.max(0, attacker.trophies + settlement.trophyDelta),
-          ),
-          // War Order counters. Derived from the server's own result, never
-          // from anything the client claimed about the battle.
-          raids: { increment: 1 },
-          ...(sim.stars >= 1 ? { wins: { increment: 1 } } : {}),
-          ...(sim.stars === 3 ? { threeStars: { increment: 1 } } : {}),
-          // The same figures again for today only. Daily orders are measured
-          // off these; the settle at the top of the request has already zeroed
-          // them if this is the first raid after midnight.
-          dayRaids: { increment: 1 },
-          dayStars: { increment: sim.stars },
-          ...(sim.stars >= 1 ? { dayWins: { increment: 1 } } : {}),
-          ...(sim.stars === 3 ? { dayThreeStars: { increment: 1 } } : {}),
-          // What was actually carried off, not what was on the table: a raid
-          // that wins nothing counts nothing toward a plunder order.
-          dayLootGold: { increment: Number(settlement.loot.g) },
+          // The purse and the ladder of the world that was raided. `credited`
+          // has already been clamped against that world's own storage, because
+          // it was fed that world's buildings.
+          ...setPurse(world, { g: Number(credited.gold), i: Number(credited.iron) }),
+          [trophyField(world)]: Math.max(0, attacker.trophies + settlement.trophyDelta),
+          /*
+           * Seasons and War Orders are day-world things, so a night raid moves
+           * neither. A season paid on a watermark the night ladder pushed up
+           * would pay day rewards for night play, and that is the leak this
+           * whole feature is arranged to prevent.
+           */
+          ...(night ? {} : {
+            seasonPeak: peakAfter(
+              attacker.seasonPeak,
+              Math.max(0, attacker.trophies + settlement.trophyDelta),
+            ),
+            raids: { increment: 1 },
+            ...(sim.stars >= 1 ? { wins: { increment: 1 } } : {}),
+            ...(sim.stars === 3 ? { threeStars: { increment: 1 } } : {}),
+            dayRaids: { increment: 1 },
+            dayStars: { increment: sim.stars },
+            ...(sim.stars >= 1 ? { dayWins: { increment: 1 } } : {}),
+            ...(sim.stars === 3 ? { dayThreeStars: { increment: 1 } } : {}),
+            dayLootGold: { increment: Number(settlement.loot.g) },
+          }),
           // A fallen hero is away for a while. That cost is what makes
           // committing it a decision rather than a reflex.
           ...(sim.heroDied
@@ -587,13 +655,21 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
 
       /* --- the defender pays, and is shielded if they were hurt --- */
       if (raid.defenderId && defender && !isWar) {
-        const debited = debitDefender(defender.gold, defender.iron, settlement.loot);
+        const debited = debitDefender(
+          night ? defender.nightGold : defender.gold,
+          night ? defender.nightIron : defender.iron,
+          settlement.loot,
+        );
         await tx.player.update({
           where: { id: raid.defenderId },
           data: {
-            gold: debited.gold,
-            iron: debited.iron,
-            trophies: Math.max(0, defender.trophies - settlement.trophyDelta),
+            ...setPurse(world, { g: Number(debited.gold), i: Number(debited.iron) }),
+            [trophyField(world)]: Math.max(
+              0,
+              (night ? defender.nightTrophies : defender.trophies) - settlement.trophyDelta,
+            ),
+            // Night grants no shield, so `shieldUntil` is null there and this
+            // spreads nothing. See `settleRaid`.
             ...(settlement.shieldUntil ? { shieldUntil: settlement.shieldUntil } : {}),
           },
         });
@@ -663,7 +739,7 @@ export async function raidRoutes(app: FastifyInstance): Promise<void> {
         settlement,
         raid: saved,
         attackerName: attacker.name,
-        player: await settleAndLoad(tx, attacker.id, now),
+        player: await settleAndLoad(tx, attacker.id, now, world),
       };
     }, COMMAND_TX);
 
